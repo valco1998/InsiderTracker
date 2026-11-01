@@ -1,0 +1,586 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Design tokens ─────────────────────────────── */
+:root {
+  --bg-app:       #141a24;
+  --bg-panel:     #1a2133;
+  --bg-surface:   #1f2838;
+  --bg-elevated:  #252f42;
+  --border:       rgba(255,255,255,0.09);
+  --border-hover: rgba(255,255,255,0.16);
+  --cyan:         #22d3ee;
+  --fuchsia:      #e879f9;
+  --gold:         #fbbf24;
+  --emerald:      #4ade80;
+  --rose:         #f87171;
+}
+
+/* ─── Base ───────────────────────────────────────── */
+html, body, #root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+html, body {
+  height: 100%;
+  background: var(--bg-app);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color: rgba(255,255,255,0.88);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Prevent images and media from causing overflow */
+img, video {
+  max-width: 100%;
+}
+
+/* ─── Scrollbars ─────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.11) transparent;
+}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.11); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ─── Selection ──────────────────────────────────── */
+::selection { background: rgba(34,211,238,0.2); color: #fff; }
+
+/* ─── Focus visible ──────────────────────────────── */
+:focus-visible { outline: 2px solid rgba(34,211,238,0.5); outline-offset: 2px; border-radius: 6px; }
+
+/* ─── Animations ─────────────────────────────────── */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes popupTimer {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 5px rgba(34,211,238,0.25); }
+  50%       { box-shadow: 0 0 10px rgba(34,211,238,0.5); }
+}
+
+/* ─── Cinematic Market Animations ───────────────── */
+@keyframes floatEmber {
+  0%   { transform: translateY(0)     translateX(0)    scale(1);   opacity: 0;   }
+  15%  {                                                            opacity: 0.9; }
+  85%  {                                                            opacity: 0.5; }
+  100% { transform: translateY(-130px) translateX(14px) scale(0.4); opacity: 0;   }
+}
+@keyframes particleRise {
+  0%   { transform: translateY(0)     scale(1);   opacity: 0;   }
+  12%  {                                          opacity: 1;   }
+  88%  {                                          opacity: 0.5; }
+  100% { transform: translateY(-180px) scale(0.3); opacity: 0;   }
+}
+@keyframes fogDrift {
+  0%,100% { transform: translateX(0)   translateY(0)    scale(1);    }
+  50%      { transform: translateX(25px) translateY(-12px) scale(1.06); }
+}
+@keyframes meteorFly {
+  0%   { opacity: 0; transform: translate(0, 0)         scaleX(0); }
+  8%   { opacity: 1; transform: translate(0, 0)         scaleX(1); }
+  100% { opacity: 0; transform: translate(260px, 260px) scaleX(0.2); }
+}
+@keyframes scannerSweep {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes ringPing {
+  0%   { transform: scale(1);   opacity: 0.5; }
+  100% { transform: scale(2);   opacity: 0;   }
+}
+@keyframes accentPulse {
+  0%,100% { opacity: 0.45; }
+  50%      { opacity: 1;    }
+}
+@keyframes tickerScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes urgencyBreath {
+  0%,100% { box-shadow: 0 0 8px  rgba(239,68,68,0.14), 0 0 20px rgba(239,68,68,0.05), 0 4px 16px rgba(0,0,0,0.4); }
+  50%      { box-shadow: 0 0 16px rgba(239,68,68,0.26), 0 0 36px rgba(239,68,68,0.10), 0 4px 16px rgba(0,0,0,0.4); }
+}
+@keyframes warnBreath {
+  0%,100% { box-shadow: 0 0 10px rgba(251,191,36,0.12), 0 0 24px rgba(251,191,36,0.05), 0 4px 16px rgba(0,0,0,0.4); }
+  50%      { box-shadow: 0 0 20px rgba(251,191,36,0.26), 0 0 38px rgba(251,191,36,0.10), 0 4px 16px rgba(0,0,0,0.4); }
+}
+
+.animate-fade-slide-up { animation: fadeSlideUp 0.2s ease-out; }
+.animate-fade-in       { animation: fadeIn 0.15s ease-out; }
+.animate-pulse-glow    { animation: pulseGlow 2s ease-in-out infinite; }
+
+/* ─── Skeleton ───────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ─── Glass card ─────────────────────────────────── */
+.glass {
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.09);
+}
+.glass-elevated {
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* ─── Gradient text ──────────────────────────────── */
+.text-gradient {
+  background: linear-gradient(135deg, #22d3ee, #e879f9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-gold {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Float bar ──────────────────────────────────── */
+.float-track {
+  background: linear-gradient(90deg,
+    #22c55e  0%,
+    #86efac  6%,
+    #d9f99d  12%,
+    #fde047  22%,
+    #fb923c  37%,
+    #f87171  44%,
+    #b91c1c  100%
+  );
+}
+
+/* ─── Mobile responsive utilities ───────────────── */
+
+/* Touch screens: always reveal hover-only action buttons */
+@media (pointer: coarse) {
+  .feed-row-actions {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+
+/* Horizontal scroll chip rows (category pills etc.) */
+.chips-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-wrap: nowrap;
+  padding-bottom: 2px;
+}
+.chips-scroll::-webkit-scrollbar { display: none; }
+
+/* Responsive page padding helper */
+.page-px {
+  padding-left: clamp(12px, 4vw, 28px);
+  padding-right: clamp(12px, 4vw, 28px);
+}
+
+/* Mobile menu backdrop */
+.mobile-nav-overlay {
+  animation: menuSlideDown 0.18s ease-out;
+}
+@keyframes menuSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Mobile system utilities ────────────────────── */
+
+/* Page wrapper: full width, responsive horizontal padding */
+.mobile-page {
+  width: 100%;
+  max-width: 100%;
+  padding-left: clamp(12px, 4vw, 28px);
+  padding-right: clamp(12px, 4vw, 28px);
+  box-sizing: border-box;
+}
+
+/* Card: never overflow its column */
+.mobile-card {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Vertical flex stack */
+.mobile-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Horizontal scroll row — tabs, filter chips, etc. */
+.mobile-scroll-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.mobile-scroll-tabs::-webkit-scrollbar { display: none; }
+
+/* Full-width button with 44px tap target */
+.mobile-full-button {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+/* ─── Per-page mobile fixes (< 768px) ─────────────── */
+@media (max-width: 767px) {
+
+  /* Market page title */
+  .mkt-h1 { font-size: clamp(22px, 6vw, 32px) !important; }
+
+  /* Auctions page title */
+  .auc-h1 { font-size: clamp(22px, 6vw, 32px) !important; }
+
+  /* Trade Board tabs: allow horizontal scroll, match-toggle wraps below */
+  .trade-tabs-row {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .trade-tabs-row::-webkit-scrollbar { display: none; }
+  .trade-tabs-toggle {
+    flex-shrink: 0;
+    margin-left: 0 !important;
+  }
+
+  /* Auctions: extra bottom padding so fixed ticker doesn't overlap last card */
+  .auc-content { padding-bottom: 60px !important; }
+
+  /* Watchlist: content column full-width on mobile */
+  .ws-content {
+    max-width: 100% !important;
+    min-height: 0 !important;
+    padding: 24px 20px 32px !important;
+    background: rgba(6,7,14,0.88) !important;
+  }
+  /* Watchlist: veil covers full width on mobile */
+  .ws-veil { width: 100% !important; }
+  /* Watchlist: hide decorative character + hologram cards on mobile */
+  .ws-char { display: none !important; }
+  .ws-holo-zone { display: none !important; }
+}
+
+/* ─── Mobile: hide left chat sidebar < 768px ────── */
+@media (max-width: 767px) {
+  .global-chat-dock { display: none !important; }
+}
+
+/* ─── Mobile: hero section accessibility ─────────── */
+@media (max-width: 767px) {
+  /* Smaller title so it fits without cramping */
+  .hero-title {
+    font-size: clamp(24px, 7vw, 32px) !important;
+    margin-bottom: 14px !important;
+  }
+  /* Higher contrast body copy */
+  .hero-para {
+    color: rgba(255,255,255,0.78) !important;
+    font-size: 14.5px !important;
+    margin-bottom: 20px !important;
+  }
+  /* Stats: 3-column glass-card grid */
+  .hero-stats {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+    margin-bottom: 24px !important;
+  }
+  .hero-stat-card {
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid rgba(255,255,255,0.11) !important;
+    border-radius: 12px !important;
+    padding: 10px 8px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+  .hero-stat-val {
+    font-size: 18px !important;
+  }
+  .hero-stat-label {
+    color: rgba(255,255,255,0.64) !important;
+    text-align: center !important;
+    font-size: 10px !important;
+    line-height: 1.3 !important;
+  }
+  /* Buttons: full-width column stack, min 48px tap target */
+  .hero-btns {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .hero-btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  /* Ghost character: reduce opacity so it doesn't compete with text */
+  .hero-ghost-img {
+    opacity: 0.07 !important;
+    height: 62% !important;
+    right: -10px !important;
+  }
+  /* Eyebrow badge: tighten spacing */
+  .hero-eyebrow {
+    margin-bottom: 14px !important;
+  }
+}
+
+/* ─── Chat panel transition ──────────────────────── */
+.chat-panel-enter { animation: chatSlideIn 0.25s cubic-bezier(0.4,0,0.2,1); }
+@keyframes chatSlideIn {
+  from { transform: translateX(-100%); opacity: 0.5; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ─── Chat Cyberpunk Animations ──────────────────── */
+@keyframes chatMsgIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+@keyframes chatOnlinePing {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(2.4); opacity: 0;   }
+}
+@keyframes chatNebulaShift {
+  0%,100% { opacity: 0.55; transform: scale(1)    translateX(0);  }
+  50%      { opacity: 0.80; transform: scale(1.04) translateX(6px); }
+}
+@keyframes chatParticleDrift {
+  0%   { transform: translateY(0)     translateX(0);   opacity: 0;   }
+  12%  {                                               opacity: 0.7; }
+  85%  {                                               opacity: 0.4; }
+  100% { transform: translateY(-90px) translateX(18px); opacity: 0;  }
+}
+@keyframes chatScanLine {
+  0%   { transform: translateY(0);     opacity: 0.5; }
+  100% { transform: translateY(-70px); opacity: 0;   }
+}
+@keyframes chatHoloBlink {
+  0%,100% { opacity: 0.04; }
+  50%      { opacity: 0.09; }
+}
+@keyframes chatNeonBreath {
+  0%,100% { box-shadow: 0 0 8px  rgba(168,85,247,0.18), 0 0 20px rgba(168,85,247,0.08); }
+  50%      { box-shadow: 0 0 16px rgba(168,85,247,0.38), 0 0 36px rgba(168,85,247,0.16); }
+}
+
+/* ─── Design system: radius scale ────────────────── */
+:root {
+  --r-sm:   8px;
+  --r-md:   12px;
+  --r-lg:   16px;
+  --r-xl:   20px;
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.055);
+  --shadow-elevated: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+/* ─── Global tap highlight removal ─────────────── */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* ─── Minimum readable label (11px) ─────────────── */
+.label-xs {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  line-height: 1.35;
+}
+
+/* ─── Consistent icon/action button ─────────────── */
+.btn-icon-sm {
+  min-width: 36px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* ─── Filter chip pill ───────────────────────────── */
+.chip-pill {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* ─── Premium card hover ─────────────────────────── */
+.card-interactive {
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.42);
+}
+
+/* ─── Section eyebrow label ──────────────────────── */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  line-height: 1.3;
+}
+
+/* ─── Responsive input row ────────────────────────── */
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─── Better scrollable tab bar ──────────────────── */
+.scroll-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.scroll-tabs::-webkit-scrollbar { display: none; }
+
+/* ─── Trade system: mobile layout ───────────────── */
+@media (max-width: 767px) {
+
+  /* Trade card header: tighter on mobile */
+  .tc-header {
+    padding: 11px 14px 10px !important;
+  }
+
+  /* Trade card body: collapse 2-col grid → single column */
+  .tc-body {
+    grid-template-columns: 1fr !important;
+  }
+  /* Each section: strip desktop border-left, add bottom divider */
+  .tc-section {
+    border-left: 0 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+  }
+
+  /* Footer: spacer hidden, all buttons wrap 2-per-row */
+  .tc-footer {
+    padding: 10px 14px 13px !important;
+    gap: 7px !important;
+  }
+  .tc-spacer {
+    display: none !important;
+  }
+  .tc-footer > button,
+  .tc-footer > a {
+    flex: 1 1 calc(50% - 4px) !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    width: auto !important;
+    font-size: 12.5px !important;
+    justify-content: center !important;
+  }
+
+  /* Create Trade modal: full-screen bottom sheet */
+  .trade-modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+  .trade-modal {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    max-height: 92dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+  .trade-modal-preview {
+    flex-direction: column !important;
+    min-height: auto !important;
+  }
+  .trade-modal-preview-left {
+    border-right: none !important;
+    border-bottom: 1px solid rgba(168,85,247,0.10) !important;
+    max-width: 100% !important;
+  }
+  .trade-modal-arrows { display: none !important; }
+  .trade-modal-body {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto auto !important;
+    overflow-y: auto !important;
+  }
+  .trade-modal-footer {
+    flex-direction: column !important;
+    padding: 12px 16px !important;
+    gap: 8px !important;
+  }
+  .trade-modal-footer input { height: 44px !important; }
+  .trade-modal-footer button { min-height: 48px !important; width: 100% !important; }
+
+  /* Search Trades: vertical stack */
+  .trade-search-inputs { grid-template-columns: 1fr !important; }
+  .trade-search-divider { display: none !important; }
+  .trade-search-cta { flex-direction: column !important; }
+  .trade-search-cta > button {
+    width: 100% !important;
+    min-height: 48px !important;
+    height: 48px !important;
+  }
+
+  /* Trade item row: horizontal scroll on mobile, no wrapping */
+  .trade-items-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-bottom: 4px !important;
+  }
+  .trade-items-row::-webkit-scrollbar { display: none !important; }
+}

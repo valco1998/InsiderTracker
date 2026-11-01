@@ -1,0 +1,38 @@
+warning: in the working copy of 'client/src/hooks/useChat.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/hooks/useFcmKeepAlive.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/AuctionsPage.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/alerts/Alerts.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/chat/ChatPage.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/chat/ChatShell.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/components/AuctionShareMessage.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/components/GlobalChatDock.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/components/ShareAuctionModal.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/components/SkinGrid.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/market/ItemCard.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/market/Market.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'client/src/pages/trade/TradePostCard.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/controllers/chat.controller.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/controllers/push.controller.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/models/ChatMessage.model.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/services/fcm.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/socket/socket.js', LF will be replaced by CRLF the next time Git touches it
+ client/src/hooks/useChat.js                        |   4 [32m+[m
+ client/src/hooks/useFcmKeepAlive.js                |  12 [31m--[m
+ client/src/pages/AuctionsPage.jsx                  |  24 [32m+++[m[31m-[m
+ client/src/pages/alerts/Alerts.jsx                 |  14 [32m+++[m
+ client/src/pages/chat/ChatPage.jsx                 |  29 [32m++++[m[31m-[m
+ client/src/pages/chat/ChatShell.jsx                |   2 [32m+[m[31m-[m
+ .../src/pages/components/AuctionShareMessage.jsx   |  48 [32m++++++[m[31m-[m
+ client/src/pages/components/GlobalChatDock.jsx     |   2 [32m+[m[31m-[m
+ client/src/pages/components/ShareAuctionModal.jsx  |  22 [32m+++[m[31m-[m
+ client/src/pages/components/SkinGrid.jsx           |   3 [32m+[m[31m-[m
+ client/src/pages/market/ItemCard.jsx               |  50 [32m+++++[m[31m---[m
+ client/src/pages/market/Market.jsx                 |  12 [32m+[m[31m-[m
+ client/src/pages/trade/TradePostCard.jsx           |   9 [32m+[m[31m-[m
+ server/controllers/chat.controller.js              |  65 [32m++++++++[m[31m--[m
+ server/controllers/push.controller.js              | 138 [32m+++++++++++++++++[m[31m----[m
+ server/jobs/alertEngine.js                         |  49 [32m+++++++[m[31m-[m
+ server/models/ChatMessage.model.js                 |   2 [32m+[m[31m-[m
+ server/services/fcm.js                             |  13 [32m+[m[31m-[m
+ server/socket/socket.js                            |   2 [32m+[m
+ 19 files changed, 409 insertions(+), 91 deletions(-)

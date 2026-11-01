@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <style>
+    *   { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      width:300px; background:#0d1117;
+      color:rgba(255,255,255,0.82);
+      font-family:system-ui,-apple-system,Arial,sans-serif;
+      font-size:13px;
+    }
+    .top { padding:14px 16px 12px; border-bottom:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; gap:10px; }
+    .top-title { font-size:13px; font-weight:700; }
+    .top-sub   { font-size:10px; color:rgba(255,255,255,0.3); margin-top:2px; }
+    .rows { padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; flex-direction:column; gap:5px; }
+    .row  { display:flex; align-items:center; gap:8px; font-size:11px; color:rgba(255,255,255,0.5); }
+    .dot  { width:7px; height:7px; border-radius:50%; flex-shrink:0; background:rgba(255,255,255,0.2); }
+    .g { background:#22c55e; } .r { background:#ef4444; }
+    .y { background:#fbbf24; } .b { background:#3b82f6; }
+    .body { padding:14px 16px; display:flex; flex-direction:column; gap:9px; }
+    button {
+      width:100%; padding:9px; border-radius:8px;
+      font-size:13px; font-weight:600; border:none;
+      cursor:pointer; font-family:inherit; transition:opacity .15s;
+    }
+    #importBtn {
+      background:rgba(34,211,238,0.14);
+      border:1px solid rgba(34,211,238,0.3);
+      color:rgba(34,211,238,0.9);
+    }
+    #importBtn:disabled { opacity:.4; cursor:not-allowed; }
+    #importBtn:not(:disabled):hover { background:rgba(34,211,238,0.22); }
+    .msg { padding:8px 10px; border-radius:7px; font-size:11px; line-height:1.5; display:none; }
+    .ok  { background:rgba(34,197,94,0.1);   border:1px solid rgba(34,197,94,0.25);  color:rgba(34,197,94,0.9);  }
+    .err { background:rgba(239,68,68,0.1);   border:1px solid rgba(239,68,68,0.25);  color:rgba(239,68,68,0.9);  }
+    .inf { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.5); }
+    .progress { background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.2); color:rgba(59,130,246,0.8); font-family:monospace; white-space:pre-wrap; max-height:80px; overflow-y:auto; }
+    .hint { font-size:11px; line-height:1.6; color:rgba(255,255,255,0.35); padding:7px 9px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:7px; display:none; }
+    .hint a { color:rgba(34,211,238,0.7); }
+    .last { font-size:10px; color:rgba(255,255,255,0.28); text-align:center; }
+    .foot { padding:8px 16px 12px; font-size:10px; color:rgba(255,255,255,0.18); text-align:center; }
+  </style>
+</head>
+<body>
+<div class="top">
+  <svg width="22" height="22" viewBox="0 0 32 32" fill="rgba(34,211,238,0.8)">
+    <path d="M16 0C7.163 0 0 7.163 0 16c0 7.3 4.9 13.48 11.67 15.37L16 16h1.54c4.7 0 8.51-3.81 8.51-8.51S22.24 0 16 0zM7.06 22.7l-1.94-.8a6.4 6.4 0 0 0 4.63 2.68L7.06 22.7zm9-7.7a5.09 5.09 0 1 1 0-10.18 5.09 5.09 0 0 1 0 10.18z"/>
+  </svg>
+  <div><div class="top-title">SKINTEL Inventory Importer</div><div class="top-sub">No credentials collected</div></div>
+</div>
+
+<div class="rows">
+  <div class="row"><div class="dot" id="dApp"></div><span id="lApp">Checking SKINTEL login…</span></div>
+  <div class="row"><div class="dot" id="dSteam"></div><span id="lSteam">Checking Steam page…</span></div>
+  <div class="row"><div class="dot" id="dMatch"></div><span id="lMatch">Checking SteamID match…</span></div>
+</div>
+
+<div class="body">
+  <button id="importBtn" disabled>Import CS2 Inventory</button>
+  <div class="msg inf" id="progressEl" style="display:none"></div>
+  <div class="msg inf" id="msgEl"></div>
+  <div class="hint" id="hintEl"></div>
+  <div class="last" id="lastEl" style="display:none"></div>
+</div>
+
+<div class="foot">Only item names, icons &amp; flags are sent.<br>Steam cookies never leave your browser.</div>
+<script src="popup.js"></script>
+</body>
+</html>

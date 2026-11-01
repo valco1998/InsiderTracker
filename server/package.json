@@ -1,0 +1,34 @@
+{
+  "type": "module",
+  "name": "server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "node --test services/soldHistoryFetcher.test.js jobs/skinMetricsAggregator.test.js services/dealScore.test.js routers/alertRoutes.test.js services/empireMarketSocket.test.js jobs/alertPricing.test.js controllers/empirePriceConsistency.test.js services/auctionCache.test.js",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@api/csgoempire": "file:.api/apis/csgoempire/api-csgoempire-0.0.0.tgz",
+    "api": "^6.1.3",
+    "axios": "^1.13.4",
+    "bcryptjs": "^3.0.2",
+    "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "firebase-admin": "^13.10.0",
+    "http": "^0.0.1-security",
+    "json-schema-to-ts": "^2.8.0-beta.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.19.2",
+    "oas": "^28.9.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.3",
+    "ws": "^8.19.0"
+  }
+}

@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050816" />
+    <title>Privacy Policy - SkinTel</title>
+    <link rel="icon" type="image/png" href="/telIcon.png" />
+    <link rel="canonical" href="https://www.skin-tel.com/privacy" />
+    <style>
+      body {
+        margin: 0;
+        background: linear-gradient(135deg, #07080f 0%, #0f0a1e 60%, #07080f 100%);
+        color: rgba(255,255,255,0.87);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      .container {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 28px 96px;
+      }
+      h1 {
+        font-size: clamp(1.75rem, 4vw, 2.4rem);
+        font-weight: 800;
+        margin-bottom: 6px;
+        line-height: 1.1;
+        color: #a78bfa;
+      }
+      .updated {
+        color: rgba(255,255,255,0.38);
+        font-size: 13px;
+        margin-bottom: 40px;
+      }
+      h2 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #c4b5fd;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(139,92,246,0.14);
+      }
+      section {
+        margin-bottom: 36px;
+      }
+      section > p, section > ul {
+        color: rgba(255,255,255,0.72);
+        line-height: 1.8;
+        font-size: 0.94rem;
+      }
+      ul {
+        padding-left: 1.4rem;
+        line-height: 2.1;
+        color: rgba(255,255,255,0.70);
+      }
+      a {
+        color: #a78bfa;
+        text-decoration: none;
+      }
+      .contact-box {
+        padding: 16px 20px;
+        border-radius: 12px;
+        background: rgba(139,92,246,0.07);
+        border: 1px solid rgba(139,92,246,0.18);
+      }
+      .contact-box p {
+        margin: 0;
+        color: rgba(255,255,255,0.80);
+        line-height: 1.8;
+      }
+      footer {
+        border-top: 1px solid rgba(255,255,255,0.06);
+        padding: 20px 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-size: 12px;
+        color: rgba(255,255,255,0.25);
+      }
+      footer a {
+        color: rgba(255,255,255,0.35);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Privacy Policy</h1>
+      <p class="updated">Last updated: May 2026</p>
+
+      <section>
+        <h2>Overview</h2>
+        <p>
+          SkinTel ("we," "our," or "us") operates the SkinTel web application at
+          <a href="https://skin-tel.com">skin-tel.com</a>
+          and the SkinTel Inventory Importer Chrome Extension. This policy explains what
+          data we collect, how we use it, and your rights.
+        </p>
+      </section>
+
+      <section>
+        <h2>What We Do NOT Collect</h2>
+        <ul>
+          <li><strong>Steam passwords</strong> — SkinTel never asks for or stores your Steam account password.</li>
+          <li><strong>Steam session cookies</strong> — We do not intercept, store, or transmit Steam authentication cookies.</li>
+          <li><strong>Browser history</strong> — No data is collected outside of the Steam inventory page when you use the extension.</li>
+          <li><strong>Financial information</strong> — We do not collect payment card details or banking information.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>What We Collect</h2>
+        <ul>
+          <li><strong>Account info</strong> — username, email, and hashed password (for email sign-up), or Steam profile ID and display name (for Steam OAuth).</li>
+          <li><strong>Inventory data</strong> — CS2 skin items imported via the Chrome extension or Steam API: item names, float values, wear, stickers, and market prices. Used exclusively for SkinTel features (import, trading, price analysis, trade matching).</li>
+          <li><strong>Watchlist &amp; alert rules</strong> — price thresholds and notification preferences you configure.</li>
+          <li><strong>Push notification tokens</strong> — FCM device tokens stored only if you explicitly enable push alerts; deleted immediately when you disable them.</li>
+          <li><strong>Standard server logs</strong> — IP address, request timestamps, and endpoints accessed, for security and debugging only.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>How Inventory Data Is Used</h2>
+        <p>
+          Inventory data imported into SkinTel is used <em>only</em> for the following platform features:
+        </p>
+        <ul>
+          <li>Displaying your CS2 inventory within the app</li>
+          <li>Powering price analysis and market comparison tools</li>
+          <li>Enabling trade posting and trade matching with other users</li>
+          <li>Generating watchlist alerts when item prices change</li>
+        </ul>
+        <p style="margin-top: 12px;">
+          Inventory data is never used for advertising, profiling, or any purpose outside
+          SkinTel functionality.
+        </p>
+      </section>
+
+      <section>
+        <h2>Data Is Not Sold</h2>
+        <p>
+          We do <strong>not</strong> sell, rent, or share your personal data with third parties
+          for commercial purposes. Data shared with infrastructure providers (MongoDB Atlas,
+          Render, Firebase) is strictly for operating the platform.
+        </p>
+      </section>
+
+      <section>
+        <h2>Third-Party Services</h2>
+        <ul>
+          <li><strong>Steam / Valve</strong> — OAuth login and public inventory data. Subject to <a href="https://store.steampowered.com/privacy_agreement/" target="_blank" rel="noreferrer">Steam's Privacy Policy</a>.</li>
+          <li><strong>Firebase (Google)</strong> — Browser push notifications only. FCM tokens deleted when you turn off push alerts.</li>
+          <li><strong>MongoDB Atlas</strong> — Encrypted database hosting for account and inventory data.</li>
+          <li><strong>CSGOEmpire</strong> — Live market price feeds (read-only; no user data is sent to them).</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Data Deletion</h2>
+        <p>
+          You can request deletion of your account and all associated data at any time.
+          Contact us at the email below and we will permanently delete your account,
+          inventory, alerts, chat history, and push tokens within 7 days.
+        </p>
+        <p style="margin-top: 12px;">
+          Push tokens can be removed instantly by clicking <strong style="color:#c4b5fd;">PUSH ENABLED → disable</strong> in
+          the Alerts page.
+        </p>
+      </section>
+
+      <section>
+        <h2>Contact</h2>
+        <div class="contact-box">
+          <p>
+            <strong style="color:#c4b5fd;">SkinTel</strong><br />
+            Email:
+            <a href="mailto:akivaidan1998@gmail.com">akivaidan1998@gmail.com</a>
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <span>© 2026 SkinTel. All rights reserved.</span>
+      <div style="display:flex; gap:20px;">
+        <a href="/">Home</a>
+        <a href="/privacy" style="color:#a78bfa;">Privacy Policy</a>
+        <a href="mailto:akivaidan1998@gmail.com">Contact</a>
+      </div>
+    </footer>
+  </body>
+</html>

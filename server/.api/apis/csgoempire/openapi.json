@@ -1,0 +1,1299 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CSGOEmpire API",
+    "version": "unknown"
+  },
+  "servers": [
+    {
+      "url": "https://csgoempire.com/api/v2/"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "sec0": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "x-default": "",
+        "x-bearer-format": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "sec0": []
+    }
+  ],
+  "paths": {
+    "/metadata/socket": {
+      "get": {
+        "summary": "Metadata",
+        "description": "Returns the user object, which is used to identify via websocket, as well as socket token (authorizationToken) & socket signature (signature) which are used to authenticate on the websocket.",
+        "operationId": "metadata",
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{\n    \"user\": {\n        \"id\": 303119,\n        \"steam_id\": \"76561198106192114\",\n        \"steam_id_v3\": \"145926386\",\n        \"steam_name\": \"Artemis\",\n        \"avatar\": \"https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars/4f/4f619bc788f0d41261d2a5ced0e96a281af88479_full.jpg\",\n        \"profile_url\": \"https://steamcommunity.com/id/G0FastMen/\",\n        \"registration_timestamp\": \"2016-07-27 23:20:03\",\n        \"registration_ip\": \"0.0.0.0\",\n        \"last_login\": \"2021-11-29 13:02:54\",\n        \"balance\": 0,\n        \"total_profit\": 0,\n        \"total_bet\": 0,\n        \"betback_total\": 0,\n        \"bet_threshold\": 0,\n        \"total_trades\": 0,\n        \"total_deposit\": 0,\n        \"total_withdraw\": 0,\n        \"withdraw_limit\": 0,\n        \"csgo_playtime\": 0,\n        \"last_csgo_playtime_cache\": \"2016-07-27 23:20:03\",\n        \"trade_url\": \"https://steamcommunity.com/tradeoffer/new/?partner=145926386&token=ABCDEF\",\n        \"trade_offer_token\": \"ABCDEF\",\n        \"ref_id\": 0,\n        \"total_referral_bet\": 0,\n        \"total_referral_commission\": 0,\n        \"ref_permission\": 0,\n        \"ref_earnings\": 0,\n        \"total_ref_earnings\": 0,\n        \"total_ref_count\": 0,\n        \"total_credit\": 0,\n        \"referral_code\": \"Artemis\",\n        \"referral_amount\": 50,\n        \"muted_until\": 1632354690,\n        \"mute_reason\": \"Other\",\n        \"admin\": 0,\n        \"super_mod\": 0,\n        \"mod\": 0,\n        \"utm_campaign\": \"\",\n        \"country\": \"\",\n        \"is_vac_banned\": 2,\n        \"steam_level\": 343,\n        \"last_steam_level_cache\": \"2021-11-30 07:41:07\",\n        \"whitelisted\": 1,\n        \"total_tips_received\": 0,\n        \"total_tips_sent\": 0,\n        \"withdrawal_fee_owed\": \"0.0000\",\n        \"flags\": 0,\n        \"ban\": null,\n        \"balances\": [],\n        \"level\": 0,\n        \"xp\": 0,\n        \"socket_token\": \"\",\n        \"user_hash\": \"\",\n        \"hashed_server_seed\": \"\",\n        \"intercom_hash\": \"\",\n        \"roles\": [],\n        \"eligible_for_free_case\": false,\n        \"extra_security_type\": \"2fa\",\n        \"total_bet_skincrash\": 0,\n        \"total_bet_matchbetting\": 0,\n        \"total_bet_roulette\": 0,\n        \"total_bet_coinflip\": 0,\n        \"total_bet_supershootout\": 0,\n        \"p2p_telegram_notifications_allowed\": true,\n        \"p2p_telegram_notifications_enabled\": true,\n        \"verified\": false,\n        \"hide_verified_icon\": false,\n        \"unread_notifications\": [],\n        \"last_session\": {},\n        \"email\": \"\",\n        \"email_verified\": false,\n        \"eth_deposit_address\": \"\",\n        \"btc_deposit_address\": \"\",\n        \"ltc_deposit_address\": \"\",\n        \"bch_deposit_address\": \"\",\n        \"steam_inventory_url\": \"https://steamcommunity.com/profiles/76561198106192114/inventory/#730\",\n        \"steam_api_key\": \"\",\n        \"has_crypto_deposit\": true,\n        \"chat_tag\": {},\n        \"linked_accounts\": [],\n        \"api_token\": \"nice try\"\n    },\n    \"socket_token\": \"\",\n    \"socket_signature\": \"\"\n}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "example": 303119,
+                          "default": 0
+                        },
+                        "steam_id": {
+                          "type": "string",
+                          "example": "76561198106192114"
+                        },
+                        "steam_id_v3": {
+                          "type": "string",
+                          "example": "145926386"
+                        },
+                        "steam_name": {
+                          "type": "string",
+                          "example": "Artemis"
+                        },
+                        "avatar": {
+                          "type": "string",
+                          "example": "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars/4f/4f619bc788f0d41261d2a5ced0e96a281af88479_full.jpg"
+                        },
+                        "profile_url": {
+                          "type": "string",
+                          "example": "https://steamcommunity.com/id/G0FastMen/"
+                        },
+                        "registration_timestamp": {
+                          "type": "string",
+                          "example": "2016-07-27 23:20:03"
+                        },
+                        "registration_ip": {
+                          "type": "string",
+                          "example": "0.0.0.0"
+                        },
+                        "last_login": {
+                          "type": "string",
+                          "example": "2021-11-29 13:02:54"
+                        },
+                        "balance": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_profit": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_bet": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "betback_total": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "bet_threshold": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_trades": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_deposit": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_withdraw": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "withdraw_limit": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "csgo_playtime": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "last_csgo_playtime_cache": {
+                          "type": "string",
+                          "example": "2016-07-27 23:20:03"
+                        },
+                        "trade_url": {
+                          "type": "string",
+                          "example": "https://steamcommunity.com/tradeoffer/new/?partner=145926386&token=ABCDEF"
+                        },
+                        "trade_offer_token": {
+                          "type": "string",
+                          "example": "ABCDEF"
+                        },
+                        "ref_id": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_referral_bet": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_referral_commission": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "ref_permission": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "ref_earnings": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_ref_earnings": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_ref_count": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_credit": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "referral_code": {
+                          "type": "string",
+                          "example": "Artemis"
+                        },
+                        "referral_amount": {
+                          "type": "integer",
+                          "example": 50,
+                          "default": 0
+                        },
+                        "muted_until": {
+                          "type": "integer",
+                          "example": 1632354690,
+                          "default": 0
+                        },
+                        "mute_reason": {
+                          "type": "string",
+                          "example": "Other"
+                        },
+                        "admin": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "super_mod": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "mod": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "utm_campaign": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "country": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "is_vac_banned": {
+                          "type": "integer",
+                          "example": 2,
+                          "default": 0
+                        },
+                        "steam_level": {
+                          "type": "integer",
+                          "example": 343,
+                          "default": 0
+                        },
+                        "last_steam_level_cache": {
+                          "type": "string",
+                          "example": "2021-11-30 07:41:07"
+                        },
+                        "whitelisted": {
+                          "type": "integer",
+                          "example": 1,
+                          "default": 0
+                        },
+                        "total_tips_received": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_tips_sent": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "withdrawal_fee_owed": {
+                          "type": "string",
+                          "example": "0.0000"
+                        },
+                        "flags": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "ban": {},
+                        "balances": {
+                          "type": "array"
+                        },
+                        "level": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "xp": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "socket_token": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "user_hash": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "hashed_server_seed": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "intercom_hash": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "roles": {
+                          "type": "array"
+                        },
+                        "eligible_for_free_case": {
+                          "type": "boolean",
+                          "example": false,
+                          "default": true
+                        },
+                        "extra_security_type": {
+                          "type": "string",
+                          "example": "2fa"
+                        },
+                        "total_bet_skincrash": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_bet_matchbetting": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_bet_roulette": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_bet_coinflip": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "total_bet_supershootout": {
+                          "type": "integer",
+                          "example": 0,
+                          "default": 0
+                        },
+                        "p2p_telegram_notifications_allowed": {
+                          "type": "boolean",
+                          "example": true,
+                          "default": true
+                        },
+                        "p2p_telegram_notifications_enabled": {
+                          "type": "boolean",
+                          "example": true,
+                          "default": true
+                        },
+                        "verified": {
+                          "type": "boolean",
+                          "example": false,
+                          "default": true
+                        },
+                        "hide_verified_icon": {
+                          "type": "boolean",
+                          "example": false,
+                          "default": true
+                        },
+                        "unread_notifications": {
+                          "type": "array"
+                        },
+                        "last_session": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "email": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "email_verified": {
+                          "type": "boolean",
+                          "example": false,
+                          "default": true
+                        },
+                        "eth_deposit_address": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "btc_deposit_address": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "ltc_deposit_address": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "bch_deposit_address": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "steam_inventory_url": {
+                          "type": "string",
+                          "example": "https://steamcommunity.com/profiles/76561198106192114/inventory/#730"
+                        },
+                        "steam_api_key": {
+                          "type": "string",
+                          "example": ""
+                        },
+                        "has_crypto_deposit": {
+                          "type": "boolean",
+                          "example": true,
+                          "default": true
+                        },
+                        "chat_tag": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "linked_accounts": {
+                          "type": "array"
+                        },
+                        "api_token": {
+                          "type": "string",
+                          "example": "nice try"
+                        }
+                      }
+                    },
+                    "socket_token": {
+                      "type": "string",
+                      "example": ""
+                    },
+                    "socket_signature": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/trading/user/trades": {
+      "get": {
+        "summary": "Get Active Trades",
+        "description": "Returns an array of all items currently being deposited or withdrawn by this account. This does not include bids placed on active items until the auction ends.",
+        "operationId": "get-active-trades",
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{\n   \"success\":true,\n   \"data\":{\n      \"deposits\":[\n         {\n            \"id\":291452362,\n            \"total_value\":499,\n            \"item_id\":4209852853,\n            \"item\":{\n               \"app_id\":730,\n               \"context_id\":2,\n               \"type\":\"Mil-Spec Grade Sniper Rifle\",\n               \"asset_id\":4189826749,\n               \"blue_percentage\":null,\n               \"created_at\":\"2024-02-25 00:01:01\",\n               \"fade_percentage\":null,\n               \"full_position\":1,\n               \"icon_url\":\"-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot621FA957P3dcjFH7c6Jh4uem_vnDKnUkmld_cBOhuDG_Zi7iQ2w_RU5Z26md4TDewQ-aF7ZrAC6wL-81pK9tZXPy3pr7yl243eLmgv3309_PudPMg\",\n               \"id\":4209852853,\n               \"is_commodity\":false,\n               \"market_name\":\"AWP | Acheron (Factory New)\",\n               \"market_value\":499,\n               \"name_color\":\"D2D2D2\",\n               \"position\":null,\n               \"preview_id\":\"44f1edad452a\",\n               \"price_is_unreliable\":false,\n               \"stickers\":[\n                  \n               ],\n               \"suggested_price\":281,\n               \"tradable\":true,\n               \"trade_exists\":false,\n               \"tradelock\":false,\n               \"updated_at\":\"2025-02-26 00:00:01\",\n               \"wear\":0.002\n            },\n            \"status\":3,\n            \"status_message\":\"Sending\",\n            \"tradeoffer_id\":22342312,\n            \"metadata\":{\n               \"item_validation\":{\n                  \"numWrongItemDetections\":0,\n                  \"validItemDetected\":false\n               },\n               \"expires_at\":1740426816,\n               \"trade_url\":\"https://steamcommunity.com/tradeoffer/new/?partner=100&token=hi\",\n               \"item_inspected\":true,\n               \"partner\":{\n                  \"steam_id\":\"76561198382602085\",\n                  \"steam_name\":\"exampleProfile\",\n                  \"avatar\":\"https://avatars.steamstatic.com/60d676610e6303f1f5fde66f307dbe753fc91221.jpg\",\n                  \"avatar_full\":\"https://avatars.steamstatic.com/60d676610e6303f1f5fde66f307dbe753fc91221_full.jpg\",\n                  \"profile_url\":\"https://steamcommunity.com/profiles/76561198382602085\",\n                  \"timecreated\":171313223,\n                  \"steam_level\":10\n               },\n               \"auction_number_of_bids\":0\n            },\n            \"created_at\":\"2025-02-26 00:02:02\",\n            \"updated_at\":\"2025-02-26 00:03:03\",\n            \"suggested_price\":281\n         },\n         {\n            \"id\":292732111,\n            \"total_value\":433,\n            \"item_id\":4192817732,\n            \"item\":{\n               \"asset_id\":40244332222,\n               \"blue_percentage\":null,\n               \"created_at\":\"2024-02-25 00:35:35\",\n               \"fade_percentage\":null,\n               \"full_position\":18,\n               \"icon_url\":\"-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposLOzLhRlxfbGTjpR09q_goW0hPLiNrXuk21E-8x-hNbN_Iv9nBqxqUc_Nmz1ddCTewI7ZQzUr1i6lL25h5S_uJqcyHNg7HYm4yncn0e1n1gSOfUnguoV\",\n               \"id\":4192817732,\n               \"is_commodity\":false,\n               \"market_name\":\"Five-SeveN | Boost Protocol (Minimal Wear)\",\n               \"market_value\":4,\n               \"name_color\":\"D2D2D2\",\n               \"position\":null,\n               \"preview_id\":\"f64dfd621113\",\n               \"price_is_unreliable\":false,\n               \"stickers\":[\n                  \n               ],\n               \"suggested_price\":443,\n               \"tradable\":true,\n               \"trade_exists\":false,\n               \"tradelock\":false,\n               \"type\":\"Restricted Pistol\",\n               \"updated_at\":\"2025-02-23 01:01:01\",\n               \"wear\":0.123\n            },\n            \"status\":5,\n            \"status_message\":\"Sent\",\n            \"tradeoffer_id\":26421223,\n            \"metadata\":{\n               \"item_validation\":{\n                  \"numWrongItemDetections\":0,\n                  \"validItemDetected\":true,\n                  \"validatedAt\":1740142131\n               },\n               \"expires_at\":1216543111,\n               \"trade_url\":\"https://steamcommunity.com/tradeoffer/new/?partner=100&token=hi\",\n               \"item_inspected\":true,\n               \"partner\":{\n                  \"steam_id\":\"76561198382602085\",\n                  \"steam_name\":\"exampleProfile\",\n                  \"avatar\":\"https://avatars.steamstatic.com/60d676610e6303f1f5fde66f307dbe753fc91221.jpg\",\n                  \"avatar_full\":\"https://avatars.steamstatic.com/60d676610e6303f1f5fde66f307dbe753fc91221_full.jpg\",\n                  \"profile_url\":\"https://steamcommunity.com/profiles/76561198382602085\",\n                  \"timecreated\":171313223,\n                  \"steam_level\":10\n               },\n               \"auction_number_of_bids\":0\n            },\n            \"created_at\":\"2025-02-26 00:04:04\",\n            \"updated_at\":\"2025-02-26 00:05:05\",\n            \"suggested_price\":443\n         }\n      ],\n      \"withdrawals\":[\n         {\n            \"id\":26666321,\n            \"total_value\":245,\n            \"item_id\":221232898,\n            \"item\":{\n               \"market_name\":\"MAC-10 | Allure (Factory New)\",\n               \"market_value\":7,\n               \"icon_url\":\"-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou7umeldf0Ob3fDxBvYyJnZOEmPn6MoTdn2xZ_Isj3bGS9oqh3wWy_kU5YWihI9WXcVJrYgvX-gO6w-fm1MS56JuaznowpGB8suVQiM7I\",\n               \"id\":221232898,\n               \"is_commodity\":false,\n               \"name_color\":\"D2D2D2\",\n               \"price_is_unreliable\":false,\n               \"suggested_price\":245\n            },\n            \"status\":3,\n            \"status_message\":\"Sending\",\n            \"tradeoffer_id\":221232898,\n            \"metadata\":{\n               \"item_validation\":{\n                  \"numWrongItemDetections\":0,\n                  \"validItemDetected\":false\n               },\n               \"expires_at\":1723212836,\n               \"auction_number_of_bids\":0\n            },\n            \"created_at\":\"2025-02-25 08:08:08\",\n            \"updated_at\":\"2025-02-25 09:09:09\"\n         },\n         {\n            \"id\":26663211,\n            \"total_value\":197,\n            \"item_id\":292353222,\n            \"item\":{\n               \"asset_id\":34537654123,\n               \"blue_percentage\":null,\n               \"fade_percentage\":null,\n               \"icon_url\":\"-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpotaDyfgZf2-r3ZjhA_-O6nYeDg7n3a-jVkzsJ7Zcg0-qZoN_0i1DsqhVuZ2uhcYSUdQQ-MwzV_AO-wLvum9bi647NHLbz\",\n               \"id\":292353222,\n               \"is_commodity\":false,\n               \"market_name\":\"CZ75-Auto | Crimson Web (Minimal Wear)\",\n               \"market_value\":3,\n               \"name_color\":\"D2D2D2\",\n               \"preview_id\":\"fcfa605eb73a\",\n               \"price_is_unreliable\":false,\n               \"stickers\":[\n                  \n               ],\n               \"suggested_price\":197,\n               \"type\":\"Mil-Spec Grade Pistol\",\n               \"wear\":0.123,\n               \"marketplace_privacy_protection_level\":\"strict\"\n            },\n            \"status\":5,\n            \"status_message\":\"Sent\",\n            \"tradeoffer_id\":292353222,\n            \"metadata\":{\n               \"item_validation\":{\n                  \"numWrongItemDetections\":0,\n                  \"validItemDetected\":true,\n                  \"validatedAt\":1721443222\n               },\n               \"expires_at\":1716535722,\n               \"partner\":{\n                  \"steam_id\":\"76561198007254757\",\n                  \"steam_name\":\"example\",\n                  \"avatar\":\"https://avatars.steamstatic.com/fd2e54555a48835676ef5c5a51611d68eaede3cd.jpg\",\n                  \"avatar_full\":\"https://avatars.steamstatic.com/fd2e54555a48835676ef5c5a51611d68eaede3cd_full.jpg\",\n                  \"profile_url\":\"https://steamcommunity.com/profiles/76561198007254757\",\n                  \"timecreated\":171333333,\n                  \"steam_level\":3\n               },\n               \"auction_number_of_bids\":0\n            },\n            \"created_at\":\"2025-02-25 10:10:10\",\n            \"updated_at\":\"2025-02-25 11:11:11\"\n         }\n      ]\n   }\n}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "default": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deposits": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "example": 291452362,
+                                "default": 0
+                              },
+                              "total_value": {
+                                "type": "integer",
+                                "example": 499,
+                                "default": 0
+                              },
+                              "item_id": {
+                                "type": "integer",
+                                "example": 4209852853,
+                                "default": 0
+                              },
+                              "item": {
+                                "type": "object",
+                                "properties": {
+                                  "app_id": {
+                                    "type": "integer",
+                                    "example": 730,
+                                    "default": 0
+                                  },
+                                  "context_id": {
+                                    "type": "integer",
+                                    "example": 2,
+                                    "default": 0
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "example": "Mil-Spec Grade Sniper Rifle"
+                                  },
+                                  "asset_id": {
+                                    "type": "integer",
+                                    "example": 4189826749,
+                                    "default": 0
+                                  },
+                                  "blue_percentage": {},
+                                  "created_at": {
+                                    "type": "string",
+                                    "example": "2024-02-25 00:01:01"
+                                  },
+                                  "fade_percentage": {},
+                                  "full_position": {
+                                    "type": "integer",
+                                    "example": 1,
+                                    "default": 0
+                                  },
+                                  "icon_url": {
+                                    "type": "string",
+                                    "example": "-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot621FA957P3dcjFH7c6Jh4uem_vnDKnUkmld_cBOhuDG_Zi7iQ2w_RU5Z26md4TDewQ-aF7ZrAC6wL-81pK9tZXPy3pr7yl243eLmgv3309_PudPMg"
+                                  },
+                                  "id": {
+                                    "type": "integer",
+                                    "example": 4209852853,
+                                    "default": 0
+                                  },
+                                  "is_commodity": {
+                                    "type": "boolean",
+                                    "example": false,
+                                    "default": true
+                                  },
+                                  "market_name": {
+                                    "type": "string",
+                                    "example": "AWP | Acheron (Factory New)"
+                                  },
+                                  "market_value": {
+                                    "type": "integer",
+                                    "example": 499,
+                                    "default": 0
+                                  },
+                                  "name_color": {
+                                    "type": "string",
+                                    "example": "D2D2D2"
+                                  },
+                                  "position": {},
+                                  "preview_id": {
+                                    "type": "string",
+                                    "example": "44f1edad452a"
+                                  },
+                                  "price_is_unreliable": {
+                                    "type": "boolean",
+                                    "example": false,
+                                    "default": true
+                                  },
+                                  "stickers": {
+                                    "type": "array"
+                                  },
+                                  "suggested_price": {
+                                    "type": "integer",
+                                    "example": 281,
+                                    "default": 0
+                                  },
+                                  "tradable": {
+                                    "type": "boolean",
+                                    "example": true,
+                                    "default": true
+                                  },
+                                  "trade_exists": {
+                                    "type": "boolean",
+                                    "example": false,
+                                    "default": true
+                                  },
+                                  "tradelock": {
+                                    "type": "boolean",
+                                    "example": false,
+                                    "default": true
+                                  },
+                                  "updated_at": {
+                                    "type": "string",
+                                    "example": "2025-02-26 00:00:01"
+                                  },
+                                  "wear": {
+                                    "type": "number",
+                                    "example": 0.002,
+                                    "default": 0
+                                  }
+                                }
+                              },
+                              "status": {
+                                "type": "integer",
+                                "example": 3,
+                                "default": 0
+                              },
+                              "status_message": {
+                                "type": "string",
+                                "example": "Sending"
+                              },
+                              "tradeoffer_id": {
+                                "type": "integer",
+                                "example": 22342312,
+                                "default": 0
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "item_validation": {
+                                    "type": "object",
+                                    "properties": {
+                                      "numWrongItemDetections": {
+                                        "type": "integer",
+                                        "example": 0,
+                                        "default": 0
+                                      },
+                                      "validItemDetected": {
+                                        "type": "boolean",
+                                        "example": false,
+                                        "default": true
+                                      }
+                                    }
+                                  },
+                                  "expires_at": {
+                                    "type": "integer",
+                                    "example": 1740426816,
+                                    "default": 0
+                                  },
+                                  "trade_url": {
+                                    "type": "string",
+                                    "example": "https://steamcommunity.com/tradeoffer/new/?partner=100&token=hi"
+                                  },
+                                  "item_inspected": {
+                                    "type": "boolean",
+                                    "example": true,
+                                    "default": true
+                                  },
+                                  "partner": {
+                                    "type": "object",
+                                    "properties": {
+                                      "steam_id": {
+                                        "type": "string",
+                                        "example": "76561198382602085"
+                                      },
+                                      "steam_name": {
+                                        "type": "string",
+                                        "example": "exampleProfile"
+                                      },
+                                      "avatar": {
+                                        "type": "string",
+                                        "example": "https://avatars.steamstatic.com/60d676610e6303f1f5fde66f307dbe753fc91221.jpg"
+                                      },
+                                      "avatar_full": {
+                                        "type": "string",
+                                        "example": "https://avatars.steamstatic.com/60d676610e6303f1f5fde66f307dbe753fc91221_full.jpg"
+                                      },
+                                      "profile_url": {
+                                        "type": "string",
+                                        "example": "https://steamcommunity.com/profiles/76561198382602085"
+                                      },
+                                      "timecreated": {
+                                        "type": "integer",
+                                        "example": 171313223,
+                                        "default": 0
+                                      },
+                                      "steam_level": {
+                                        "type": "integer",
+                                        "example": 10,
+                                        "default": 0
+                                      }
+                                    }
+                                  },
+                                  "auction_number_of_bids": {
+                                    "type": "integer",
+                                    "example": 0,
+                                    "default": 0
+                                  }
+                                }
+                              },
+                              "created_at": {
+                                "type": "string",
+                                "example": "2025-02-26 00:02:02"
+                              },
+                              "updated_at": {
+                                "type": "string",
+                                "example": "2025-02-26 00:03:03"
+                              },
+                              "suggested_price": {
+                                "type": "integer",
+                                "example": 281,
+                                "default": 0
+                              }
+                            }
+                          }
+                        },
+                        "withdrawals": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "example": 26666321,
+                                "default": 0
+                              },
+                              "total_value": {
+                                "type": "integer",
+                                "example": 245,
+                                "default": 0
+                              },
+                              "item_id": {
+                                "type": "integer",
+                                "example": 221232898,
+                                "default": 0
+                              },
+                              "item": {
+                                "type": "object",
+                                "properties": {
+                                  "market_name": {
+                                    "type": "string",
+                                    "example": "MAC-10 | Allure (Factory New)"
+                                  },
+                                  "market_value": {
+                                    "type": "integer",
+                                    "example": 7,
+                                    "default": 0
+                                  },
+                                  "icon_url": {
+                                    "type": "string",
+                                    "example": "-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou7umeldf0Ob3fDxBvYyJnZOEmPn6MoTdn2xZ_Isj3bGS9oqh3wWy_kU5YWihI9WXcVJrYgvX-gO6w-fm1MS56JuaznowpGB8suVQiM7I"
+                                  },
+                                  "id": {
+                                    "type": "integer",
+                                    "example": 221232898,
+                                    "default": 0
+                                  },
+                                  "is_commodity": {
+                                    "type": "boolean",
+                                    "example": false,
+                                    "default": true
+                                  },
+                                  "name_color": {
+                                    "type": "string",
+                                    "example": "D2D2D2"
+                                  },
+                                  "price_is_unreliable": {
+                                    "type": "boolean",
+                                    "example": false,
+                                    "default": true
+                                  },
+                                  "suggested_price": {
+                                    "type": "integer",
+                                    "example": 245,
+                                    "default": 0
+                                  }
+                                }
+                              },
+                              "status": {
+                                "type": "integer",
+                                "example": 3,
+                                "default": 0
+                              },
+                              "status_message": {
+                                "type": "string",
+                                "example": "Sending"
+                              },
+                              "tradeoffer_id": {
+                                "type": "integer",
+                                "example": 221232898,
+                                "default": 0
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "item_validation": {
+                                    "type": "object",
+                                    "properties": {
+                                      "numWrongItemDetections": {
+                                        "type": "integer",
+                                        "example": 0,
+                                        "default": 0
+                                      },
+                                      "validItemDetected": {
+                                        "type": "boolean",
+                                        "example": false,
+                                        "default": true
+                                      }
+                                    }
+                                  },
+                                  "expires_at": {
+                                    "type": "integer",
+                                    "example": 1723212836,
+                                    "default": 0
+                                  },
+                                  "auction_number_of_bids": {
+                                    "type": "integer",
+                                    "example": 0,
+                                    "default": 0
+                                  }
+                                }
+                              },
+                              "created_at": {
+                                "type": "string",
+                                "example": "2025-02-25 08:08:08"
+                              },
+                              "updated_at": {
+                                "type": "string",
+                                "example": "2025-02-25 09:09:09"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/trading/user/auctions": {
+      "get": {
+        "summary": "Get Active Auctions",
+        "description": "Returns an array of all auctions currently being bid on by this account.",
+        "operationId": "get-active-auctions",
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{\n  \"success\": true,\n  \"active_auctions\": [\n    {\n      \"auction_ends_at\": 1666083221,\n      \"auction_highest_bid\": 227,\n      \"auction_highest_bidder\": 303119,\n      \"auction_number_of_bids\": 1,\n      \"custom_price_percentage\": 0,\n      \"icon_url\": \"-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXX7gNTPcUmqBwTTR7SQb37g5vWCwlxdFEC5uyncgZi0vGQJWwQudm0xtTexaD2ZOmClyVB5sL8h7mCHA\",\n      \"is_commodity\": true,\n      \"market_name\": \"Name Tag\",\n      \"market_value\": 227,\n      \"name_color\": \"D2D2D2\",\n      \"preview_id\": null,\n      \"price_is_unreliable\": true,\n      \"stickers\": [\n        \n      ],\n      \"wear\": null,\n      \"published_at\": \"2022-10-18T08:51:02.803761Z\",\n      \"id\": 11204,\n      \"depositor_stats\": {\n        \"delivery_rate_recent\": 0.6,\n        \"delivery_rate_long\": 0.7567567567567568,\n        \"delivery_time_minutes_recent\": 7,\n        \"delivery_time_minutes_long\": 7,\n        \"steam_level_min_range\": 5,\n        \"steam_level_max_range\": 10,\n        \"user_has_trade_notifications_enabled\": false,\n        \"user_is_online\": null\n      },\n      \"above_recommended_price\": -5\n    }\n  ]\n}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "default": true
+                    },
+                    "active_auctions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "auction_ends_at": {
+                            "type": "integer",
+                            "example": 1666083221,
+                            "default": 0
+                          },
+                          "auction_highest_bid": {
+                            "type": "integer",
+                            "example": 227,
+                            "default": 0
+                          },
+                          "auction_highest_bidder": {
+                            "type": "integer",
+                            "example": 303119,
+                            "default": 0
+                          },
+                          "auction_number_of_bids": {
+                            "type": "integer",
+                            "example": 1,
+                            "default": 0
+                          },
+                          "custom_price_percentage": {
+                            "type": "integer",
+                            "example": 0,
+                            "default": 0
+                          },
+                          "icon_url": {
+                            "type": "string",
+                            "example": "-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXX7gNTPcUmqBwTTR7SQb37g5vWCwlxdFEC5uyncgZi0vGQJWwQudm0xtTexaD2ZOmClyVB5sL8h7mCHA"
+                          },
+                          "is_commodity": {
+                            "type": "boolean",
+                            "example": true,
+                            "default": true
+                          },
+                          "market_name": {
+                            "type": "string",
+                            "example": "Name Tag"
+                          },
+                          "market_value": {
+                            "type": "integer",
+                            "example": 227,
+                            "default": 0
+                          },
+                          "name_color": {
+                            "type": "string",
+                            "example": "D2D2D2"
+                          },
+                          "preview_id": {},
+                          "price_is_unreliable": {
+                            "type": "boolean",
+                            "example": true,
+                            "default": true
+                          },
+                          "stickers": {
+                            "type": "array"
+                          },
+                          "wear": {},
+                          "published_at": {
+                            "type": "string",
+                            "example": "2022-10-18T08:51:02.803761Z"
+                          },
+                          "id": {
+                            "type": "integer",
+                            "example": 11204,
+                            "default": 0
+                          },
+                          "depositor_stats": {
+                            "type": "object",
+                            "properties": {
+                              "delivery_rate_recent": {
+                                "type": "number",
+                                "example": 0.6,
+                                "default": 0
+                              },
+                              "delivery_rate_long": {
+                                "type": "number",
+                                "example": 0.7567567567567568,
+                                "default": 0
+                              },
+                              "delivery_time_minutes_recent": {
+                                "type": "integer",
+                                "example": 7,
+                                "default": 0
+                              },
+                              "delivery_time_minutes_long": {
+                                "type": "integer",
+                                "example": 7,
+                                "default": 0
+                              },
+                              "steam_level_min_range": {
+                                "type": "integer",
+                                "example": 5,
+                                "default": 0
+                              },
+                              "steam_level_max_range": {
+                                "type": "integer",
+                                "example": 10,
+                                "default": 0
+                              },
+                              "user_has_trade_notifications_enabled": {
+                                "type": "boolean",
+                                "example": false,
+                                "default": true
+                              },
+                              "user_is_online": {}
+                            }
+                          },
+                          "above_recommended_price": {
+                            "type": "integer",
+                            "example": -5,
+                            "default": 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/trading/user/settings": {
+      "post": {
+        "summary": "Settings",
+        "description": "Used to update your trade URL or the marketplace privacy protection level.",
+        "operationId": "settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "trade_url": {
+                    "type": "string",
+                    "description": "full_trade_url_here"
+                  },
+                  "marketplace_privacy_protection_level": {
+                    "type": "string",
+                    "description": "Use 'base' or 'strict'",
+                    "default": "base"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{\n  success: true,\n  escrow_seconds: 0,\n  marketplace_privacy_protection_level: 'base'\n}"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/user/transactions": {
+      "get": {
+        "summary": "Transaction History",
+        "description": "Used to get your transaction history.",
+        "operationId": "transaction-history",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Insert the requested page number here.",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{\n    \"current_page\": 1,\n    \"data\": [\n        {\n            \"id\": 54773614,\n            \"key\": \"withdrawal_invoices\",\n            \"type\": \"Steam Auction Bid Withdrawal\",\n            \"balance\": 17543153,\n            \"delta\": -227,\n            \"balance_after\": 17542926,\n            \"timestamp\": 1666083061.355,\n            \"timestamp_raw\": 1666083061355,\n            \"date\": \"2022-10-18 08:51:01\",\n            \"invoice_id\": null,\n            \"data\": {\n                \"id\": 69,\n                \"processor_name\": \"Steam\",\n                \"status\": 200,\n                \"status_name\": \"Created\",\n                \"metadata\": {\n                    \"deposit_id\": 11204,\n                    \"payment_method\": \"auction_bid\",\n                    \"id\": 11204,\n                    \"auction_highest_bid\": 227,\n                    \"auction_highest_bidder\": 303119,\n                    \"auction_number_of_bids\": 1,\n                    \"auction_ends_at\": 1666083221\n                }\n            },\n        {\n            \"id\": 54773613,\n            \"key\": \"withdrawal_invoices\",\n            \"type\": \"Steam P2P Withdrawal\",\n            \"balance\": 174981,\n            \"balance_before_coins\": \"1749.810000\",\n            \"delta\": -135000,\n            \"delta_coins\": \"-1350.000000\",\n            \"balance_after\": 39981,\n            \"balance_after_coins\": \"399.810000\",\n            \"timestamp\": 1666083061.355,\n            \"timestamp_raw\": 1666083061355,\n            \"date\": \"2022-10-18 08:51:01\",\n            \"invoice_id\": null,\n            \"user_id\": 12345,\n            \"data\": {\n              \"id\": 12992211,\n              \"processor_id\": 3,\n              \"processor_name\": \"Steam\",\n              \"status\": 300,\n              \"status_name\": \"Complete\",\n              \"metadata\": {\n                \"deposit_id\": 77777777,\n                \"payment_method\": \"p2p\",\n                \"tradeoffer_id\": 77777777,\n                \"penalty\": false\n              }\n            }\n      \t}\n        }\n    ],\n    \"first_page_url\": \"user/transactions?page=1\",\n    \"from\": 1,\n    \"last_page\": 2499,\n    \"last_page_url\": \"user/transactions?page=2499\",\n    \"links\": [\n        {\n            \"url\": null,\n            \"label\": \"&laquo; Previous\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=1\",\n            \"label\": \"1\",\n            \"active\": true\n        },\n        {\n            \"url\": \"user/transactions?page=2\",\n            \"label\": \"2\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=3\",\n            \"label\": \"3\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=4\",\n            \"label\": \"4\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=5\",\n            \"label\": \"5\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=6\",\n            \"label\": \"6\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=7\",\n            \"label\": \"7\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=8\",\n            \"label\": \"8\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=9\",\n            \"label\": \"9\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=10\",\n            \"label\": \"10\",\n            \"active\": false\n        },\n        {\n            \"url\": null,\n            \"label\": \"...\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=2498\",\n            \"label\": \"2498\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=2499\",\n            \"label\": \"2499\",\n            \"active\": false\n        },\n        {\n            \"url\": \"user/transactions?page=2\",\n            \"label\": \"Next &raquo;\",\n            \"active\": false\n        }\n    ],\n    \"next_page_url\": \"user/transactions?page=2\",\n    \"path\": \"user/transactions\",\n    \"per_page\": 1,\n    \"prev_page_url\": null,\n    \"to\": 1,\n    \"total\": 2499\n}"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/user/tip": {
+      "post": {
+        "summary": "Tipping",
+        "description": "Used to tip other accounts using their Steam/Empire ID. This requires 2FA codes alongside your API key in order to work.",
+        "operationId": "tipping",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "Your two-factor authentication code."
+                  },
+                  "user_id": {
+                    "type": "string",
+                    "description": "The ID of the user you want to tip. This field is mutually exclusive with steam_id, so it's optional."
+                  },
+                  "steam_id": {
+                    "type": "string",
+                    "description": "The Steam ID of the user you want to tip. This field is mutually exclusive with user_id, so it's optional."
+                  },
+                  "amount": {
+                    "type": "string",
+                    "description": "The amount you want to tip in coin-cents"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "OK UserID Input": {
+                    "value": "{\n\"success\": true,\n\"data\": {\n\"user\": {\n\"id\": 12345\n},\n\"amount\": 100,\n\"balance\": 499500\n}\n}"
+                  },
+                  "OK SteamID input": {
+                    "value": "{\n   \"success\":true,\n   \"data\":{\n      \"user\":{\n         \"steam_id\":\"76561198027000000\",\n         \"steam_name\":\"Example User\",\n         \"avatar\":\"https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars\n/2b/2be7018662abf5921bff4828ac18146802e3dc46.jpg\",\n         \"avatar_full\":\"https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars\n/2b/2be7018662abf5921bff4828ac18146802e3dc46_full.jpg\",\n         \"profile_url\":\"http://steamcommunity.com/id/ExampleUser/\",\n         \"timecreated\":null,\n         \"steam_level\":null\n      },\n      \"amount\":100,\n      \"balance\":499500\n   }\n}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true,
+                      "default": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer",
+                              "example": 12345,
+                              "default": 0
+                            }
+                          }
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "example": 100,
+                          "default": 0
+                        },
+                        "balance": {
+                          "type": "integer",
+                          "example": 499500,
+                          "default": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    }
+  },
+  "x-readme": {
+    "headers": []
+  },
+  "x-readme-fauxas": true
+}
