@@ -1,64 +1,62 @@
 // server/config/clientUrls.js
 //
-// Single source of truth for the production frontend origin(s).
+// Single source of truth for the frontend origin(s).
 // CORS (Express + Socket.IO) and the Steam OAuth redirect (steam.controller.js)
 // all import from here instead of re-reading process.env with their own
 // fallback logic — keeps the "where does the browser get sent back to"
 // behavior consistent across the whole server.
 //
-// IMPORTANT: process.env.CLIENT_URL / CLIENT_ORIGIN (set on Render) still
-// take precedence when set. If Render's CLIENT_URL points at the old
-// skintel-beta.vercel.app domain, every value derived from PRIMARY_CLIENT_URL
-// below will still resolve to the old domain — fix the Render env var, not
-// this file.
+// Origins come from env only (CLIENT_URL / CLIENT_ORIGIN / CORS_ORIGIN).
+// There is no hardcoded production domain: in production a missing
+// CLIENT_URL/CLIENT_ORIGIN stops startup, and any SkinTel production domain
+// in the env is rejected so this project can never serve SkinTel's frontend.
 
-export const PRIMARY_CLIENT_URL = "https://www.skin-tel.com";
+const isProd = process.env.NODE_ENV === "production";
 
-// Always-allowed production origins (apex + www), regardless of env config.
-export const PRODUCTION_ORIGINS = [
-  "https://www.skin-tel.com",
-  "https://skin-tel.com",
-];
+// Dev client runs on 5174 (vite.config.js) so it never shares browser storage
+// or service workers with a local SkinTel dev server on 5173.
+const DEV_CLIENT_URL = "http://localhost:5174";
+const DEV_ORIGINS = ["http://localhost:5174", "http://127.0.0.1:5174"];
 
-const DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const SKINTEL_PROD_PATTERN = /skin-tel\.com|skintel-app\.onrender\.com|skintel-beta\.vercel\.app/i;
+
+const configuredUrls = [
+  process.env.CLIENT_URL,
+  process.env.CLIENT_ORIGIN,
+  process.env.CORS_ORIGIN,
+].filter(Boolean).join(",");
+
+if (SKINTEL_PROD_PATTERN.test(configuredUrls)) {
+  throw new Error(
+    "[config] CLIENT_URL / CLIENT_ORIGIN / CORS_ORIGIN references a SkinTel production domain. " +
+    "Insider Tracker must use its own frontend domain."
+  );
+}
+
+const rawClientUrl = (process.env.CLIENT_URL || process.env.CLIENT_ORIGIN || "").trim();
+
+if (isProd && !rawClientUrl) {
+  throw new Error("[config] CLIENT_URL (or CLIENT_ORIGIN) must be set in production.");
+}
 
 // CLIENT_URL used for server-initiated redirects (Steam OAuth callback, etc).
-// process.env.CLIENT_URL / CLIENT_ORIGIN win if set; otherwise PRIMARY_CLIENT_URL.
-export const CLIENT_URL = (
-  process.env.CLIENT_URL || process.env.CLIENT_ORIGIN || PRIMARY_CLIENT_URL
-).trim().replace(/\/$/, "");
+export const CLIENT_URL = (rawClientUrl || DEV_CLIENT_URL).replace(/\/$/, "");
 
-if (process.env.NODE_ENV === "production") {
-  if (/vercel\.app/i.test(CLIENT_URL)) {
-    console.warn(
-      `⚠️  CLIENT_URL/CLIENT_ORIGIN resolves to "${CLIENT_URL}" — this looks like ` +
-      `the old beta domain. Update CLIENT_URL/CLIENT_ORIGIN on Render to ` +
-      `"${PRIMARY_CLIENT_URL}" so OAuth redirects and CORS point at the ` +
-      `current production domain.`
-    );
-  } else if (CLIENT_URL === "https://skin-tel.com") {
-    console.warn(
-      `⚠️  CLIENT_URL/CLIENT_ORIGIN is set to the apex domain "${CLIENT_URL}". ` +
-      `The canonical domain is now "${PRIMARY_CLIENT_URL}". Steam OAuth redirects will hit ` +
-      `a Vercel 301 before reaching the client — update CLIENT_URL/CLIENT_ORIGIN on Render to ` +
-      `"${PRIMARY_CLIENT_URL}".`
-    );
-  }
-}
+// Browsers send Origin without a trailing slash; normalize env values to match.
+const toOrigin = (s) => s.trim().replace(/\/+$/, "");
 
 // Builds the deduped list of allowed CORS origins (Express + Socket.IO).
 export function getAllowedOrigins(isProd) {
   const envOrigins = [
     process.env.CLIENT_ORIGIN,
     process.env.CLIENT_URL,
-  ].filter(Boolean).map((s) => s.trim());
+  ].filter(Boolean).map(toOrigin);
 
   const extraOrigins = (process.env.CORS_ORIGIN || "")
-    .split(",").map((s) => s.trim()).filter(Boolean);
+    .split(",").map(toOrigin).filter(Boolean);
 
   return [
     ...new Set([
-      ...PRODUCTION_ORIGINS,
       ...envOrigins,
       ...extraOrigins,
       ...(!isProd ? DEV_ORIGINS : []),

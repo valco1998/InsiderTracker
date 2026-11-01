@@ -26,6 +26,7 @@ const Landing = lazy(() => import("./pages/landing/Landing.jsx"));
 const Privacy = lazy(() => import("./pages/Privacy.jsx"));
 const NotificationDashboard = lazy(() => import("./pages/admin/NotificationDashboard.jsx"));
 const AlertsDebug           = lazy(() => import("./pages/alerts/AlertsDebug.jsx"));
+const InsiderDashboard      = lazy(() => import("./pages/insider/InsiderDashboard.jsx"));
 
 function PageFallback() {
   return (
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Navigate to="/login" replace />} />
           <Route path="/steam/callback" element={<SteamCallback />} />
+          <Route path="/insider" element={<InsiderDashboard />} />
 
           {/* Protected */}
           <Route element={<ProtectedLayout />}>

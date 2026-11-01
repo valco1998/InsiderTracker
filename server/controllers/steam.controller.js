@@ -54,7 +54,7 @@ function sleep(ms) {
 /* ─── Redirect user to Steam OpenID ──────────────────── */
 
 export function steamLogin(req, res) {
-  const serverUrl = process.env.SERVER_URL || "https://skintel-app.onrender.com";
+  const serverUrl = process.env.SERVER_URL || "http://localhost:5055";
   const returnTo  = `${serverUrl}/api/steam/callback`;
 
   const params = new URLSearchParams({

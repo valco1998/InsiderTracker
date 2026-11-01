@@ -1,18 +1,16 @@
 {
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [{ "type": "host", "value": "skin-tel.com" }],
-      "destination": "https://www.skin-tel.com/:path*",
-      "permanent": true
-    }
-  ],
   "headers": [
     {
       "source": "/firebase-messaging-sw.js",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" },
         { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
+    {
+      "source": "/firebase-sw-config.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
       ]
     }
   ],

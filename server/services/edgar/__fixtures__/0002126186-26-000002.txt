@@ -1,0 +1,234 @@
+<SEC-DOCUMENT>0002126186-26-000002.txt : 20261028
+<SEC-HEADER>0002126186-26-000002.hdr.sgml : 20261028
+<ACCEPTANCE-DATETIME>20261028204308
+ACCESSION NUMBER:		0002126186-26-000002
+CONFORMED SUBMISSION TYPE:	4
+PUBLIC DOCUMENT COUNT:		1
+CONFORMED PERIOD OF REPORT:	20261026
+FILED AS OF DATE:		20261028
+DATE AS OF CHANGE:		20261028
+
+REPORTING-OWNER:	
+
+	OWNER DATA:	
+		COMPANY CONFORMED NAME:			Portman David J.
+		CENTRAL INDEX KEY:			0002126186
+		ORGANIZATION NAME:           	
+
+	FILING VALUES:
+		FORM TYPE:		4
+		SEC ACT:		1934 Act
+		SEC FILE NUMBER:	001-39503
+		FILM NUMBER:		261497098
+
+	MAIL ADDRESS:	
+		STREET 1:		250 E. BROAD ST., SUITE 250
+		CITY:			COLUMBUS
+		STATE:			OH
+		ZIP:			43215
+
+ISSUER:		
+
+	COMPANY DATA:	
+		COMPANY CONFORMED NAME:			LeonaBio, Inc.
+		CENTRAL INDEX KEY:			0001620463
+		STANDARD INDUSTRIAL CLASSIFICATION:	BIOLOGICAL PRODUCTS (NO DIAGNOSTIC SUBSTANCES) [2836]
+		ORGANIZATION NAME:           	03 Life Sciences
+		EIN:				453368487
+		FISCAL YEAR END:			1231
+
+	BUSINESS ADDRESS:	
+		STREET 1:		18706 NORTH CREEK PARKWAY, SUITE 104
+		CITY:			BOTHELL
+		STATE:			WA
+		ZIP:			98011
+		BUSINESS PHONE:		(425) 620-8501
+
+	MAIL ADDRESS:	
+		STREET 1:		18706 NORTH CREEK PARKWAY, SUITE 104
+		CITY:			BOTHELL
+		STATE:			WA
+		ZIP:			98011
+
+	FORMER COMPANY:	
+		FORMER CONFORMED NAME:	Athira Pharma, Inc.
+		DATE OF NAME CHANGE:	20190916
+
+	FORMER COMPANY:	
+		FORMER CONFORMED NAME:	M3 Biotechnology, Inc.
+		DATE OF NAME CHANGE:	20140924
+</SEC-HEADER>
+<DOCUMENT>
+<TYPE>4
+<SEQUENCE>1
+<FILENAME>primary_doc.xml
+<DESCRIPTION>PRIMARY DOCUMENT
+<TEXT>
+<XML>
+<?xml version="1.0"?>
+<ownershipDocument>
+
+    <schemaVersion>X0609</schemaVersion>
+
+    <documentType>4</documentType>
+
+    <periodOfReport>2026-10-26</periodOfReport>
+
+    <notSubjectToSection16>0</notSubjectToSection16>
+
+    <issuer>
+        <issuerCik>0001620463</issuerCik>
+        <issuerName>LeonaBio, Inc.</issuerName>
+        <issuerTradingSymbol>LONA</issuerTradingSymbol>
+    </issuer>
+
+    <reportingOwner>
+        <reportingOwnerId>
+            <rptOwnerCik>0002126186</rptOwnerCik>
+            <rptOwnerName>Portman David J.</rptOwnerName>
+        </reportingOwnerId>
+        <reportingOwnerAddress>
+            <rptOwnerNonUSAddressFlag>false</rptOwnerNonUSAddressFlag>
+            <rptOwnerStreet1>250 E. BROAD ST., SUITE 250</rptOwnerStreet1>
+            <rptOwnerStreet2></rptOwnerStreet2>
+            <rptOwnerCity>COLUMBUS</rptOwnerCity>
+            <rptOwnerState>OH</rptOwnerState>
+            <rptOwnerZipCode>43215</rptOwnerZipCode>
+            <rptOwnerStateDescription></rptOwnerStateDescription>
+        </reportingOwnerAddress>
+        <reportingOwnerRelationship>
+            <isDirector>0</isDirector>
+            <isOfficer>0</isOfficer>
+            <isTenPercentOwner>1</isTenPercentOwner>
+            <isOther>0</isOther>
+        </reportingOwnerRelationship>
+    </reportingOwner>
+
+    <aff10b5One>0</aff10b5One>
+
+    <nonDerivativeTable>
+        <nonDerivativeTransaction>
+            <securityTitle>
+                <value>Common Stock</value>
+            </securityTitle>
+            <transactionDate>
+                <value>2026-10-26</value>
+            </transactionDate>
+            <deemedExecutionDate>
+                <value>2026-10-26</value>
+            </deemedExecutionDate>
+            <transactionCoding>
+                <transactionFormType>4</transactionFormType>
+                <transactionCode>P</transactionCode>
+                <equitySwapInvolved>0</equitySwapInvolved>
+            </transactionCoding>
+            <transactionTimeliness>
+                <value></value>
+            </transactionTimeliness>
+            <transactionAmounts>
+                <transactionShares>
+                    <value>3149470</value>
+                </transactionShares>
+                <transactionPricePerShare>
+                    <value>3149.47</value>
+                </transactionPricePerShare>
+                <transactionAcquiredDisposedCode>
+                    <value>A</value>
+                </transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <postTransactionAmounts>
+                <sharesOwnedFollowingTransaction>
+                    <value>3149470</value>
+                </sharesOwnedFollowingTransaction>
+            </postTransactionAmounts>
+            <ownershipNature>
+                <directOrIndirectOwnership>
+                    <value>I</value>
+                </directOrIndirectOwnership>
+                <natureOfOwnership>
+                    <value>See note</value>
+                </natureOfOwnership>
+            </ownershipNature>
+        </nonDerivativeTransaction>
+    </nonDerivativeTable>
+
+    <derivativeTable>
+        <derivativeTransaction>
+            <securityTitle>
+                <value>Warrant</value>
+                <footnoteId id="F1"/>
+            </securityTitle>
+            <conversionOrExercisePrice>
+                <value>0.001</value>
+            </conversionOrExercisePrice>
+            <transactionDate>
+                <value>2026-10-26</value>
+            </transactionDate>
+            <deemedExecutionDate>
+                <value>2026-10-26</value>
+            </deemedExecutionDate>
+            <transactionCoding>
+                <transactionFormType>4</transactionFormType>
+                <transactionCode>P</transactionCode>
+                <equitySwapInvolved>0</equitySwapInvolved>
+            </transactionCoding>
+            <transactionTimeliness>
+                <value></value>
+            </transactionTimeliness>
+            <transactionAmounts>
+                <transactionShares>
+                    <value>5502402</value>
+                </transactionShares>
+                <transactionPricePerShare>
+                    <value>3149.47</value>
+                </transactionPricePerShare>
+                <transactionAcquiredDisposedCode>
+                    <value>D</value>
+                </transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <exerciseDate>
+                <value>2026-10-26</value>
+            </exerciseDate>
+            <expirationDate>
+                <footnoteId id="F2"/>
+            </expirationDate>
+            <underlyingSecurity>
+                <underlyingSecurityTitle>
+                    <value>Common Stock</value>
+                </underlyingSecurityTitle>
+                <underlyingSecurityShares>
+                    <value>5502402</value>
+                </underlyingSecurityShares>
+            </underlyingSecurity>
+            <postTransactionAmounts>
+                <sharesOwnedFollowingTransaction>
+                    <value>0</value>
+                </sharesOwnedFollowingTransaction>
+            </postTransactionAmounts>
+            <ownershipNature>
+                <directOrIndirectOwnership>
+                    <value>I</value>
+                </directOrIndirectOwnership>
+                <natureOfOwnership>
+                    <value>See note</value>
+                    <footnoteId id="F3"/>
+                </natureOfOwnership>
+            </ownershipNature>
+        </derivativeTransaction>
+    </derivativeTable>
+
+    <footnotes>
+        <footnote id="F1">The shares are held by Sermonix Pharmaceuticals, Inc. of which Dr. Portman is the Chief Executive Officer. This Form 4 is being filed to report Dr. Portman's voting control over such securities, but Dr. Portman's personal indirect beneficial ownership does not exceed 10% of the stock in the Issuer.</footnote>
+        <footnote id="F2">The Warrant does not expire.</footnote>
+        <footnote id="F3">The Warrant was held by Sermonix Pharmaceuticals, Inc. of which Dr. Portman is the Chief Executive Officer. The Warrant was exercised on October 26, 2026, in part, into 3,149,740 Common Shares of Issuer, and the balance of the Warrant was assigned to Perceptive Xentogeny Venture Fund II, LP as a distribution-in-kind pursuant to a plan of distribution to the Sermonix Pharmaceuticals equity holders. Following the partial exercise and the assignment of the remaining Warrant rights, Sermonix Pharmaceuticals holds 3,149,740 Common Shares of Issuer.</footnote>
+    </footnotes>
+
+    <ownerSignature>
+        <signatureName>David J. Portman</signatureName>
+        <signatureDate>2026-10-28</signatureDate>
+    </ownerSignature>
+</ownershipDocument>
+</XML>
+</TEXT>
+</DOCUMENT>
+</SEC-DOCUMENT>

@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "test": "node --test services/soldHistoryFetcher.test.js jobs/skinMetricsAggregator.test.js services/dealScore.test.js routers/alertRoutes.test.js services/empireMarketSocket.test.js jobs/alertPricing.test.js controllers/empirePriceConsistency.test.js services/auctionCache.test.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "insider:mvp": "node insider-mvp.js",
+    "test:insider": "node --test services/edgar/form4Parser.test.js services/edgar/edgarSources.test.js services/edgar/transactionGroups.test.js services/edgar/priceAnomalies.test.js"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +23,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.18.2",
+    "fast-xml-parser": "^5.11.2",
     "firebase-admin": "^13.10.0",
     "http": "^0.0.1-security",
     "json-schema-to-ts": "^2.8.0-beta.0",

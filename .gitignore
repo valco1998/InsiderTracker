@@ -13,3 +13,10 @@ logs
 .claude
 *.local.json
 .DS_Store
+
+# Local SEC filing cache (insider MVP)
+server/.cache/
+
+# Copied from SkinTel — kept locally, never tracked (test credentials / cookie jar)
+skintel-qa.js
+server/cookies.txt

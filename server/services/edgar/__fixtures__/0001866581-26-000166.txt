@@ -1,0 +1,172 @@
+<SEC-DOCUMENT>0001866581-26-000166.txt : 20261030
+<SEC-HEADER>0001866581-26-000166.hdr.sgml : 20261030
+<ACCEPTANCE-DATETIME>20261030160740
+ACCESSION NUMBER:		0001866581-26-000166
+CONFORMED SUBMISSION TYPE:	4
+PUBLIC DOCUMENT COUNT:		1
+CONFORMED PERIOD OF REPORT:	20261029
+FILED AS OF DATE:		20261030
+DATE AS OF CHANGE:		20261030
+
+REPORTING-OWNER:	
+
+	OWNER DATA:	
+		COMPANY CONFORMED NAME:			DM Trust Aggregator, LLC
+		CENTRAL INDEX KEY:			0001883105
+		ORGANIZATION NAME:           	
+		STATE OF INCORPORATION:			DE
+		FISCAL YEAR END:			1231
+
+	FILING VALUES:
+		FORM TYPE:		4
+		SEC ACT:		1934 Act
+		SEC FILE NUMBER:	001-40798
+		FILM NUMBER:		261508086
+
+	BUSINESS ADDRESS:	
+		STREET 1:		C/O MCDERMOTT WILL & SCHULTE LLP
+		STREET 2:		500 NORTH CAPITOL STREET, NW
+		CITY:			WASHINGTON
+		STATE:			DC
+		ZIP:			20001
+		BUSINESS PHONE:		(202) 756-8161
+
+	MAIL ADDRESS:	
+		STREET 1:		C/O MCDERMOTT WILL & SCHULTE LLP
+		STREET 2:		500 NORTH CAPITOL STREET, NW
+		CITY:			WASHINGTON
+		STATE:			DC
+		ZIP:			20001
+
+ISSUER:		
+
+	COMPANY DATA:	
+		COMPANY CONFORMED NAME:			Dutch Bros Inc.
+		CENTRAL INDEX KEY:			0001866581
+		STANDARD INDUSTRIAL CLASSIFICATION:	RETAIL-EATING & DRINKING PLACES [5810]
+		ORGANIZATION NAME:           	07 Trade & Services
+		EIN:				871041305
+		STATE OF INCORPORATION:			DE
+		FISCAL YEAR END:			1231
+
+	BUSINESS ADDRESS:	
+		STREET 1:		1930 W RIO SALADO PKWY
+		CITY:			TEMPE
+		STATE:			AZ
+		ZIP:			85281
+		BUSINESS PHONE:		(877) 899-2767
+
+	MAIL ADDRESS:	
+		STREET 1:		1930 W RIO SALADO PKWY
+		CITY:			TEMPE
+		STATE:			AZ
+		ZIP:			85281
+</SEC-HEADER>
+<DOCUMENT>
+<TYPE>4
+<SEQUENCE>1
+<FILENAME>wk-form4_1793390858.xml
+<DESCRIPTION>FORM 4
+<TEXT>
+<XML>
+<?xml version="1.0"?>
+<ownershipDocument>
+
+    <schemaVersion>X0609</schemaVersion>
+
+    <documentType>4</documentType>
+
+    <periodOfReport>2026-10-29</periodOfReport>
+
+    <notSubjectToSection16>0</notSubjectToSection16>
+
+    <issuer>
+        <issuerCik>0001866581</issuerCik>
+        <issuerName>Dutch Bros Inc.</issuerName>
+        <issuerTradingSymbol>BROS</issuerTradingSymbol>
+        <issuerForeignTradingSymbol></issuerForeignTradingSymbol>
+    </issuer>
+
+    <reportingOwner>
+        <reportingOwnerId>
+            <rptOwnerCik>0001883105</rptOwnerCik>
+            <rptOwnerName>DM Trust Aggregator, LLC</rptOwnerName>
+        </reportingOwnerId>
+        <reportingOwnerAddress>
+            <rptOwnerNonUSAddressFlag>false</rptOwnerNonUSAddressFlag>
+            <rptOwnerStreet1>PO BOX 398</rptOwnerStreet1>
+            <rptOwnerStreet2></rptOwnerStreet2>
+            <rptOwnerCity>GRANTS PASS</rptOwnerCity>
+            <rptOwnerState>OR</rptOwnerState>
+            <rptOwnerZipCode>97526</rptOwnerZipCode>
+            <rptOwnerStateDescription></rptOwnerStateDescription>
+        </reportingOwnerAddress>
+        <reportingOwnerRelationship>
+            <isDirector>0</isDirector>
+            <isOfficer>0</isOfficer>
+            <isTenPercentOwner>1</isTenPercentOwner>
+            <isOther>0</isOther>
+            <officerTitle></officerTitle>
+            <otherText></otherText>
+        </reportingOwnerRelationship>
+    </reportingOwner>
+
+    <aff10b5One>1</aff10b5One>
+
+    <nonDerivativeTable>
+        <nonDerivativeTransaction>
+            <securityTitle>
+                <value>Class A Common Stock</value>
+            </securityTitle>
+            <transactionDate>
+                <value>2026-10-29</value>
+            </transactionDate>
+            <transactionCoding>
+                <transactionFormType>4</transactionFormType>
+                <transactionCode>S</transactionCode>
+                <equitySwapInvolved>0</equitySwapInvolved>
+                <footnoteId id="F1"/>
+            </transactionCoding>
+            <transactionAmounts>
+                <transactionShares>
+                    <value>266000</value>
+                </transactionShares>
+                <transactionPricePerShare>
+                    <value>44.0266</value>
+                    <footnoteId id="F2"/>
+                </transactionPricePerShare>
+                <transactionAcquiredDisposedCode>
+                    <value>D</value>
+                </transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <postTransactionAmounts>
+                <sharesOwnedFollowingTransaction>
+                    <value>4153652</value>
+                </sharesOwnedFollowingTransaction>
+            </postTransactionAmounts>
+            <ownershipNature>
+                <directOrIndirectOwnership>
+                    <value>D</value>
+                </directOrIndirectOwnership>
+            </ownershipNature>
+        </nonDerivativeTransaction>
+    </nonDerivativeTable>
+
+    <derivativeTable></derivativeTable>
+
+    <footnotes>
+        <footnote id="F1">As indicated by the checkbox above, this transaction was effected automatically pursuant to a Rule 10b5-1 trading plan adopted by DM Trust Aggregator, LLC on February 19, 2026.</footnote>
+        <footnote id="F2">Represents the weighted average sale price. These shares were sold in multiple transactions at prices ranging from $44.0000 to $44.2500 inclusive. The reporting person undertakes to provide the Issuer, any security holder of the Issuer, or the staff of the Securities and Exchange Commission, upon request, full information regarding the number of shares sold at each separate price within the range set forth above.</footnote>
+    </footnotes>
+
+    <remarks></remarks>
+
+    <ownerSignature>
+        <signatureName>/s/ Thomas P. Conaghan, Attorney-in-Fact for Travis Boersma, Manager</signatureName>
+        <signatureDate>2026-10-30</signatureDate>
+    </ownerSignature>
+</ownershipDocument>
+</XML>
+</TEXT>
+</DOCUMENT>
+</SEC-DOCUMENT>
