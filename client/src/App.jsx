@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import ProtectedLayout from "./pages/components/ProtectedLayout.jsx";
 import AppLayout from "./pages/components/AppLayout.jsx";
@@ -58,6 +58,7 @@ function SmartHome() {
 }
 
 export default function App() {
+  const isInsider = useLocation().pathname.startsWith("/insider");
   return (
     <>
       <Toaster
@@ -75,8 +76,10 @@ export default function App() {
           duration: 5000,
         }}
       />
-      <RealtimeAlertPopup />
-      <TradeMatchToast />
+      {/* Legacy CS2 popups listen to window "price_alert" — which the foreground
+          FCM handler also dispatches for insider alerts. Keep them off /insider. */}
+      {!isInsider && <RealtimeAlertPopup />}
+      {!isInsider && <TradeMatchToast />}
 
       <Suspense fallback={<PageFallback />}>
         <Routes>

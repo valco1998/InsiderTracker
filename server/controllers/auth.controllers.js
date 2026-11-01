@@ -99,7 +99,8 @@ export async function signup(req, res) {
       const field = Object.keys(err.keyPattern || {})[0] || "field";
       return res.status(409).json({ ok: false, error: `${field} already exists` });
     }
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error(`[AUTH_ERROR] err=${err?.name}: ${err?.message}`);
+    return res.status(500).json({ ok: false, error: "Internal server error" });
   }
 }
 
@@ -139,7 +140,8 @@ export async function login(req, res) {
       },
     });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error(`[AUTH_ERROR] err=${err?.name}: ${err?.message}`);
+    return res.status(500).json({ ok: false, error: "Internal server error" });
   }
 }
 
@@ -160,7 +162,8 @@ export async function updateSettings(req, res) {
     const user = await User.findByIdAndUpdate(req.user._id, update, { new: true }).select("-passwordHash");
     return res.json({ ok: true, user });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error(`[AUTH_ERROR] err=${err?.name}: ${err?.message}`);
+    return res.status(500).json({ ok: false, error: "Internal server error" });
   }
 }
 
@@ -169,6 +172,7 @@ export const logout = async (req, res) => {
     res.clearCookie("token");
     return res.json({ ok: true });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error(`[AUTH_ERROR] err=${err?.name}: ${err?.message}`);
+    return res.status(500).json({ ok: false, error: "Internal server error" });
   }
 };

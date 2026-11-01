@@ -18,6 +18,9 @@ function writeProbeLog(entry) {
   } catch { /* ignore quota/parse errors */ }
 }
 
+// Push subscription endpoints identify a device channel — log tails only.
+const endpointTail = (e) => (e ? "..." + String(e).slice(-16) : "(none)");
+
 // Force-delete the Firebase token, then return a fresh token.
 //
 // DIAGNOSTIC MODE: logs push subscription endpoint before deleteToken() and
@@ -41,7 +44,7 @@ async function _forceFreshToken(messaging, swReg) {
       console.log(
         "[FCM] _forceFreshToken() PRE-deleteToken snapshot:",
         "\n  pushSubscription exists:", preSubExists,
-        "\n  endpoint:", preEndpoint ?? "(none)",
+        "\n  endpoint:", endpointTail(preEndpoint),
       );
     } catch (snapErr) {
       console.warn("[FCM] _forceFreshToken() PRE snapshot failed:", snapErr.message);
@@ -65,7 +68,7 @@ async function _forceFreshToken(messaging, swReg) {
       console.log(
         "[FCM] _forceFreshToken() POST-deleteToken, PRE-getToken snapshot:",
         "\n  pushSubscription exists:", !!midSub,
-        "\n  endpoint:", midEndpoint ?? "(none)",
+        "\n  endpoint:", endpointTail(midEndpoint),
         "\n  same as before deleteToken():", sameEndpoint,
         sameEndpoint
           ? "⚠️ deleteToken() did NOT clear the push subscription — getToken() will likely re-derive the same FCM token"
@@ -96,7 +99,7 @@ async function _forceFreshToken(messaging, swReg) {
         "[FCM] _forceFreshToken() POST-getToken snapshot:",
         "\n  new token tail: ..." + freshToken.slice(-20),
         "\n  pushSubscription exists:", !!postSub,
-        "\n  endpoint:", postEndpoint ?? "(none)",
+        "\n  endpoint:", endpointTail(postEndpoint),
         "\n  same endpoint as PRE-deleteToken():", sameEndpoint,
         sameEndpoint
           ? "⚠️ SAME subscription re-derived — calling pushManager.unsubscribe() and retrying getToken()"
@@ -538,7 +541,7 @@ export default function usePushNotifications() {
               isRead: false, _isNew: true,
               source: data.type === "auction_alert" ? "auction-alert" : "engine",
               tradeId: data.tradeId ?? null,
-              url:    data.url ?? "/alerts",
+              url:    data.url ?? "/insider",
             },
           })
         );
@@ -546,15 +549,15 @@ export default function usePushNotifications() {
         // Native browser notification (foreground — SW suppresses these by default)
         if (Notification.permission === "granted") {
           const n     = payload.notification ?? {};
-          const title = n.title ?? data.title ?? "SkinTel Alert";
+          const title = n.title ?? data.title ?? "Insider Tracker alert";
           const body  = n.body  ?? data.body  ?? "";
-          const icon  = n.icon  ?? "/telIcon.png";
+          const icon  = n.icon  ?? "/icons/insider-notification-192.png";
           const opts  = {
             body,
             icon,
-            badge:    "/telIcon.png",
+            badge:    "/icons/insider-badge-96.png",
             data:     payload.data ?? {},
-            tag:      data.alertId ?? data.type ?? "skintel-fg",
+            tag:      data.alertId ?? data.type ?? "insider-tracker-fg",
             renotify: true,
           };
 
@@ -637,8 +640,8 @@ export default function usePushNotifications() {
       console.log("[FCM] request() → _forceFreshToken() →", token ? "token received ✓ tail=..." + token.slice(-20) : "EMPTY TOKEN");
       if (!token) throw new Error("FCM returned an empty token. Check your VAPID key.");
 
+      // Never log the full FCM registration token — tail only.
       console.log("[FCM] ── FCM token received ──────────────────────────────");
-      console.log("[FCM] Full token :", token);
       console.log("[FCM] Token tail :", "..." + token.slice(-20));
       console.log("[FCM] ─────────────────────────────────────────────────────");
       setFcmToken(token);

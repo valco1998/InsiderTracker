@@ -2,6 +2,8 @@
 // and sales (S). Data: GET /api/insider/transactions (parsed from SEC EDGAR).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import api from "../../lib/api";
+import useInsiderAccount from "../../hooks/useInsiderAccount";
+import InsiderAccountPanel, { FollowButton } from "./InsiderAccountPanel";
 
 const REFRESH_MS = 60_000;
 
@@ -250,7 +252,7 @@ function StatusLine({ status, total, loading }) {
   );
 }
 
-function DesktopTable({ rows }) {
+function DesktopTable({ rows, account }) {
   const th = "px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-white/45 whitespace-nowrap";
   const td = "px-3 py-3 align-top text-sm";
   return (
@@ -276,7 +278,7 @@ function DesktopTable({ rows }) {
               <td className={`${td} whitespace-nowrap text-white/80`} title={t.acceptedAtET ? `Accepted by SEC ${t.acceptedAtET}` : undefined}>{day(t.filingDate)}</td>
               <td className={`${td} whitespace-nowrap text-white/60`}>{day(t.transactionDate)}</td>
               <td className={td}>
-                <div className="font-semibold text-white">{t.ticker || "—"}</div>
+                <div className="flex items-center gap-2"><span className="font-semibold text-white">{t.ticker || "—"}</span><FollowButton t={t} account={account} /></div>
                 <div className="max-w-[220px] truncate text-xs text-white/50" title={t.issuerName}>{t.issuerName}</div>
               </td>
               <td className={`${td} max-w-[260px]`}><Reporters t={t} /></td>
@@ -294,7 +296,7 @@ function DesktopTable({ rows }) {
   );
 }
 
-function MobileCards({ rows }) {
+function MobileCards({ rows, account }) {
   return (
     <div className="flex flex-col gap-2.5 lg:hidden">
       {rows.map((t) => (
@@ -303,6 +305,7 @@ function MobileCards({ rows }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-white">{t.ticker || "—"}</span>
+                <FollowButton t={t} account={account} />
                 <TypeBadge code={t.code} formType={t.formType} />
               </div>
               <div className="truncate text-xs text-white/50">{t.issuerName}</div>
@@ -339,6 +342,7 @@ export default function InsiderDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const reqId = useRef(0);
+  const account = useInsiderAccount();
 
   // Debounce ticker typing.
   useEffect(() => {
@@ -406,6 +410,7 @@ export default function InsiderDashboard() {
         <FilterBar {...{ type, setType, tickerInput, setTickerInput, from, setFrom, to, setTo, openMarketOnly, setOpenMarketOnly }} onClear={clear} />
         <StatusLine status={status} total={total} loading={loading && !!status} />
         <TotalsBar totals={totals} />
+        <InsiderAccountPanel account={account} />
 
         {error && (
           <div className="rounded-lg px-3 py-2 text-sm text-rose-300" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)" }}>
@@ -428,8 +433,8 @@ export default function InsiderDashboard() {
 
         {rows.length > 0 && (
           <>
-            <DesktopTable rows={rows} />
-            <MobileCards rows={rows} />
+            <DesktopTable rows={rows} account={account} />
+            <MobileCards rows={rows} account={account} />
             {total > rows.length && <div className="text-center text-xs text-white/40">Showing the {rows.length} most recent of {total.toLocaleString()} transactions.</div>}
           </>
         )}

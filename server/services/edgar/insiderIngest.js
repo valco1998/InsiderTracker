@@ -43,6 +43,7 @@ const status = {
   lastPollError: null,
   lastFeed: { pages: 0, entries: 0, form4: 0, added: 0 },
   lastIndexCheck: null,
+  initialSyncCompletedAt: null,
   filingsParsed: 0,
   filingsFailed: 0,
   processing: false,
@@ -135,6 +136,20 @@ async function processQueue() {
     }
   } finally {
     status.processing = false;
+    notifyBatch();
+  }
+}
+
+// ── Batch listeners (alert engine) ───────────────────────────────────────────
+const batchListeners = new Set();
+export function onIngestBatch(fn) {
+  batchListeners.add(fn);
+  return () => batchListeners.delete(fn);
+}
+function notifyBatch() {
+  for (const fn of batchListeners) {
+    try { Promise.resolve(fn()).catch((err) => console.warn(`[INGEST_LISTENER] failed err=${err.message}`)); }
+    catch (err) { console.warn(`[INGEST_LISTENER] failed err=${err.message}`); }
   }
 }
 
@@ -235,6 +250,8 @@ export async function startInsiderIngest() {
   // Cached index lists may reference filings dropped as stale — re-fetch those indexes.
   for (const [day, accs] of indexes) if (accs.some((a) => !filings.has(a))) indexes.delete(day);
   await pollOnce(FEED_MAX_PAGES);
+  // Startup backfill finished — the alert engine may only run after this point.
+  status.initialSyncCompletedAt = new Date().toISOString();
   pollTimer = setInterval(() => pollOnce(FEED_MAX_PAGES), POLL_MS);
 }
 

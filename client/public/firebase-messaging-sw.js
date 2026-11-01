@@ -188,26 +188,26 @@ if (messaging) messaging.onBackgroundMessage((payload) => {
   console.log('[FCM SW] onBackgroundMessage() DEVICE_RECEIVED alertId=' + (data.alertId || '–') + ' type=' + (data.type || '–'), JSON.stringify(payload));
   const n    = payload.notification ?? {};
 
-  const title     = n.title ?? data.title ?? 'SkinTel Alert';
+  const title     = n.title ?? data.title ?? 'Insider Tracker alert';
   const body      = n.body  ?? data.body  ?? '';
   const isAuction = data.type === 'auction_alert';
-  const clickUrl  = data.url ?? '/alerts';
+  const clickUrl  = data.url ?? '/insider';
 
-  // Use item image as the large preview when it is a valid absolute URL.
+  // Use an image as the large preview when it is a valid absolute URL.
   const itemImage = (data.image && /^https?:\/\//.test(data.image)) ? data.image : null;
 
-  // Standard SkinTel notification template — same actions for every alert
-  // type (price, item, auction) so the layout is consistent everywhere.
+  // Standard Insider Tracker notification template — the same actions for every
+  // alert. "open_filing" opens data.url (the official SEC filing for insider alerts).
   const actions = [
-    { action: 'open_auction', title: 'Open Auction' },
-    { action: 'view_alerts',  title: 'View Alerts'  },
+    { action: 'open_filing', title: 'Open SEC filing' },
+    { action: 'view_alerts', title: 'View alerts'     },
   ];
 
   const notifOptions = {
     body,
-    icon:               '/telIcon.png',
-    badge:              '/telIcon.png',
-    tag:                data.alertId ?? data.type ?? 'skintel',
+    icon:               '/icons/insider-notification-192.png',
+    badge:              '/icons/insider-badge-96.png',
+    tag:                data.alertId ?? data.type ?? 'insider-tracker',
     renotify:           true,
     requireInteraction: isAuction,
     vibrate:            [200, 100, 200],
@@ -227,20 +227,20 @@ self.addEventListener('notificationclick', (event) => {
   console.log('[FCM SW] notificationclick — action:', event.action, 'data:', JSON.stringify(event.notification.data));
   event.notification.close();
 
-  const data    = event.notification.data ?? {};
-  const itemUrl = data.clickUrl || data.url || (data.tradeId ? `/trade/${data.tradeId}` : null);
+  const data      = event.notification.data ?? {};
+  const targetUrl = data.clickUrl || data.url || null;
 
+  // Every fallback stays inside this app — never a third-party site.
   let url;
-  if (event.action === 'open_auction') {
-    url = itemUrl || 'https://csgoempire.com';
-  } else if (event.action === 'view_alerts') {
-    url = '/alerts';
+  if (event.action === 'view_alerts') {
+    url = '/insider';
   } else {
-    // Notification body tap — open the item page directly
-    url = itemUrl || '/alerts';
+    // "Open SEC filing" action or notification body tap → the alert's link
+    // (the official SEC filing for insider alerts).
+    url = targetUrl || '/insider';
   }
 
-  // Relative URLs (e.g. '/alerts') must resolve against this app's origin —
+  // Relative URLs (e.g. '/insider') must resolve against this app's origin —
   // clients.openWindow() requires an absolute or origin-relative URL, and
   // open.navigate() below needs an absolute URL to compare origins safely.
   const absoluteUrl = /^https?:\/\//.test(url) ? url : new URL(url, self.location.origin).href;
@@ -248,7 +248,7 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (list) => {
-      // External URLs (e.g. csgoempire.com) must always open a new window —
+      // External URLs (e.g. www.sec.gov filings) must always open a new window —
       // can't navigate a same-origin tab to a cross-origin URL.
       if (isExternal) {
         return clients.openWindow(absoluteUrl);

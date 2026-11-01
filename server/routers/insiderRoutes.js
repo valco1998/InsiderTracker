@@ -6,9 +6,9 @@
 // filing is listed in `reportedBy`. `?dedupe=false` returns raw filing rows.
 // `totals` are always computed over economic transactions (no double counting).
 import express from "express";
-import { getTransactions, getIngestStatus } from "../services/edgar/insiderIngest.js";
+import { getIngestStatus } from "../services/edgar/insiderIngest.js";
 import { groupTransactions, computeTotals } from "../services/edgar/transactionGroups.js";
-import { annotatePriceChecks } from "../services/edgar/priceAnomalies.js";
+import { getCheckedRows } from "../services/edgar/insiderData.js";
 
 const router = express.Router();
 
@@ -37,7 +37,7 @@ router.get("/transactions", (req, res) => {
   }
 
   // Price checks need every row (peer comparison), so run them on the full set.
-  const raw = annotatePriceChecks(getTransactions());
+  const raw = getCheckedRows();
   // Group BEFORE filtering so a group is never split by a filter.
   const economic = groupTransactions(raw);
   const all = dedupe ? economic : raw;

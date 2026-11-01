@@ -262,6 +262,7 @@ function loadSw({ fetchImpl = async () => ({ ok: true }), idb = fakeIndexedDB(),
   const listeners = {};
   const shown = [];
   const fetchCalls = [];
+  const opened = [];
   const calls = [];
   let bgHandler = null;
   class ServiceWorkerRegistration {
@@ -291,7 +292,7 @@ function loadSw({ fetchImpl = async () => ({ ok: true }), idb = fakeIndexedDB(),
       messaging: () => { calls.push("messaging"); return { onBackgroundMessage: (fn) => { bgHandler = fn; } }; },
     },
     ServiceWorkerRegistration,
-    clients: { matchAll: async () => [], openWindow: async () => null },
+    clients: { matchAll: async () => [], openWindow: async (u) => { opened.push(u); return null; } },
     fetch: (url, init) => { fetchCalls.push({ url, init }); return fetchImpl(url, init); },
     AbortController, setTimeout, clearTimeout, Promise, JSON, Date, URL,
     console: silent,
@@ -313,19 +314,27 @@ function loadSw({ fetchImpl = async () => ({ ok: true }), idb = fakeIndexedDB(),
     const displayed = bgHandler ? bgHandler(JSON.parse(JSON.stringify(fcmPayload))) : null;
     return { waits, displayed };
   }
-  return { dispatchPush, shown, fetchCalls, idb, calls, listeners, self };
+  function click(notificationData, action = "") {
+    const waits = [];
+    const event = { action, notification: { data: notificationData, close() {} }, waitUntil: (p) => waits.push(p) };
+    for (const fn of listeners.notificationclick || []) fn(event);
+    return Promise.all(waits);
+  }
+  return { dispatchPush, click, opened, shown, fetchCalls, idb, calls, listeners, self };
 }
 
+// Insider-alert payload shape, as built by services/insiderPushFormat.js.
+const SEC_URL = "https://www.sec.gov/Archives/edgar/data/1866581/000186658126000164/0001866581-26-000164-index.htm";
 const alertPayload = (overrides = {}) => ({
   from: SENDER_ID,
-  notification: { title: "AK-47 | Redline", body: "Bid 10.00 · Profit +2.00 (16.7%)" },
+  notification: { title: "BROS · Insider sale · $11.7M", body: "Boersma Travis (Executive Chairman of Board) sold 266,000 sh @ $44.0266" },
   data: {
-    type: "auction_alert",
+    type: "price_alert",
+    kind: "insider_trade",
     alertId: ALERT_ID,
-    itemId: "123",
-    itemName: "AK-47 | Redline",
-    image: "https://cdn.example/ak.png",
-    url: "https://csgoempire.com/item/123",
+    image: "https://cdn.example/preview.png",
+    url: SEC_URL,
+    filingUrl: SEC_URL,
     ...overrides,
   },
 });
@@ -395,24 +404,94 @@ test("SW: receipt failure or slow backend never blocks or breaks the notificatio
   await Promise.all(s.waits);
 });
 
-test("SW: background notification is built exactly as before the change", async () => {
+test("SW: background notification uses the Insider Tracker template (phase 4b)", async () => {
   const sw = loadSw();
   const { displayed } = sw.dispatchPush(alertPayload());
   await displayed;
   assert.equal(sw.shown.length, 1);
   const { title, options } = sw.shown[0];
-  assert.equal(title, "AK-47 | Redline");
-  assert.equal(options.body, "Bid 10.00 · Profit +2.00 (16.7%)");
-  assert.equal(options.icon, "/telIcon.png");
-  assert.equal(options.badge, "/telIcon.png");
+  assert.equal(title, "BROS · Insider sale · $11.7M");
+  assert.equal(options.body, "Boersma Travis (Executive Chairman of Board) sold 266,000 sh @ $44.0266");
+  assert.equal(options.icon, "/icons/insider-notification-192.png");
+  assert.equal(options.badge, "/icons/insider-badge-96.png");
   assert.equal(options.tag, ALERT_ID);
   assert.equal(options.renotify, true);
-  assert.equal(options.requireInteraction, true);
-  assert.equal(options.image, "https://cdn.example/ak.png");
-  assert.equal(options.data.clickUrl, "https://csgoempire.com/item/123");
+  assert.equal(options.requireInteraction, false);
+  assert.equal(options.image, "https://cdn.example/preview.png");
+  assert.equal(options.data.clickUrl, SEC_URL);
   // Copy into this realm: arrays built inside the vm context have a different
   // Array.prototype, which deepStrictEqual treats as a mismatch.
-  assert.deepEqual([...options.actions.map((a) => a.action)], ["open_auction", "view_alerts"]);
+  assert.deepEqual([...options.actions.map((a) => [a.action, a.title])], [["open_filing", "Open SEC filing"], ["view_alerts", "View alerts"]]);
+});
+
+test("SW: missing title / url / alertId fall back to Insider Tracker defaults", async () => {
+  const sw = loadSw();
+  await sw.dispatchPush({ data: { type: "test" } }).displayed;
+  const { title, options } = sw.shown[0];
+  assert.equal(title, "Insider Tracker alert");
+  assert.equal(options.data.clickUrl, "/insider");
+  assert.equal(options.tag, "test");
+  await sw.dispatchPush({ data: {} }).displayed;
+  assert.equal(sw.shown[1].options.tag, "insider-tracker");
+});
+
+test("SW click: 'Open SEC filing' and body tap open the SEC filing in a new window", async () => {
+  const sw = loadSw();
+  await sw.click({ clickUrl: SEC_URL }, "open_filing");
+  await sw.click({ clickUrl: SEC_URL }, "");
+  assert.deepEqual(sw.opened, [SEC_URL, SEC_URL]);
+});
+
+test("SW click: 'View alerts' and missing URLs stay inside the app — never a third-party fallback", async () => {
+  const sw = loadSw();
+  await sw.click({ clickUrl: SEC_URL }, "view_alerts");
+  await sw.click({}, "open_filing");
+  await sw.click({}, "");
+  await sw.click({}, "open_auction"); // legacy action id → app fallback, not an external site
+  assert.deepEqual(sw.opened, Array(4).fill("https://app.insider-tracker.test/insider"));
+  assert.ok(!SW_SRC.includes("csgoempire"));
+});
+
+test("SW: auction_alert type still sends a delivery receipt (receipt allow-list unchanged)", async () => {
+  const sw = loadSw();
+  await Promise.all(sw.dispatchPush(alertPayload({ type: "auction_alert" })).waits);
+  assert.equal(sw.fetchCalls.length, 1);
+});
+
+test("FCM message (fcm.js buildMessage) uses Insider Tracker branding and keeps the delivery contract", async () => {
+  const { buildMessage } = await import("../services/fcm.js");
+  const m = buildMessage(["tokA", "tokB"], { title: "BROS · Insider sale", body: "b", data: { type: "price_alert", alertId: ALERT_ID, url: SEC_URL } });
+  assert.deepEqual(m.tokens, ["tokA", "tokB"]);
+  assert.deepEqual(m.notification, { title: "BROS · Insider sale", body: "b" });
+  assert.equal(m.data.alertId, ALERT_ID);
+  assert.equal(m.data.type, "price_alert");
+  assert.deepEqual(m.webpush.headers, { Urgency: "high", TTL: "86400" });
+  assert.equal(m.webpush.fcmOptions.link, SEC_URL);
+  assert.equal(m.webpush.notification.icon, "/icons/insider-notification-192.png");
+  assert.equal(m.webpush.notification.badge, "/icons/insider-badge-96.png");
+  assert.equal(m.webpush.notification.tag, ALERT_ID);
+  assert.deepEqual(m.webpush.notification.actions, [{ action: "open_filing", title: "Open SEC filing" }, { action: "view_alerts", title: "View alerts" }]);
+  const noUrl = buildMessage(["t"], { title: "t", body: "b", data: {} });
+  assert.equal(noUrl.webpush.fcmOptions.link, "/insider");
+  assert.equal(noUrl.webpush.notification.tag, "insider-tracker");
+});
+
+test("no SkinTel branding, csgoempire links or full-token logging remain in the notification flow", () => {
+  const read = (p) => fs.readFileSync(new URL(p, import.meta.url), "utf8");
+  const files = {
+    "services/fcm.js": read("../services/fcm.js"),
+    "controllers/push.controller.js": read("../controllers/push.controller.js"),
+    "client firebase-messaging-sw.js": SW_SRC,
+    "client usePushNotifications.js": read("../../client/src/hooks/usePushNotifications.js"),
+    "services/insiderPushFormat.js": read("../services/insiderPushFormat.js"),
+  };
+  for (const [name, src] of Object.entries(files)) {
+    assert.doesNotMatch(src, /SkinTel Alert|— SkinTel|SkinTel —|telIcon\.png|Open Auction|open_auction"|csgoempire\.com/, `${name} still has legacy branding`);
+    assert.doesNotMatch(src, /Full token|token\[\$\{i\}\]: \$\{t\}/, `${name} logs full FCM tokens`);
+  }
+  // Push endpoint URLs are logged as tails only in the client hook.
+  assert.doesNotMatch(files["client usePushNotifications.js"], /"\\n  endpoint:", \w+Endpoint \?\?/);
+  assert.match(files["services/fcm.js"], /tails=\[/);
 });
 
 test("SW: generated config is loaded before Firebase is initialized, and used as-is", () => {

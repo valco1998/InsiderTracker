@@ -146,9 +146,9 @@ async function _flushAgg(userId) {
   await _sendToTokens(
     tokens,
     {
-      title: `${n} New Alert${n > 1 ? "s" : ""} — SkinTel`,
-      body:  `${n} new matching deal${n > 1 ? "s" : ""} found — tap to view`,
-      data:  { type: "price_alert", alertId: aggId, url: "/alerts", aggregated: "true", count: String(n) },
+      title: `${n} new insider alert${n > 1 ? "s" : ""} — Insider Tracker`,
+      body:  `${n} new Form 4 transaction${n > 1 ? "s" : ""} at companies you follow — tap to view`,
+      data:  { type: "price_alert", alertId: aggId, url: "/insider", aggregated: "true", count: String(n) },
     },
     { userId, alertId: aggId, source: "aggregated" }
   );
@@ -174,7 +174,7 @@ export function initFirebaseAdmin() {
 
   console.log("[FCM Admin] Checking environment variables:");
   console.log("  FIREBASE_PROJECT_ID:   ", projectId   ? `✓ set (${projectId})`              : "✗ MISSING");
-  console.log("  FIREBASE_CLIENT_EMAIL: ", clientEmail ? `✓ set (${clientEmail})`             : "✗ MISSING");
+  console.log("  FIREBASE_CLIENT_EMAIL: ", clientEmail ? `✓ set (…@${clientEmail.split("@")[1] || "?"})` : "✗ MISSING");
   console.log("  FIREBASE_PRIVATE_KEY:  ", rawKey      ? `✓ set (${rawKey.length} raw chars)` : "✗ MISSING");
 
   if (!projectId || !clientEmail || !rawKey) {
@@ -221,33 +221,33 @@ export function initFirebaseAdmin() {
 }
 
 // ── Build the FCM message object ──────────────────────────────────────────────
-function buildMessage(tokens, { title, body, data = {} }) {
+export function buildMessage(tokens, { title, body, data = {} }) {
   const safeData = Object.fromEntries(
     Object.entries(data).map(([k, v]) => [k, v == null ? "" : String(v)])
   );
 
   const isAuction = data.type === "auction_alert";
-  const clickUrl  = data.url || "/alerts";
+  const clickUrl  = data.url || "/insider";
 
-  // Only use the item image when it is a valid absolute URL (Steam/Empire CDN).
-  // Relative paths and empty strings fall back to the site logo.
+  // Only use an image when it is a valid absolute URL.
+  // Relative paths and empty strings fall back to the app icon.
   const itemImage = (safeData.image && /^https?:\/\//.test(safeData.image))
     ? safeData.image
     : null;
 
-  // Standard SkinTel notification template — same actions for every alert
-  // type (price, item, auction) so the layout is consistent everywhere.
+  // Standard Insider Tracker notification template — the same actions for every
+  // alert. "open_filing" opens data.url (the official SEC filing for insider alerts).
   const actions = [
-    { action: "open_auction", title: "Open Auction" },
-    { action: "view_alerts",  title: "View Alerts"  },
+    { action: "open_filing", title: "Open SEC filing" },
+    { action: "view_alerts", title: "View alerts"     },
   ];
 
   const webpushNotification = {
     title,
     body,
-    icon:               "/telIcon.png",
-    badge:              "/telIcon.png",
-    tag:                data.alertId || data.type || "skintel",
+    icon:               "/icons/insider-notification-192.png",
+    badge:              "/icons/insider-badge-96.png",
+    tag:                data.alertId || data.type || "insider-tracker",
     renotify:           true,
     requireInteraction: isAuction,
     vibrate:            [200, 100, 200],
@@ -463,8 +463,8 @@ export async function sendPushToTokens(tokens, payload, { userId, source = "push
   }
   if (!tokens.length) return { successCount: 0, failureCount: 0, tokenCount: 0, perToken: [] };
 
-  console.log(`[FCM] sendPushToTokens — ${tokens.length} token(s) userId=${userId ?? "–"} title="${payload.title}"`);
-  tokens.forEach((t, i) => console.log(`[FCM]   token[${i}]: ${t}`));
+  // Never log full FCM registration tokens — tails only.
+  console.log(`[FCM] sendPushToTokens — ${tokens.length} token(s) userId=${userId ?? "–"} title="${payload.title}" tails=[${tokens.map((t) => `...${String(t).slice(-8)}`).join(", ")}]`);
 
   try {
     return await _sendToTokens(tokens, payload, { userId, source });

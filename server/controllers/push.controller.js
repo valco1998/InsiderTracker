@@ -234,9 +234,9 @@ export async function testPush(req, res) {
     const result = await sendPushToTokens(
       tokenStrings,
       {
-        title: "SkinTel — Push is working",
-        body:  "You'll receive real-time alerts for auction snipes and price drops.",
-        data:  { type: "test", url: "/alerts" },
+        title: "Insider Tracker — push is working",
+        body:  "You'll be notified when insiders at companies you follow report a Form 4 purchase or sale.",
+        data:  { type: "test", url: "/insider" },
       },
       { userId: String(userId), source: "push.test" }
     );

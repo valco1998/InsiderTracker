@@ -116,6 +116,31 @@ const alertLogSchema = new mongoose.Schema(
     // matchedAt is set at create() time (== detectedAt from the matching path).
     // The other stages are filled in via fire-and-forget updates as the alert
     // moves through the pipeline; failures to set these never block delivery.
+    // ── Insider Tracker (additive/optional — absent on legacy documents) ─────
+    // kind="insider_trade": ruleId = InsiderWatch._id, itemId = economic alert key.
+    kind: { type: String, default: "" },
+    insider: {
+      type: new mongoose.Schema({
+        economicId:      String,
+        ticker:          String,
+        issuerName:      String,
+        issuerCik:       String,
+        insiderName:     String,
+        role:            String,
+        code:            String,
+        type:            String,
+        shares:          Number,
+        price:           Number,
+        value:           Number,
+        transactionDate: String,
+        filingDate:      String,
+        acceptedAtET:    String,
+        filingUrl:       String,
+        filings:         [{ _id: false, accessionNo: String, insiderName: String, ownership: String, filingUrl: String }],
+      }, { _id: false }),
+      default: undefined,
+    },
+
     timing: {
       matchedAt:      { type: Date, default: null },
       socketEmitAt:   { type: Date, default: null },
