@@ -1,8 +1,12 @@
-// Live SEC status strip. Every value comes from the API response
-// (`status` of GET /insider/transactions) — nothing is simulated.
+// Live SEC status strip. Every value is real server state: the Phase D3 stream
+// (connection, heartbeat SEC freshness, newest published filing) and the last
+// GET /insider/transactions response (coverage, counts) — nothing is simulated.
+// This is the only component that re-renders on each 25 s heartbeat.
 import { useEffect, useState } from "react";
 import { ago, acceptedShort, count, shortDay } from "../../../utils/insiderFormat";
 import { useInsider } from "../InsiderContext";
+import { useLiveState } from "../../../hooks/useInsiderStream";
+import { liveIndicator } from "../../../utils/insiderLiveStream";
 
 function useNow(ms = 15_000) {
   const [now, setNow] = useState(() => Date.now());
@@ -20,13 +24,18 @@ function Item({ label, children, title }) {
 }
 
 export default function StatusBar() {
-  const { feed, latestFiling } = useInsider();
-  const { status, error, lastOkAt, newIds } = feed;
+  const { feed, latestFiling, live } = useInsider();
+  const { status, error, lastOkAt, newIds, pending, pollMs } = feed;
+  const ls = useLiveState(live);
   const now = useNow();
+  const lastPollAt = ls.heartbeat?.sec?.lastPollAt || status?.lastPollAt || null; // heartbeat is fresher
+  const newest = ls.snapshot?.newestAcceptedAt || latestFiling;
+  const liveMsg = liveIndicator(ls, now, pollMs);
 
   let dot = "it-dot-warn", text = "Connecting…";
   if (error && !status) { dot = "it-dot-err"; text = "API unreachable"; }
   else if (error) { dot = "it-dot-err"; text = "API unreachable · showing last data"; }
+  else if (liveMsg) { dot = liveMsg.dot; text = liveMsg.text; }
   else if (status?.lastPollError) { dot = "it-dot-err"; text = "SEC poll error · retrying"; }
   else if (status && (status.processing || status.queueLength > 0)) { dot = "it-dot-sync"; text = `Syncing SEC filings${status.queueLength ? ` · ${count(status.queueLength)} queued` : ""}`; }
   else if (status) {
@@ -45,11 +54,11 @@ export default function StatusBar() {
         </span>
         {status && (
           <>
-            <Item label="Last SEC poll" title={status.lastPollAt ? `Last successful SEC poll ${new Date(status.lastPollAt).toLocaleString()}${status.lastPollError ? `\nLast error: ${status.lastPollError}` : ""}` : "No successful SEC poll yet"}>
-              {status.lastPollAt ? ago(status.lastPollAt, now) : "—"}
+            <Item label="Last SEC poll" title={lastPollAt ? `Last successful SEC poll ${new Date(lastPollAt).toLocaleString()}${status.lastPollError ? `\nLast error: ${status.lastPollError}` : ""}` : "No successful SEC poll yet"}>
+              {lastPollAt ? ago(lastPollAt, now) : "—"}
             </Item>
             <Item label="Latest filing" title="Newest SEC acceptance time among reported purchases/sales (Eastern Time)">
-              {latestFiling ? acceptedShort(latestFiling) : "—"}
+              {newest ? acceptedShort(newest) : "—"}
             </Item>
             <Item label="Form 4 scanned" title="Form 4 / 4/A filings downloaded and parsed from SEC EDGAR">{count(status.filingsStored)}</Item>
             {coverage.slice(0, 5).map((c) => (
@@ -62,7 +71,12 @@ export default function StatusBar() {
             ))}
           </>
         )}
-        {newIds.size > 0 && (
+        {pending && (
+          <span className="inline-flex shrink-0 items-center rounded px-1.5 text-[11px] font-semibold" style={{ color: "var(--it-accent)", background: "var(--it-accent-soft)" }}>
+            New filings available
+          </span>
+        )}
+        {!pending && newIds.size > 0 && (
           <span className="inline-flex shrink-0 items-center rounded px-1.5 text-[11px] font-semibold" style={{ color: "var(--it-accent)", background: "var(--it-accent-soft)" }}>
             +{newIds.size} new {newIds.size === 1 ? "transaction" : "transactions"}
           </span>

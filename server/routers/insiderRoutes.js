@@ -22,8 +22,50 @@ import express from "express";
 import { getIngestStatus } from "../services/edgar/insiderIngest.js";
 import { getSnapshot, getSnapshotStats, snapshotStream } from "../services/edgar/insiderData.js";
 import { queryTransactions, getTransactionById } from "../services/edgar/insiderSnapshot.js";
+import { lookupTicker as defaultLookupTicker, CompanyLookupUnavailable } from "../services/edgar/companyTickers.js";
+import { companyInsights, rowsForCompany } from "../services/edgar/insiderInsights.js";
+import { describeMarketData } from "../services/stockData/stockDataProvider.js";
 
 const router = express.Router();
+const COMPANY_TICKER_RE = /^[A-Z0-9.-]{1,10}$/;
+
+// Company intelligence (unique buyers / sellers by trade date, role groups,
+// cluster buying, SEC coverage of the window, chart symbol). Computed from the
+// published snapshot — read-only, no SEC requests except the existing 24 h-cached
+// SEC company list used to resolve ticker → issuer CIK.
+export function companyInsightsHandler({ lookupTicker = defaultLookupTicker, snapshot = getSnapshot, ingestStatus = getIngestStatus } = {}) {
+  return async (req, res, next) => {
+    try {
+      const ticker = String(req.params.ticker || "").toUpperCase();
+      if (!COMPANY_TICKER_RE.test(ticker)) return res.status(400).json({ error: "invalid ticker" });
+      let company = null, lookupError = null;
+      try { company = await lookupTicker(ticker); }
+      catch (err) {
+        if (!(err instanceof CompanyLookupUnavailable)) throw err;
+        lookupError = "SEC company list temporarily unavailable — matched by filed ticker";
+      }
+      const snap = snapshot();
+      const rows = rowsForCompany(snap.economic, { cik: company?.cik ?? null, ticker });
+      if (!company && !rows.length) return res.status(404).json({ error: "Ticker not found in SEC's company list and no Form 4 data is held for it" });
+      const r = companyInsights({
+        rows,
+        company: {
+          ticker: company?.ticker || ticker,
+          cik: company?.cik ?? (rows[0]?.issuerCik ? String(rows[0].issuerCik).padStart(10, "0") : null),
+          name: company?.name || rows[0]?.issuerName || null,
+          exchange: company?.exchange ?? null,
+          inSecCompanyList: !!company,
+          lookupError,
+        },
+        query: req.query,
+        ingest: ingestStatus(),
+      });
+      if (r.error) return res.status(400).json({ error: r.error });
+      res.set("Cache-Control", "no-cache");
+      res.json({ ...r, market: describeMarketData(), snapshotVersion: snap.version });
+    } catch (err) { next(err); }
+  };
+}
 
 export function transactionsEtag(version, query, status) {
   const h = crypto.createHash("sha1").update(JSON.stringify(query ?? {})).update("\n").update(JSON.stringify(status ?? null)).digest("base64url");
@@ -59,6 +101,8 @@ router.get("/transactions/:id", (req, res) => {
 });
 
 router.get("/stream", (req, res) => snapshotStream.handle(req, res));
+
+router.get("/company/:ticker/insights", companyInsightsHandler());
 
 router.get("/status", (_req, res) => {
   res.json({ ...getIngestStatus(), snapshot: getSnapshotStats(), stream: snapshotStream.getStats() });

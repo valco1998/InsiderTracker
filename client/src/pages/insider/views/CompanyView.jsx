@@ -1,7 +1,10 @@
 // Company detail: everything reported on Form 4 for one ticker in the loaded
-// SEC coverage window. Uses GET /insider/transactions?ticker= (existing API).
-// No prices, market caps or returns — those need a market-data provider.
-import { useMemo, useState } from "react";
+// SEC coverage window. Uses GET /insider/transactions?ticker= (existing API)
+// plus GET /insider/company/:ticker/insights (unique buyers by trade date,
+// role groups, cluster buying, SEC coverage, chart symbol).
+// Stock prices / volume / market cap / P/E / EPS come only from TradingView's
+// official embeddable widgets (delayed, labelled) — never computed or stored here.
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useInsider } from "../InsiderContext";
 import useInsiderAnalytics from "../../../hooks/useInsiderAnalytics";
@@ -12,6 +15,12 @@ import { BuySellChart, ActivityTimeline } from "../charts/LazyCharts";
 import { byInsider } from "../../../utils/insiderAggregate";
 import { compactUsd, count, day, signedCompactUsd } from "../../../utils/insiderFormat";
 import { periodLabel } from "../components/KpiStrip";
+import useCompanyInsights from "../../../hooks/useCompanyInsights";
+import StockOverview from "../company/StockOverview";
+import InsiderBuyersPanel from "../company/InsiderBuyersPanel";
+import ClusterBuyingPanel from "../company/ClusterBuyingPanel";
+import CompanyFilters, { useCompanyFilters } from "../company/CompanyFilters";
+import { filterCompanyRows } from "../../../utils/insiderCompanyFilters";
 
 const TICKER_RE = /^[A-Z0-9.-]{1,10}$/;
 
@@ -33,11 +42,18 @@ export default function CompanyView() {
   const data = useInsiderAnalytics(params || { ticker: "_" }, dataVersion, { enabled: !!ticker });
   const rows = data.rows;
   const insiders = useMemo(() => byInsider(rows), [rows]);
+  const [days, setDays] = useState(30);
+  const [threshold, setThreshold] = useState(3);
+  const insights = useCompanyInsights(ticker, { days, threshold }, dataVersion);
+  const { filters, patch, reset } = useCompanyFilters();
+  const filtered = useMemo(() => filterCompanyRows(rows, filters), [rows, filters]);
   const [shown, setShown] = useState(100);
-  const { sorted, sort, toggle } = useSortedRows(rows.slice(0, shown));
+  useEffect(() => { setShown(100); }, [filters, ticker]);
+  const { sorted, sort, toggle } = useSortedRows(filtered.slice(0, shown));
   const loading = data.loading && rows.length === 0;
   const t = data.totals;
   const head = rows[0];
+  const company = insights.data?.company;
 
   if (!ticker) {
     return <Panel title="Company"><EmptyState title="Invalid ticker.">Tickers are 1–10 letters, digits, dots or dashes.</EmptyState></Panel>;
@@ -56,10 +72,10 @@ export default function CompanyView() {
               <h1 className="it-mono text-[22px] font-semibold leading-none" style={{ color: "var(--it-text)" }}>{ticker}</h1>
               {head && <FollowButton t={head} account={account} />}
             </div>
-            <div className="mt-1 truncate text-[13px] it-dim">{loading ? <Skeleton className="h-3 w-48" /> : head?.issuerName || "No reported purchases or sales in the loaded window"}</div>
+            <div className="mt-1 truncate text-[13px] it-dim">{loading && !company ? <Skeleton className="h-3 w-48" /> : head?.issuerName || company?.name || "No reported purchases or sales in the loaded window"}</div>
           </div>
           <div className="text-right text-[11px] it-dim2">
-            {head?.issuerCik && <div className="it-num">CIK {head.issuerCik}</div>}
+            {(head?.issuerCik || company?.cik) && <div className="it-num">CIK {head?.issuerCik || company.cik}{company?.exchange ? ` · ${company.exchange}` : ""}</div>}
             <div>{periodLabel({}, feed.status)}</div>
           </div>
         </div>
@@ -77,6 +93,18 @@ export default function CompanyView() {
       </section>
 
       {data.error && <ErrorNote>{data.error}</ErrorNote>}
+
+      {insights.status === 404 ? (
+        <Panel title="Stock overview"><EmptyState title={`${ticker} is not on SEC's company ticker list.`}>No chart or insider statistics are available for this symbol. Check the ticker (SEC uses e.g. BRK-B for class shares).</EmptyState></Panel>
+      ) : (
+        <>
+          <StockOverview insights={insights.data} loading={insights.loading} />
+          <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <InsiderBuyersPanel insights={insights.data} loading={insights.loading} error={insights.error} days={days} onDays={setDays} />
+            <ClusterBuyingPanel insights={insights.data} loading={insights.loading} threshold={threshold} onThreshold={setThreshold} />
+          </div>
+        </>
+      )}
 
       {!loading && rows.length === 0 && !data.error ? (
         <Panel><EmptyState title={`No reported open-market purchases or sales for ${ticker}.`}>Only the most recent SEC daily indexes are loaded. Check the ticker, or follow the company to be alerted on its next Form 4.</EmptyState></Panel>
@@ -112,11 +140,18 @@ export default function CompanyView() {
           <Panel title="Transaction history" subtitle={loading ? "loading…" : `${count(rows.length)} reported transactions${data.partial ? ` (first ${count(rows.length)} of ${count(data.total)})` : ""}`}>
             {loading ? <TableSkeleton /> : (
               <>
-                <DesktopTable rows={sorted} account={account} sort={sort} toggle={toggle} />
-                <MobileCards rows={sorted} account={account} />
-                {rows.length > shown && (
+                <CompanyFilters filters={filters} patch={patch} reset={reset} shown={filtered.length} total={rows.length} />
+                {filtered.length === 0 ? (
+                  <EmptyState title="No transactions match these filters.">Trade-date periods use the transaction date reported on Form 4.</EmptyState>
+                ) : (
+                  <>
+                    <DesktopTable rows={sorted} account={account} sort={sort} toggle={toggle} />
+                    <MobileCards rows={sorted} account={account} />
+                  </>
+                )}
+                {filtered.length > shown && (
                   <div className="flex justify-center p-3" style={{ borderTop: "1px solid var(--it-line-soft)" }}>
-                    <button className="it-btn" onClick={() => setShown((n) => n + 100)}>Show {Math.min(100, rows.length - shown)} more</button>
+                    <button className="it-btn" onClick={() => setShown((n) => n + 100)}>Show {Math.min(100, filtered.length - shown)} more</button>
                   </div>
                 )}
               </>

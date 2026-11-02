@@ -79,7 +79,12 @@ export function createLiveStream(url, { EventSourceImpl = globalThis.EventSource
     es.addEventListener("heartbeat", (e) => {
       const d = parse(e.data);
       armWatchdog();
-      if (d) set({ heartbeat: d, lastMessageAt: now() });
+      if (!d) return;
+      // A heartbeat naming another version means a snapshot event was missed
+      // (dropped by a proxy, or published during a reconnect): report it.
+      const missed = Number.isFinite(d.version) && d.version !== state.version;
+      set({ heartbeat: d, lastMessageAt: now(), ...(missed ? { version: d.version } : {}) });
+      if (missed) snapshotListeners.forEach((l) => l({ version: d.version }));
     });
     es.onerror = () => {
       if (stopped || !es) return;
@@ -119,7 +124,9 @@ export function createLiveStream(url, { EventSourceImpl = globalThis.EventSource
 
 // Truthful one-line status for the UI, from stream + last API response.
 // Every input is real server state; nothing is assumed when data is missing.
-export function liveIndicator({ connection, heartbeat, lastMessageAt }, now = Date.now()) {
+// pollMs: the feed's actual fallback polling interval (shown while not live).
+export function liveIndicator({ connection, heartbeat, lastMessageAt }, now = Date.now(), pollMs = 60_000) {
+  const every = `${Math.round(pollMs / 1000)}s`;
   const silentFor = lastMessageAt ? now - lastMessageAt : null;
   if (connection === "open" && heartbeat && silentFor != null && silentFor < STALL_MS) {
     const sec = heartbeat.sec || {};
@@ -132,7 +139,7 @@ export function liveIndicator({ connection, heartbeat, lastMessageAt }, now = Da
   }
   if (connection === "open") return { dot: "it-dot-live", text: "Live" };
   if (connection === "connecting") return null; // nothing known yet
-  if (connection === "reconnecting") return { dot: "it-dot-warn", text: "Reconnecting live updates…" };
-  if (connection === "unavailable" || connection === "unsupported") return { dot: "it-dot-warn", text: "Live updates unavailable · refreshing every 60s" };
+  if (connection === "reconnecting") return { dot: "it-dot-warn", text: `Reconnecting live updates · polling every ${every}` };
+  if (connection === "unavailable" || connection === "unsupported") return { dot: "it-dot-warn", text: `Polling every ${every} · live updates unavailable` };
   return null;
 }

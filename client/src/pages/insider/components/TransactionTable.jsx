@@ -48,7 +48,7 @@ const Row = memo(function Row({ t, account, isNew }) {
   const cls = `${t.code === "P" ? "it-r-buy" : "it-r-sell"}${superseded ? " it-r-muted" : ""}${isNew ? " it-row-new" : ""}`;
   const href = companyHref(t);
   return (
-    <tr className={cls}>
+    <tr className={cls} data-id={t.id}>
       <td className="whitespace-nowrap it-num" style={{ color: "var(--it-text)" }} title={t.acceptedAtET ? `Accepted by SEC ${t.acceptedAtET}` : undefined}>{day(t.filingDate)}</td>
       <td className="whitespace-nowrap it-num it-dim">{day(t.transactionDate)}</td>
       <td className="max-w-[230px]">
@@ -82,9 +82,9 @@ function SortHead({ col, sort, toggle }) {
   );
 }
 
-export function DesktopTable({ rows, account, newIds, sort, toggle, maxHeight }) {
+export function DesktopTable({ rows, account, newIds, sort, toggle, maxHeight, wrapRef }) {
   return (
-    <div className="it-table-wrap hidden lg:block" style={maxHeight ? { maxHeight } : undefined}>
+    <div ref={wrapRef} className="it-table-wrap hidden lg:block" style={maxHeight ? { maxHeight } : undefined}>
       <table className="it-table min-w-[1120px]">
         <thead>
           <tr>{COLS.map((c) => <SortHead key={c.key} col={c} sort={sort} toggle={toggle} />)}</tr>

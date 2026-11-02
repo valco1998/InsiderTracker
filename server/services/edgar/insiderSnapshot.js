@@ -19,6 +19,7 @@ import { applyAmendments } from "./amendments.js";
 import { filingDelay } from "./businessDays.js";
 import { groupTransactions, computeTotals } from "./transactionGroups.js";
 import { normalizeFiledTicker } from "./form4Parser.js";
+import { rowRoleGroups } from "./insiderInsights.js";
 
 // Pure pipeline: price checks → amendment linking → filing delay (fresh objects).
 export function checkRows(transactions, amendmentFilings = []) {
@@ -107,7 +108,10 @@ function compactRow(snap, r) {
   let c = snap.compact.get(r);
   if (!c) {
     const { owners, footnotes, remarks, reportedBy, ...rest } = r;
-    c = reportedBy && reportedBy.length > 1 ? { ...rest, reportedBy } : rest;
+    // roleGroups (additive): CEO / CFO / Director / Officer / 10% Owner / Other,
+    // derived from the owners dropped here — clients filter by role without them.
+    const base = { ...rest, roleGroups: rowRoleGroups(r) };
+    c = reportedBy && reportedBy.length > 1 ? { ...base, reportedBy } : base;
     snap.compact.set(r, c);
   }
   return c;
