@@ -15,7 +15,7 @@ const compactUsd = (n) => {
 };
 // Price exactly as reported (up to 4 decimals, as filed on Form 4).
 const usd = (n) => (n == null ? null : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`);
-const day = (iso) => (iso ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" }) : "n/a");
+const day = (iso, withYear = false) => (iso ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", ...(withYear ? { year: "numeric" } : {}) }) : "n/a");
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 export function insiderAlertTitle(tx) {
@@ -32,7 +32,11 @@ export function insiderAlertBody(tx) {
   const qty = tx.shares != null ? `${tx.shares.toLocaleString("en-US")} sh` : "shares";
   const px = tx.price != null ? ` @ ${usd(tx.price)}` : " (price not reported)";
   const more = reporters.length > 1 ? ` · ${reporters.length} related filings` : "";
-  return clip(`${who}${role && role !== "Not specified" ? ` (${role})` : ""} ${verb} ${qty}${px} · traded ${day(tx.transactionDate)} · Form 4 filed ${day(tx.filingDate)}${more}`, 180);
+  // A trade from an earlier year than the filing must never read as recent.
+  const tradeYear = !!tx.transactionDate && !!tx.filingDate && tx.transactionDate.slice(0, 4) !== tx.filingDate.slice(0, 4);
+  // Filed after the 2-business-day deadline — the trade may be old news.
+  const late = tx.filingDelay?.late ? ` (late, ${tx.filingDelay.businessDays} business days)` : "";
+  return clip(`${who}${role && role !== "Not specified" ? ` (${role})` : ""} ${verb} ${qty}${px} · traded ${day(tx.transactionDate, tradeYear)} · Form 4 filed ${day(tx.filingDate)}${late}${more}`, 180);
 }
 
 // → fields for AlertLog.create (excluding userId / timing, added by deliverAlert)

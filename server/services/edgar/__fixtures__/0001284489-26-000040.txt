@@ -1,0 +1,165 @@
+<SEC-DOCUMENT>0001284489-26-000040.txt : 20260925
+<SEC-HEADER>0001284489-26-000040.hdr.sgml : 20260925
+<ACCEPTANCE-DATETIME>20260925153858
+ACCESSION NUMBER:		0001284489-26-000040
+CONFORMED SUBMISSION TYPE:	4
+PUBLIC DOCUMENT COUNT:		1
+CONFORMED PERIOD OF REPORT:	20260924
+FILED AS OF DATE:		20260925
+DATE AS OF CHANGE:		20260925
+
+REPORTING-OWNER:	
+
+	OWNER DATA:	
+		COMPANY CONFORMED NAME:			PALOMINO BONILLA LUIS MIGUEL
+		CENTRAL INDEX KEY:			0001284489
+		ORGANIZATION NAME:           	
+
+	FILING VALUES:
+		FORM TYPE:		4
+		SEC ACT:		1934 Act
+		SEC FILE NUMBER:	001-14066
+		FILM NUMBER:		261410140
+
+	MAIL ADDRESS:	
+		STREET 1:		C/O SOUTHERN PERU COPPER CORP
+		STREET 2:		7310 NORTH 16TH ST. SUITE 135
+		CITY:			PHOENIX
+		STATE:			AZ
+		ZIP:			85020
+
+ISSUER:		
+
+	COMPANY DATA:	
+		COMPANY CONFORMED NAME:			SOUTHERN COPPER CORP/
+		CENTRAL INDEX KEY:			0001001838
+		STANDARD INDUSTRIAL CLASSIFICATION:	METAL MINING [1000]
+		ORGANIZATION NAME:           	01 Energy & Transportation
+		EIN:				133849074
+		STATE OF INCORPORATION:			DE
+		FISCAL YEAR END:			1231
+
+	BUSINESS ADDRESS:	
+		STREET 1:		7310 NORTH 16TH ST.
+		STREET 2:		SUITE 135
+		CITY:			PHOENIX
+		STATE:			AZ
+		ZIP:			85020
+		BUSINESS PHONE:		602-264-1375
+
+	MAIL ADDRESS:	
+		STREET 1:		7310 NORTH 16TH ST.
+		STREET 2:		SUITE 135
+		CITY:			PHOENIX
+		STATE:			AZ
+		ZIP:			85020
+
+	FORMER COMPANY:	
+		FORMER CONFORMED NAME:	SOUTHERN PERU COPPER CORP/
+		DATE OF NAME CHANGE:	19960726
+
+	FORMER COMPANY:	
+		FORMER CONFORMED NAME:	SOUTHERN PERU COPPER HOLDING CO
+		DATE OF NAME CHANGE:	19951006
+</SEC-HEADER>
+<DOCUMENT>
+<TYPE>4
+<SEQUENCE>1
+<FILENAME>form4-09252026_070953.xml
+<TEXT>
+<XML>
+<?xml version="1.0"?>
+<ownershipDocument>
+
+    <schemaVersion>X0609</schemaVersion>
+
+    <documentType>4</documentType>
+
+    <periodOfReport>2026-09-24</periodOfReport>
+
+    <issuer>
+        <issuerCik>0001001838</issuerCik>
+        <issuerName>SOUTHERN COPPER CORP/</issuerName>
+        <issuerTradingSymbol>SCCO</issuerTradingSymbol>
+        <issuerForeignTradingSymbol></issuerForeignTradingSymbol>
+    </issuer>
+
+    <reportingOwner>
+        <reportingOwnerId>
+            <rptOwnerCik>0001284489</rptOwnerCik>
+            <rptOwnerName>PALOMINO BONILLA LUIS MIGUEL</rptOwnerName>
+        </reportingOwnerId>
+        <reportingOwnerAddress>
+            <rptOwnerNonUSAddressFlag>false</rptOwnerNonUSAddressFlag>
+            <rptOwnerStreet1>C/O SOUTHERN COPPER CORPORATION</rptOwnerStreet1>
+            <rptOwnerStreet2>7310 NORTH 16TH ST. SUITE 135</rptOwnerStreet2>
+            <rptOwnerCity>PHOENIX</rptOwnerCity>
+            <rptOwnerState>AZ</rptOwnerState>
+            <rptOwnerZipCode>85020</rptOwnerZipCode>
+            <rptOwnerStateDescription></rptOwnerStateDescription>
+        </reportingOwnerAddress>
+        <reportingOwnerRelationship>
+            <isDirector>true</isDirector>
+            <isOfficer>false</isOfficer>
+            <isTenPercentOwner>false</isTenPercentOwner>
+            <isOther>false</isOther>
+            <officerTitle></officerTitle>
+            <otherText></otherText>
+        </reportingOwnerRelationship>
+    </reportingOwner>
+
+    <aff10b5One>0</aff10b5One>
+
+    <nonDerivativeTable>
+        <nonDerivativeTransaction>
+            <securityTitle>
+                <value>Common Stock</value>
+            </securityTitle>
+            <transactionDate>
+                <value>2026-09-24</value>
+            </transactionDate>
+            <transactionCoding>
+                <transactionFormType>4</transactionFormType>
+                <transactionCode>S</transactionCode>
+                <equitySwapInvolved>0</equitySwapInvolved>
+            </transactionCoding>
+            <transactionAmounts>
+                <transactionShares>
+                    <value>100</value>
+                </transactionShares>
+                <transactionPricePerShare>
+                    <value>200</value>
+                </transactionPricePerShare>
+                <transactionAcquiredDisposedCode>
+                    <value>D</value>
+                </transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <postTransactionAmounts>
+                <sharesOwnedFollowingTransaction>
+                    <value>1503</value>
+                </sharesOwnedFollowingTransaction>
+            </postTransactionAmounts>
+            <ownershipNature>
+                <directOrIndirectOwnership>
+                    <value>D</value>
+                </directOrIndirectOwnership>
+                <natureOfOwnership>
+                    <value></value>
+                </natureOfOwnership>
+            </ownershipNature>
+        </nonDerivativeTransaction>
+    </nonDerivativeTable>
+
+    <derivativeTable></derivativeTable>
+
+    <footnotes></footnotes>
+
+    <ownerSignature>
+        <signatureName>/s/ Andres Carlos Ferrero, Attorney-in-Fact</signatureName>
+        <signatureDate>2026-09-25</signatureDate>
+    </ownerSignature>
+</ownershipDocument>
+</XML>
+</TEXT>
+</DOCUMENT>
+</SEC-DOCUMENT>

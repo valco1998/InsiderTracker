@@ -1,0 +1,132 @@
+<SEC-DOCUMENT>0001437749-26-034103.txt : 20261030
+<SEC-HEADER>0001437749-26-034103.hdr.sgml : 20261030
+<ACCEPTANCE-DATETIME>20261030111754
+ACCESSION NUMBER:		0001437749-26-034103
+CONFORMED SUBMISSION TYPE:	4/A
+PUBLIC DOCUMENT COUNT:		1
+CONFORMED PERIOD OF REPORT:	20261030
+FILED AS OF DATE:		20261030
+DATE AS OF CHANGE:		20261030
+
+REPORTING-OWNER:	
+
+	OWNER DATA:	
+		COMPANY CONFORMED NAME:			Rodriguez Ramon M.
+		CENTRAL INDEX KEY:			0002137870
+		ORGANIZATION NAME:           	
+
+	FILING VALUES:
+		FORM TYPE:		4/A
+		SEC ACT:		1934 Act
+		SEC FILE NUMBER:	001-41196
+		FILM NUMBER:		261505482
+
+	MAIL ADDRESS:	
+		STREET 1:		C/O USCB FINANCIAL HOLDINGS, INC.
+		STREET 2:		2301 NW 87TH AVENUE
+		CITY:			DORAL
+		STATE:			FL
+		ZIP:			33172
+
+ISSUER:		
+
+	COMPANY DATA:	
+		COMPANY CONFORMED NAME:			USCB FINANCIAL HOLDINGS, INC.
+		CENTRAL INDEX KEY:			0001901637
+		STANDARD INDUSTRIAL CLASSIFICATION:	STATE COMMERCIAL BANKS [6022]
+		ORGANIZATION NAME:           	02 Finance
+		EIN:				874070846
+		STATE OF INCORPORATION:			FL
+		FISCAL YEAR END:			1231
+
+	BUSINESS ADDRESS:	
+		STREET 1:		2301 NW 87TH AVENUE
+		CITY:			DORAL
+		STATE:			FL
+		ZIP:			33172
+		BUSINESS PHONE:		(305) 715-5200
+
+	MAIL ADDRESS:	
+		STREET 1:		2301 NW 87TH AVENUE
+		CITY:			DORAL
+		STATE:			FL
+		ZIP:			33172
+</SEC-HEADER>
+<DOCUMENT>
+<TYPE>4/A
+<SEQUENCE>1
+<FILENAME>rdgdoc.xml
+<DESCRIPTION>FORM 4/A
+<TEXT>
+<XML>
+<?xml version="1.0"?>
+<ownershipDocument>
+
+    <schemaVersion>X0609</schemaVersion>
+
+    <documentType>4/A</documentType>
+
+    <periodOfReport>2026-10-30</periodOfReport>
+
+    <dateOfOriginalSubmission>2026-10-30</dateOfOriginalSubmission>
+
+    <issuer>
+        <issuerCik>0001901637</issuerCik>
+        <issuerName>USCB FINANCIAL HOLDINGS, INC.</issuerName>
+        <issuerTradingSymbol>USCB</issuerTradingSymbol>
+        <issuerForeignTradingSymbol></issuerForeignTradingSymbol>
+    </issuer>
+
+    <reportingOwner>
+        <reportingOwnerId>
+            <rptOwnerCik>0002137870</rptOwnerCik>
+            <rptOwnerName>Rodriguez Ramon M.</rptOwnerName>
+        </reportingOwnerId>
+        <reportingOwnerAddress>
+            <rptOwnerNonUSAddressFlag>false</rptOwnerNonUSAddressFlag>
+            <rptOwnerStreet1>C/O USCB FINANCIAL HOLDINGS, INC.</rptOwnerStreet1>
+            <rptOwnerStreet2>2301 N.W. 87TH AVENUE</rptOwnerStreet2>
+            <rptOwnerCity>DORAL</rptOwnerCity>
+            <rptOwnerState>FL</rptOwnerState>
+            <rptOwnerZipCode>33172</rptOwnerZipCode>
+            <rptOwnerStateDescription></rptOwnerStateDescription>
+        </reportingOwnerAddress>
+        <reportingOwnerRelationship>
+            <isDirector>1</isDirector>
+        </reportingOwnerRelationship>
+    </reportingOwner>
+
+    <aff10b5One>0</aff10b5One>
+
+    <nonDerivativeTable>
+        <nonDerivativeHolding>
+            <securityTitle>
+                <value>Class A Voting Common Stock</value>
+            </securityTitle>
+            <postTransactionAmounts>
+                <sharesOwnedFollowingTransaction>
+                    <value>0</value>
+                    <footnoteId id="F1"/>
+                </sharesOwnedFollowingTransaction>
+            </postTransactionAmounts>
+            <ownershipNature>
+                <directOrIndirectOwnership>
+                    <value>D</value>
+                </directOrIndirectOwnership>
+            </ownershipNature>
+        </nonDerivativeHolding>
+    </nonDerivativeTable>
+
+    <footnotes>
+        <footnote id="F1">On October 30, 2026, the reporting person mistakenly filed a Form 4 reporting a purchase of 1,000 shares of common stock that did not in fact occur. As of October 30, 2026, the reporting person owned no shares of Class A Voting Common Stock.</footnote>
+    </footnotes>
+
+    <ownerSignature>
+        <signatureName>/s/ Robert Anderson by P.O.A. for Ramon M. Rodriguez</signatureName>
+        <signatureDate>2026-10-30</signatureDate>
+    </ownerSignature>
+</ownershipDocument>
+</XML>
+</TEXT>
+</DOCUMENT>
+</SEC-DOCUMENT>

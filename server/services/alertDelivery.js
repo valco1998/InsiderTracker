@@ -9,6 +9,7 @@
 import AlertLog from "../models/alertLog.models.js";
 import { isFcmReady, sendPushToUser } from "./fcm.js";
 import { recordEvent, recordAlertTiming } from "./notificationMetrics.js";
+import { redact } from "../utils/safeLog.js";
 
 const defaultDeps = { AlertLog, isFcmReady, sendPushToUser, recordEvent, recordAlertTiming };
 
@@ -32,7 +33,7 @@ export async function deliverAlert({ userId, alert, buildPush, emit, matchedAt =
     try {
       emit({ ...(created.toObject?.() ?? created), id: alertId, _id: alertId, userId: uid });
     } catch (err) {
-      console.warn(`[SOCKET_EMIT_FAIL] alertId=${alertId} err=${err.message}`);
+      console.warn(`[SOCKET_EMIT_FAIL] alertId=${alertId} err=${redact(err)}`);
     }
   }
   deps.recordAlertTiming(created._id, "socketEmitAt");
@@ -53,7 +54,7 @@ export async function deliverAlert({ userId, alert, buildPush, emit, matchedAt =
     else if (result?.aggregated) console.log(`[PUSH_AGGREGATED_QUEUED] alertId=${alertId} userId=${uid}`);
     else if (result) console.error(`[PUSH_FAIL] alertId=${alertId} userId=${uid} sent=0/${result.tokenCount}`);
     else console.error(`[PUSH_FAIL] alertId=${alertId} userId=${uid} — null result`);
-  }).catch((err) => console.error(`[PUSH_FAIL] alertId=${alertId} exception=${err.message}`));
+  }).catch((err) => console.error(`[PUSH_FAIL] alertId=${alertId} exception=${redact(err)}`));
 
   return { alertId, push: "started" };
 }

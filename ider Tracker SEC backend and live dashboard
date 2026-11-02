@@ -1,0 +1,94 @@
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:11: trailing whitespace.
+[32m+[m[32mREPORTING-OWNER:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:13: trailing whitespace.
+[32m+[m	[32mOWNER DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:16: trailing whitespace.
+[32m+[m		[32mORGANIZATION NAME:[m[41m           	[m
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:24: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:31: trailing whitespace.
+[32m+[m[32mISSUER:[m[41m		[m
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:33: trailing whitespace.
+[32m+[m	[32mCOMPANY DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:42: trailing whitespace.
+[32m+[m	[32mBUSINESS ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:50: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:57: trailing whitespace.
+[32m+[m	[32mFORMER COMPANY:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000040.txt:61: trailing whitespace.
+[32m+[m	[32mFORMER COMPANY:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:11: trailing whitespace.
+[32m+[m[32mREPORTING-OWNER:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:13: trailing whitespace.
+[32m+[m	[32mOWNER DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:16: trailing whitespace.
+[32m+[m		[32mORGANIZATION NAME:[m[41m           	[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:24: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:31: trailing whitespace.
+[32m+[m[32mISSUER:[m[41m		[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:33: trailing whitespace.
+[32m+[m	[32mCOMPANY DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:42: trailing whitespace.
+[32m+[m	[32mBUSINESS ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:50: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:57: trailing whitespace.
+[32m+[m	[32mFORMER COMPANY:[m[41m	[m
+server/services/edgar/__fixtures__/0001284489-26-000042.txt:61: trailing whitespace.
+[32m+[m	[32mFORMER COMPANY:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034087.txt:11: trailing whitespace.
+[32m+[m[32mREPORTING-OWNER:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034087.txt:13: trailing whitespace.
+[32m+[m	[32mOWNER DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034087.txt:16: trailing whitespace.
+[32m+[m		[32mORGANIZATION NAME:[m[41m           	[m
+server/services/edgar/__fixtures__/0001437749-26-034087.txt:24: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034087.txt:31: trailing whitespace.
+[32m+[m[32mISSUER:[m[41m		[m
+server/services/edgar/__fixtures__/0001437749-26-034087.txt:33: trailing whitespace.
+[32m+[m	[32mCOMPANY DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034087.txt:42: trailing whitespace.
+[32m+[m	[32mBUSINESS ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034087.txt:49: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034103.txt:11: trailing whitespace.
+[32m+[m[32mREPORTING-OWNER:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034103.txt:13: trailing whitespace.
+[32m+[m	[32mOWNER DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034103.txt:16: trailing whitespace.
+[32m+[m		[32mORGANIZATION NAME:[m[41m           	[m
+server/services/edgar/__fixtures__/0001437749-26-034103.txt:24: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034103.txt:31: trailing whitespace.
+[32m+[m[32mISSUER:[m[41m		[m
+server/services/edgar/__fixtures__/0001437749-26-034103.txt:33: trailing whitespace.
+[32m+[m	[32mCOMPANY DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034103.txt:42: trailing whitespace.
+[32m+[m	[32mBUSINESS ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001437749-26-034103.txt:49: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:11: trailing whitespace.
+[32m+[m[32mREPORTING-OWNER:[m[41m	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:13: trailing whitespace.
+[32m+[m	[32mOWNER DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:16: trailing whitespace.
+[32m+[m		[32mORGANIZATION NAME:[m[41m           	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:24: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:31: trailing whitespace.
+[32m+[m[32mISSUER:[m[41m		[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:33: trailing whitespace.
+[32m+[m	[32mCOMPANY DATA:[m[41m	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:41: trailing whitespace.
+[32m+[m	[32mBUSINESS ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:48: trailing whitespace.
+[32m+[m	[32mMAIL ADDRESS:[m[41m	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:54: trailing whitespace.
+[32m+[m	[32mFORMER COMPANY:[m[41m	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:58: trailing whitespace.
+[32m+[m	[32mFORMER COMPANY:[m[41m	[m
+server/services/edgar/__fixtures__/0001649471-26-000006.txt:62: trailing whitespace.
+[32m+[m	[32mFORMER COMPANY:[m[41m	[m

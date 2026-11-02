@@ -75,6 +75,21 @@ export function filingIndexUrl(cik, accessionNo) {
   return `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${accessionDigits(accessionNo)}/${accessionNo}-index.htm`;
 }
 
+// issuerTradingSymbol is free text as filed: "NYSE:FLG", "NYSE: KRC", "BRK.A, BRK.B",
+// "None". → { ticker: first symbol | null, symbols: [...] }. The raw value is kept
+// separately (tickerReported); the issuer is always identified by CIK, never by ticker.
+const EXCHANGE_TOKENS = new Set(["NYSE", "NASDAQ", "AMEX", "OTC", "OTCQB", "OTCQX", "OTCMKTS", "ARCA", "CBOE", "BATS", "NYSEAMERICAN", "NYSEARCA", "NYSEMKT"]);
+const SYMBOL_RE = /^[A-Z0-9][A-Z0-9.-]{0,9}$/;
+export function normalizeFiledTicker(raw) {
+  let s = String(raw ?? "").toUpperCase().trim();
+  if (!s || /^(NONE|N\/?A|NOT APPLICABLE|-+)$/.test(s)) return { ticker: null, symbols: [] };
+  s = s.replace(/^[A-Z][A-Z .]{0,24}:\s*/, ""); // exchange prefix "NYSE:" / "NASDAQ GS: "
+  let tokens = s.split(/[,;/]|\s+AND\s+|\s+/).map((t) => t.replace(/^[^A-Z0-9]+|[^A-Z0-9]+$/g, "")).filter((t) => SYMBOL_RE.test(t));
+  if (tokens.length > 1) tokens = tokens.filter((t) => !EXCHANGE_TOKENS.has(t));
+  tokens = [...new Set(tokens)];
+  return { ticker: tokens[0] || null, symbols: tokens };
+}
+
 // Officer titles like "See Remarks" defer to the filing's remarks section.
 export function describeRole(rel = {}, remarks = "") {
   const roles = [];
@@ -128,7 +143,10 @@ export function parseForm4Submission(txt, { accessionNo: expectedAccession } = {
   const issuer = doc.issuer || {};
   const issuerCik = val(issuer.issuerCik);
   const issuerName = val(issuer.issuerName) || null;
-  const ticker = (val(issuer.issuerTradingSymbol) || "").toUpperCase().trim() || null;
+  const tickerReported = val(issuer.issuerTradingSymbol) ?? null;
+  const { ticker, symbols: tickerSymbols } = normalizeFiledTicker(tickerReported);
+  // 4/A only: the date the amended filing was originally submitted.
+  const originalSubmissionDate = formType === "4/A" ? isoDate(text(doc.dateOfOriginalSubmission)) : null;
   const is10b5_1 = doc.aff10b5One != null ? bool(doc.aff10b5One) : null;
   const remarks = text(doc.remarks);
 
@@ -165,6 +183,9 @@ export function parseForm4Submission(txt, { accessionNo: expectedAccession } = {
       issuerCik,
       issuerName,
       ticker,
+      tickerReported,
+      tickerSymbols,
+      originalSubmissionDate,
       insiderName,
       insiderCik: owners[0]?.cik || null,
       role,
@@ -199,7 +220,12 @@ export function parseForm4Submission(txt, { accessionNo: expectedAccession } = {
   });
 
   return {
-    accessionNo, formType, issuerCik, issuerName, ticker, filingDate, acceptedAtET, filingUrl,
+    accessionNo, formType, issuerCik, issuerName, ticker, tickerReported, filingDate, acceptedAtET, filingUrl,
+    originalSubmissionDate,
+    ownerCiks: owners.map((o) => o.cik).filter(Boolean),
+    // Table I present at all (it may hold only holdings — e.g. a 4/A retracting a
+    // purchase that "did not in fact occur" restates Table I with zero transactions).
+    hasNonDerivativeTable: doc.nonDerivativeTable !== undefined,
     totalNonDerivative: rows.length,
     transactions,
   };

@@ -20,8 +20,20 @@ export function dailyIndexUrl(yyyymmdd) {
 const ENTRY_RE = /<entry>([\s\S]*?)<\/entry>/g;
 const TERM_RE = /<category\b[^>]*\bterm="([^"]+)"/;
 const LINK_RE = /\/Archives\/edgar\/data\/(\d+)\/\d{18}\/(\d{10}-\d{2}-\d{6})-index\.htm/;
+const UPDATED_RE = /<updated>([^<]*)<\/updated>/;
+// Only a complete ISO timestamp WITH an explicit offset is trusted — never guessed.
+const FEED_TS_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
-// → { entries, form4: [{ accessionNo, cikDir, formType }] } (form4 de-duplicated)
+// Entry <updated> (SEC's timestamp for the listing) → ISO UTC, or null when absent/unparseable.
+export function parseFeedTimestamp(s) {
+  const v = String(s ?? "").trim();
+  if (!FEED_TS_RE.test(v)) return null;
+  const t = Date.parse(v);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+// → { entries, form4: [{ accessionNo, cikDir, formType, updatedAt }] } (form4 de-duplicated)
+// updatedAt: the entry's own <updated> timestamp (null if missing) — instrumentation only.
 export function parseFeedForm4(atom) {
   const form4 = new Map();
   let entries = 0;
@@ -30,7 +42,9 @@ export function parseFeedForm4(atom) {
     const term = (m[1].match(TERM_RE) || [])[1];
     if (!FORM4_TYPES.has(term)) continue;
     const link = m[1].match(LINK_RE);
-    if (link && !form4.has(link[2])) form4.set(link[2], { accessionNo: link[2], cikDir: link[1], formType: term });
+    if (link && !form4.has(link[2])) {
+      form4.set(link[2], { accessionNo: link[2], cikDir: link[1], formType: term, updatedAt: parseFeedTimestamp((m[1].match(UPDATED_RE) || [])[1]) });
+    }
   }
   return { entries, form4: [...form4.values()] };
 }

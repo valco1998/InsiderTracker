@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { logError } from "../utils/safeLog.js";
 import jwt from "jsonwebtoken";
 import User from "../models/User.model.js";
 
@@ -99,7 +100,7 @@ export async function signup(req, res) {
       const field = Object.keys(err.keyPattern || {})[0] || "field";
       return res.status(409).json({ ok: false, error: `${field} already exists` });
     }
-    console.error(`[AUTH_ERROR] err=${err?.name}: ${err?.message}`);
+    logError("AUTH_ERROR", { requestId: req.id, op: "signup", err });
     return res.status(500).json({ ok: false, error: "Internal server error" });
   }
 }
@@ -140,7 +141,7 @@ export async function login(req, res) {
       },
     });
   } catch (err) {
-    console.error(`[AUTH_ERROR] err=${err?.name}: ${err?.message}`);
+    logError("AUTH_ERROR", { requestId: req.id, op: "login", err });
     return res.status(500).json({ ok: false, error: "Internal server error" });
   }
 }
@@ -162,7 +163,7 @@ export async function updateSettings(req, res) {
     const user = await User.findByIdAndUpdate(req.user._id, update, { new: true }).select("-passwordHash");
     return res.json({ ok: true, user });
   } catch (err) {
-    console.error(`[AUTH_ERROR] err=${err?.name}: ${err?.message}`);
+    logError("AUTH_ERROR", { requestId: req.id, op: "updateSettings", err });
     return res.status(500).json({ ok: false, error: "Internal server error" });
   }
 }
@@ -172,7 +173,7 @@ export const logout = async (req, res) => {
     res.clearCookie("token");
     return res.json({ ok: true });
   } catch (err) {
-    console.error(`[AUTH_ERROR] err=${err?.name}: ${err?.message}`);
+    logError("AUTH_ERROR", { requestId: req.id, op: "logout", err });
     return res.status(500).json({ ok: false, error: "Internal server error" });
   }
 };

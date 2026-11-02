@@ -5,73 +5,63 @@
 // related filers are grouped (see transactionGroups.js) and every original
 // filing is listed in `reportedBy`. `?dedupe=false` returns raw filing rows.
 // `totals` are always computed over economic transactions (no double counting).
+//
+// Served from the processed-data snapshot (insiderSnapshot.js) — nothing is
+// recomputed per request. Additive options:
+//   ?cursor=<nextCursor>  next page (stable while new filings arrive)
+//   ?view=compact         list rows without owners / footnotes / remarks
+//   GET /transactions/:id full record of one row (economicId or raw row id)
+//   GET /stream           Server-Sent Events: snapshot version notifications (Phase D3)
+//
+// Phase D3 caching: /transactions carries a weak ETag derived from the snapshot
+// version, the query and the attached ingest status — a matching If-None-Match
+// is answered 304 BEFORE the page is queried or serialized. `snapshotVersion`
+// (additive) lets a client correlate a response with stream events.
+import crypto from "node:crypto";
 import express from "express";
 import { getIngestStatus } from "../services/edgar/insiderIngest.js";
-import { groupTransactions, computeTotals } from "../services/edgar/transactionGroups.js";
-import { getCheckedRows } from "../services/edgar/insiderData.js";
+import { getSnapshot, getSnapshotStats, snapshotStream } from "../services/edgar/insiderData.js";
+import { queryTransactions, getTransactionById } from "../services/edgar/insiderSnapshot.js";
 
 const router = express.Router();
 
-const TYPES = { all: null, purchase: "P", sale: "S" };
-const VENUES = new Set(["all", "open_market", "offering_or_private", "unspecified"]);
-const CHECKS = new Set(["all", "ok", "anomaly", "missing_price"]);
-const TICKER_RE = /^[A-Z0-9.\-]{1,10}$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export function transactionsEtag(version, query, status) {
+  const h = crypto.createHash("sha1").update(JSON.stringify(query ?? {})).update("\n").update(JSON.stringify(status ?? null)).digest("base64url");
+  return `W/"v${version}-${h.slice(0, 22)}"`;
+}
+
+// RFC 9110 §13.1.2 If-None-Match with weak comparison, evaluated by the origin.
+// (Express's req.fresh refuses whenever the request says Cache-Control: no-cache,
+// which fetch() adds to every manual conditional request — the origin may still answer 304.)
+export function ifNoneMatch(header, etag) {
+  if (!header || !etag) return false;
+  const opaque = (t) => t.trim().replace(/^W\//, "");
+  if (header.trim() === "*") return true;
+  return header.split(",").some((t) => opaque(t) === opaque(etag));
+}
 
 router.get("/transactions", (req, res) => {
-  const type = String(req.query.type || "all").toLowerCase();
-  const venue = String(req.query.venue || "all").toLowerCase();
-  const check = String(req.query.check || "all").toLowerCase();
-  const ticker = String(req.query.ticker || "").trim().toUpperCase();
-  const from = String(req.query.from || "");
-  const to = String(req.query.to || "");
-  const dedupe = String(req.query.dedupe ?? "true") !== "false";
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 1000);
-
-  if (!(type in TYPES)) return res.status(400).json({ error: "type must be all, purchase or sale" });
-  if (!VENUES.has(venue)) return res.status(400).json({ error: "venue must be all, open_market, offering_or_private or unspecified" });
-  if (!CHECKS.has(check)) return res.status(400).json({ error: "check must be all, ok, anomaly or missing_price" });
-  if (ticker && !TICKER_RE.test(ticker)) return res.status(400).json({ error: "invalid ticker" });
-  if ((from && !DATE_RE.test(from)) || (to && !DATE_RE.test(to))) {
-    return res.status(400).json({ error: "dates must be YYYY-MM-DD" });
-  }
-
-  // Price checks need every row (peer comparison), so run them on the full set.
-  const raw = getCheckedRows();
-  // Group BEFORE filtering so a group is never split by a filter.
-  const economic = groupTransactions(raw);
-  const all = dedupe ? economic : raw;
-
-  const code = TYPES[type];
-  const inRange = (d) => !!d && (!from || d >= from) && (!to || d <= to);
-  const rows = all.filter((t) =>
-    (!code || t.code === code) &&
-    (venue === "all" || (t.code === "P" && t.purchaseContext === venue)) &&
-    (check === "all" || t.priceCheck?.status === check) &&
-    (!ticker || t.ticker === ticker) &&
-    (!from && !to ? true : (t.reportedBy || [t]).some((r) => inRange(r.filingDate)))
-  );
-
-  // Newest filings first; within a filing keep document order.
-  rows.sort((a, b) =>
-    (b.acceptedAtET || b.filingDate || "").localeCompare(a.acceptedAtET || a.filingDate || "") ||
-    a.id.localeCompare(b.id, undefined, { numeric: true })
-  );
-
-  // Totals always over economic transactions matching the same filters.
-  const economicMatching = dedupe ? rows : groupTransactions(rows);
-  res.json({
-    total: rows.length,
-    rawRowCount: raw.length,
-    dedupe,
-    totals: computeTotals(economicMatching),
-    transactions: rows.slice(0, limit),
-    status: getIngestStatus(),
-  });
+  const snap = getSnapshot();
+  const status = getIngestStatus();
+  const etag = transactionsEtag(snap.version, req.query, status);
+  res.set("Cache-Control", "no-cache"); // always revalidate; never served stale from a cache
+  res.set("ETag", etag);
+  if (ifNoneMatch(req.get("If-None-Match"), etag)) return res.status(304).end();
+  const r = queryTransactions(snap, req.query);
+  if (r.status !== 200) { res.removeHeader("ETag"); return res.status(r.status).json({ error: r.error }); }
+  res.json({ ...r.body, snapshotVersion: snap.version, status });
 });
 
+router.get("/transactions/:id", (req, res) => {
+  const r = getTransactionById(getSnapshot(), req.params.id);
+  if (r.status !== 200) return res.status(r.status).json({ error: r.error, ...(r.rowIds ? { rowIds: r.rowIds } : {}) });
+  res.json(r.body);
+});
+
+router.get("/stream", (req, res) => snapshotStream.handle(req, res));
+
 router.get("/status", (_req, res) => {
-  res.json(getIngestStatus());
+  res.json({ ...getIngestStatus(), snapshot: getSnapshotStats(), stream: snapshotStream.getStats() });
 });
 
 export default router;

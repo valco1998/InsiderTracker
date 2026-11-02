@@ -105,8 +105,12 @@ export function annotatePriceChecks(rows) {
   });
 }
 
-// Automatic push alerts must never fire on unverified anomalous prices.
+// Automatic push alerts must never fire on unverified anomalous prices, on rows
+// superseded by an amendment, or on amendments themselves (a 4/A restates a
+// filing that may already have alerted; it is shown on the dashboard only).
 export function isAlertEligible(t) {
+  if (t.amendment?.status === "superseded") return { eligible: false, reason: "Superseded by an amended filing" };
+  if (t.formType === "4/A") return { eligible: false, reason: "Amended filing — no automatic alerts" };
   if (t.priceCheck?.status === "anomaly") return { eligible: false, reason: ANOMALY_LABEL };
   if (!t.priceCheck) return { eligible: false, reason: "price not checked" };
   return { eligible: true, reason: null };

@@ -164,7 +164,8 @@ function Alerts({ account }) {
   );
 }
 
-export default function InsiderAccountPanel({ account }) {
+// `stacked`: single column (used inside the account drawer).
+export default function InsiderAccountPanel({ account, stacked = false }) {
   const { isAuthed, logout } = useAuth();
   if (!account.health) return null;
   if (!account.accountsAvailable) {
@@ -176,7 +177,7 @@ export default function InsiderAccountPanel({ account }) {
   }
   if (!isAuthed) return <SignIn />;
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className={`grid gap-3 ${stacked ? "" : "lg:grid-cols-2"}`}>
       <section className="flex flex-col gap-3 rounded-xl p-4" style={panel}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-white">Following</h2>
@@ -196,15 +197,27 @@ export default function InsiderAccountPanel({ account }) {
 
 export function FollowButton({ t, account }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
   if (!account.ready || !t.ticker) return null;
   if (account.isFollowing(t.issuerCik)) {
     return <span className="text-[10px] font-medium text-cyan-300/80" title="You follow this company">Following ✓</span>;
   }
+  const onClick = async () => {
+    setBusy(true);
+    setError(null);
+    // Follow by the filing's issuer CIK so the alert matches this exact company.
+    const r = await account.follow(t.ticker, "both", t.issuerCik);
+    if (!r.ok) setError(r.error);
+    setBusy(false);
+  };
   return (
-    <button disabled={busy} onClick={async () => { setBusy(true); await account.follow(t.ticker); setBusy(false); }}
-      className="rounded px-1.5 py-px text-[10px] font-medium text-white/60 hover:text-white disabled:opacity-50"
-      style={{ border: "1px solid var(--border)" }} title={`Get alerts for new ${t.ticker} Form 4 filings`}>
-      + Follow
-    </button>
+    <span className="inline-flex items-center gap-1.5">
+      <button disabled={busy} onClick={onClick}
+        className="rounded px-1.5 py-px text-[10px] font-medium text-white/60 hover:text-white disabled:opacity-50"
+        style={{ border: "1px solid var(--border)" }} title={`Get alerts for new ${t.ticker} Form 4 filings`}>
+        + Follow
+      </button>
+      {error && <span className="text-[10px] text-rose-300" role="alert" title={error}>Couldn&apos;t follow</span>}
+    </span>
   );
 }

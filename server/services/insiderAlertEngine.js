@@ -48,7 +48,12 @@ export function selectAlertCandidates({ transactions, watches, now = Date.now(),
     if (t < notBefore) { skip("before_engine_start"); continue; }
     if (now - t > maxAgeMs) { skip("too_old"); continue; }
     if (now - t < settleMs) { skip("settling"); continue; }
-    if (!isAlertEligible(tx).eligible) { skip(tx.priceCheck?.status === "anomaly" ? "price_anomaly" : "price_unchecked"); continue; }
+    if (!isAlertEligible(tx).eligible) {
+      skip(tx.amendment?.status === "superseded" ? "superseded_by_amendment"
+        : tx.formType === "4/A" ? "amendment"
+        : tx.priceCheck?.status === "anomaly" ? "price_anomaly" : "price_unchecked");
+      continue;
+    }
 
     for (const w of followers) {
       if (!TYPE_CODES[w.types]?.has(tx.code)) { skip("type_filtered"); continue; }

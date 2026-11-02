@@ -105,10 +105,11 @@ const alertLogSchema = new mongoose.Schema(
       default: false,
     },
 
+    // Indexed by the 60-day TTL index below — declared once. A second plain index
+    // on the same key prevented the TTL index from ever being created.
     triggeredAt: {
       type: Date,
       default: Date.now,
-      index: true,
     },
 
     // ── Reliability dashboard: per-alert lifecycle timing ────────────────────

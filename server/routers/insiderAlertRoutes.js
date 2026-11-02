@@ -3,10 +3,11 @@
 import express from "express";
 import mongoose from "mongoose";
 import AlertLog from "../models/alertLog.models.js";
+import { logError } from "../utils/safeLog.js";
 
 const router = express.Router();
 const fail = (res, err, where) => {
-  console.error(`[INSIDER_ALERTS_ERROR] where=${where} err=${err?.name}: ${err?.message}`);
+  logError("INSIDER_ALERTS_ERROR", { requestId: res.req?.id, where, userId: res.req?.user?._id, err });
   return res.status(500).json({ ok: false, error: "Internal server error" });
 };
 

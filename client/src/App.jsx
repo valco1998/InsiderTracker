@@ -90,7 +90,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Navigate to="/login" replace />} />
           <Route path="/steam/callback" element={<SteamCallback />} />
-          <Route path="/insider" element={<InsiderDashboard />} />
+          <Route path="/insider/*" element={<InsiderDashboard />} />
 
           {/* Protected */}
           <Route element={<ProtectedLayout />}>

@@ -3,7 +3,8 @@
 import express from "express";
 import mongoose from "mongoose";
 import InsiderWatch from "../models/InsiderWatch.model.js";
-import { lookupTicker as defaultLookup, CompanyLookupUnavailable } from "../services/edgar/companyTickers.js";
+import { logError } from "../utils/safeLog.js";
+import { lookupTicker as defaultLookup, lookupCik as defaultLookupCik, CompanyLookupUnavailable } from "../services/edgar/companyTickers.js";
 
 export const MAX_WATCHES_PER_USER = 100;
 const TYPES = new Set(["purchase", "sale", "both"]);
@@ -15,11 +16,13 @@ const view = (w) => ({
 });
 
 const fail = (res, err, where) => {
-  console.error(`[INSIDER_WATCH_ERROR] where=${where} err=${err?.name}: ${err?.message}`);
+  logError("INSIDER_WATCH_ERROR", { requestId: res.req?.id, where, userId: res.req?.user?._id, err });
   return res.status(500).json({ ok: false, error: "Internal server error" });
 };
 
-export function createInsiderWatchRouter({ lookupTicker = defaultLookup } = {}) {
+const CIK_RE = /^\d{1,10}$/;
+
+export function createInsiderWatchRouter({ lookupTicker = defaultLookup, lookupCik = defaultLookupCik } = {}) {
   const router = express.Router();
 
   router.get("/", async (req, res) => {
@@ -33,7 +36,14 @@ export function createInsiderWatchRouter({ lookupTicker = defaultLookup } = {}) 
     try {
       const ticker = typeof req.body?.ticker === "string" ? req.body.ticker.trim() : "";
       const types = req.body?.types === undefined ? "both" : req.body.types;
-      if (!TICKER_RE.test(ticker)) return res.status(400).json({ ok: false, error: "Invalid ticker" });
+      // Optional issuer CIK (from a filing row). When present it is authoritative:
+      // filings identify the issuer by CIK, and filed ticker text varies.
+      const cikRaw = req.body?.cik;
+      const hasCik = cikRaw !== undefined && cikRaw !== null && cikRaw !== "";
+      if (hasCik && !(typeof cikRaw === "string" || typeof cikRaw === "number")) return res.status(400).json({ ok: false, error: "Invalid cik" });
+      const cik = hasCik ? String(cikRaw).trim() : "";
+      if (hasCik && (!CIK_RE.test(cik) || Number(cik) === 0)) return res.status(400).json({ ok: false, error: "Invalid cik" });
+      if (!hasCik && !TICKER_RE.test(ticker)) return res.status(400).json({ ok: false, error: "Invalid ticker" });
       if (typeof types !== "string" || !TYPES.has(types)) return res.status(400).json({ ok: false, error: "types must be purchase, sale or both" });
 
       if ((await InsiderWatch.countDocuments({ userId: req.user._id })) >= MAX_WATCHES_PER_USER) {
@@ -42,12 +52,14 @@ export function createInsiderWatchRouter({ lookupTicker = defaultLookup } = {}) 
 
       let company;
       try {
-        company = await lookupTicker(ticker);
+        company = hasCik ? await lookupCik(cik) : await lookupTicker(ticker);
       } catch (err) {
         if (err instanceof CompanyLookupUnavailable) return res.status(503).json({ ok: false, error: "Company lookup is temporarily unavailable" });
         throw err;
       }
-      if (!company) return res.status(404).json({ ok: false, error: "Ticker not found in SEC company list" });
+      if (!company) {
+        return res.status(404).json({ ok: false, error: hasCik ? "Company not found in SEC company list" : "Ticker not found in SEC company list" });
+      }
 
       try {
         const watch = await InsiderWatch.create({

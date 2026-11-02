@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import express from "express";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-import { parseCompanyTickers, normalizeTicker } from "../services/edgar/companyTickers.js";
+import { parseCompanyTickers, normalizeTicker, indexByCik } from "../services/edgar/companyTickers.js";
 
 process.env.JWT_SECRET = "t".repeat(40);
 const { default: User } = await import("../models/User.model.js");
@@ -17,10 +17,12 @@ const { CompanyLookupUnavailable } = await import("../services/edgar/companyTick
 // SYNTHETIC company list in SEC's company_tickers_exchange.json shape.
 const COMPANIES = parseCompanyTickers({
   fields: ["cik", "name", "ticker", "exchange"],
-  data: [[1866581, "Dutch Bros Inc.", "BROS", "NYSE"], [1067983, "BERKSHIRE HATHAWAY INC", "BRK-B", "NYSE"], [320193, "Apple Inc.", "AAPL", "Nasdaq"]],
+  data: [[1866581, "Dutch Bros Inc.", "BROS", "NYSE"], [1067983, "BERKSHIRE HATHAWAY INC", "BRK-B", "NYSE"], [320193, "Apple Inc.", "AAPL", "Nasdaq"], [910073, "Flagstar Bank, National Association", "FLG", "NYSE"]],
 });
 let lookupMode = "ok";
 const lookupTicker = async (t) => { if (lookupMode === "down") throw new CompanyLookupUnavailable("down"); return COMPANIES.get(normalizeTicker(t)) || null; };
+const BY_CIK = indexByCik(COMPANIES);
+const lookupCik = async (c) => { if (lookupMode === "down") throw new CompanyLookupUnavailable("down"); return BY_CIK.get(String(Number(c)).padStart(10, "0")) || null; };
 
 const ALICE = new mongoose.Types.ObjectId();
 const BOB = new mongoose.Types.ObjectId();
@@ -46,7 +48,7 @@ let server, base;
 before(async () => {
   const app = express();
   app.use(express.json());
-  app.use("/api/insider/watches", protectRoute, createInsiderWatchRouter({ lookupTicker }));
+  app.use("/api/insider/watches", protectRoute, createInsiderWatchRouter({ lookupTicker, lookupCik }));
   server = await new Promise((r) => { const s = app.listen(0, "127.0.0.1", () => r(s)); });
   base = `http://127.0.0.1:${server.address().port}/api/insider/watches`;
 });
@@ -135,4 +137,40 @@ test("company list parser: 10-digit CIKs, first ticker wins, dot→dash", () => 
   assert.equal(m.get("ABC").cik, "0000000042");
   assert.equal(normalizeTicker(" brk.b "), "BRK-B");
   assert.throws(() => parseCompanyTickers({ fields: ["x"], data: [] }), /unexpected/);
+});
+
+// Phase A — follow from a filing row by issuer CIK (filed ticker text such as
+// "NYSE:FLG" from real filing 0001649471-26-000006 is not a valid ticker).
+test("follow by issuer CIK: exchange-prefixed filed ticker no longer blocks following", async () => {
+  // What the dashboard used to send for that row: rejected.
+  assert.equal((await call("POST", "", { ticker: "NYSE:FLG" })).status, 400);
+  // What it sends now: normalized ticker + the filing's issuer CIK.
+  const r = await call("POST", "", { ticker: "FLG", cik: "0000910073" });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.watch.cik, "0000910073");
+  assert.equal(r.body.watch.ticker, "FLG");
+  // CIK is authoritative even if the ticker text is odd or missing.
+  rows = [];
+  const r2 = await call("POST", "", { ticker: "NYSE:FLG", cik: 910073 });
+  assert.equal(r2.status, 201);
+  assert.equal(r2.body.watch.cik, "0000910073");
+});
+
+test("follow by CIK: the CIK wins over a mismatching ticker; validation and fail-closed", async () => {
+  const r = await call("POST", "", { ticker: "AAPL", cik: "1866581" });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.watch.cik, "0001866581");
+  assert.equal(r.body.watch.ticker, "BROS");
+  assert.equal((await call("POST", "", { cik: "1866581" })).status, 409, "same issuer → duplicate");
+  for (const bad of ["abc", "12345678901", "0", { $gt: "" }, [1], true]) {
+    assert.equal((await call("POST", "", { ticker: "AAPL", cik: bad })).status, 400, JSON.stringify(bad));
+  }
+  assert.equal((await call("POST", "", { cik: "999" })).status, 404);
+  lookupMode = "down";
+  assert.equal((await call("POST", "", { cik: "320193" })).status, 503);
+});
+
+test("company list index by CIK: first listing per issuer wins", () => {
+  const m = parseCompanyTickers({ fields: ["cik", "name", "ticker", "exchange"], data: [[1067983, "BERKSHIRE", "BRK-B", "NYSE"], [1067983, "BERKSHIRE", "BRK-A", "NYSE"]] });
+  assert.equal(indexByCik(m).get("0001067983").ticker, "BRK-B");
 });

@@ -63,11 +63,32 @@ async function load() {
   }
 }
 
-export async function lookupTicker(ticker) {
+// Pure: ticker map → Map(10-digit CIK → company). The first listing per CIK wins
+// (SEC lists an issuer's primary class first).
+export function indexByCik(map) {
+  const byCik = new Map();
+  for (const c of map.values()) if (!byCik.has(c.cik)) byCik.set(c.cik, c);
+  return byCik;
+}
+
+let byCikCache = { source: null, map: null };
+
+async function ensureLoaded() {
   if (!cache.map || Date.now() - cache.loadedAt > MAX_AGE_MS) {
     loading ||= load().finally(() => { loading = null; });
     await loading;
   }
   if (!cache.map) throw new CompanyLookupUnavailable("SEC company list unavailable");
+}
+
+export async function lookupTicker(ticker) {
+  await ensureLoaded();
   return cache.map.get(normalizeTicker(ticker)) || null;
+}
+
+// Issuer CIK (any digits form) → company, or null when SEC lists no ticker for it.
+export async function lookupCik(cik) {
+  await ensureLoaded();
+  if (byCikCache.source !== cache.map) byCikCache = { source: cache.map, map: indexByCik(cache.map) };
+  return byCikCache.map.get(String(Number(cik)).padStart(10, "0")) || null;
 }

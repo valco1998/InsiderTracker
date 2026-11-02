@@ -43,7 +43,8 @@ const notificationEventSchema = new mongoose.Schema({
 
   meta: { type: mongoose.Schema.Types.Mixed, default: {} },
 
-  createdAt: { type: Date, default: Date.now, index: true },
+  // Indexed by the 8-day TTL index below — declared once (see alertLog.models.js).
+  createdAt: { type: Date, default: Date.now },
 });
 
 notificationEventSchema.index({ type: 1, createdAt: -1 });

@@ -1,0 +1,166 @@
+<SEC-DOCUMENT>0001649471-26-000006.txt : 20261028
+<SEC-HEADER>0001649471-26-000006.hdr.sgml : 20261028
+<ACCEPTANCE-DATETIME>20261028140054
+ACCESSION NUMBER:		0001649471-26-000006
+CONFORMED SUBMISSION TYPE:	4
+PUBLIC DOCUMENT COUNT:		1
+CONFORMED PERIOD OF REPORT:	20261027
+FILED AS OF DATE:		20261028
+DATE AS OF CHANGE:		20261028
+
+REPORTING-OWNER:	
+
+	OWNER DATA:	
+		COMPANY CONFORMED NAME:			Frank Alan L
+		CENTRAL INDEX KEY:			0001649471
+		ORGANIZATION NAME:           	
+
+	FILING VALUES:
+		FORM TYPE:		4
+		SEC ACT:		1934 Act
+		SEC FILE NUMBER:	001-31565
+		FILM NUMBER:		261494991
+
+	MAIL ADDRESS:	
+		STREET 1:		C/O FLAGSTAR FINANCIAL, INC.
+		STREET 2:		102 DUFFY AVENUE
+		CITY:			HICKSVILLE
+		STATE:			NY
+		ZIP:			11801
+
+ISSUER:		
+
+	COMPANY DATA:	
+		COMPANY CONFORMED NAME:			FLAGSTAR BANK, NATIONAL ASSOCIATION
+		CENTRAL INDEX KEY:			0000910073
+		STANDARD INDUSTRIAL CLASSIFICATION:	SAVINGS INSTITUTIONS, NOT FEDERALLY CHARTERED [6036]
+		ORGANIZATION NAME:           	02 Finance
+		EIN:				382734984
+		FISCAL YEAR END:			1231
+
+	BUSINESS ADDRESS:	
+		STREET 1:		102 DUFFY AVENUE
+		CITY:			HICKSVILLE
+		STATE:			NY
+		ZIP:			11801
+		BUSINESS PHONE:		5166834100
+
+	MAIL ADDRESS:	
+		STREET 1:		102 DUFFY AVENUE
+		CITY:			HICKSVILLE
+		STATE:			NY
+		ZIP:			11801
+
+	FORMER COMPANY:	
+		FORMER CONFORMED NAME:	FLAGSTAR FINANCIAL, INC.
+		DATE OF NAME CHANGE:	20241101
+
+	FORMER COMPANY:	
+		FORMER CONFORMED NAME:	NEW YORK COMMUNITY BANCORP, INC.
+		DATE OF NAME CHANGE:	20240311
+
+	FORMER COMPANY:	
+		FORMER CONFORMED NAME:	NEW YORK COMMUNITY BANCORP INC
+		DATE OF NAME CHANGE:	20001128
+</SEC-HEADER>
+<DOCUMENT>
+<TYPE>4
+<SEQUENCE>1
+<FILENAME>wk-form4_1793210452.xml
+<DESCRIPTION>FORM 4
+<TEXT>
+<XML>
+<?xml version="1.0"?>
+<ownershipDocument>
+
+    <schemaVersion>X0609</schemaVersion>
+
+    <documentType>4</documentType>
+
+    <periodOfReport>2026-10-27</periodOfReport>
+
+    <notSubjectToSection16>0</notSubjectToSection16>
+
+    <issuer>
+        <issuerCik>0000910073</issuerCik>
+        <issuerName>FLAGSTAR BANK, NATIONAL ASSOCIATION</issuerName>
+        <issuerTradingSymbol>NYSE:FLG</issuerTradingSymbol>
+        <issuerForeignTradingSymbol></issuerForeignTradingSymbol>
+    </issuer>
+
+    <reportingOwner>
+        <reportingOwnerId>
+            <rptOwnerCik>0001649471</rptOwnerCik>
+            <rptOwnerName>Frank Alan L</rptOwnerName>
+        </reportingOwnerId>
+        <reportingOwnerAddress>
+            <rptOwnerNonUSAddressFlag>false</rptOwnerNonUSAddressFlag>
+            <rptOwnerStreet1>102 DUFFY AVENUE</rptOwnerStreet1>
+            <rptOwnerStreet2></rptOwnerStreet2>
+            <rptOwnerCity>HICKSVILLE</rptOwnerCity>
+            <rptOwnerState>NY</rptOwnerState>
+            <rptOwnerZipCode>11801</rptOwnerZipCode>
+            <rptOwnerStateDescription></rptOwnerStateDescription>
+        </reportingOwnerAddress>
+        <reportingOwnerRelationship>
+            <isDirector>1</isDirector>
+            <isOfficer>0</isOfficer>
+            <isTenPercentOwner>0</isTenPercentOwner>
+            <isOther>0</isOther>
+        </reportingOwnerRelationship>
+    </reportingOwner>
+
+    <aff10b5One>0</aff10b5One>
+
+    <nonDerivativeTable>
+        <nonDerivativeTransaction>
+            <securityTitle>
+                <value>Common Stock</value>
+            </securityTitle>
+            <transactionDate>
+                <value>2026-10-27</value>
+            </transactionDate>
+            <transactionCoding>
+                <transactionFormType>4</transactionFormType>
+                <transactionCode>P</transactionCode>
+                <equitySwapInvolved>0</equitySwapInvolved>
+            </transactionCoding>
+            <transactionAmounts>
+                <transactionShares>
+                    <value>10000</value>
+                </transactionShares>
+                <transactionPricePerShare>
+                    <value>10.14</value>
+                </transactionPricePerShare>
+                <transactionAcquiredDisposedCode>
+                    <value>A</value>
+                </transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <postTransactionAmounts>
+                <sharesOwnedFollowingTransaction>
+                    <value>76463</value>
+                </sharesOwnedFollowingTransaction>
+            </postTransactionAmounts>
+            <ownershipNature>
+                <directOrIndirectOwnership>
+                    <value>D</value>
+                </directOrIndirectOwnership>
+            </ownershipNature>
+        </nonDerivativeTransaction>
+    </nonDerivativeTable>
+
+    <derivativeTable></derivativeTable>
+
+    <footnotes></footnotes>
+
+    <remarks></remarks>
+
+    <ownerSignature>
+        <signatureName>/s/ Jan M. Klym, by Power of Attorney</signatureName>
+        <signatureDate>2026-10-28</signatureDate>
+    </ownerSignature>
+</ownershipDocument>
+</XML>
+</TEXT>
+</DOCUMENT>
+</SEC-DOCUMENT>

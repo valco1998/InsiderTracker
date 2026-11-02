@@ -46,9 +46,10 @@ export default function useInsiderAccount() {
   const watchByCik = useMemo(() => new Map(watches.map((w) => [w.cik, w])), [watches]);
   const isFollowing = useCallback((cik) => !!cik && watchByCik.has(String(Number(cik)).padStart(10, "0")), [watchByCik]);
 
-  const follow = useCallback(async (ticker, types = "both") => {
+  // cik (from a filing row) identifies the issuer exactly; filed ticker text varies.
+  const follow = useCallback(async (ticker, types = "both", cik) => {
     try {
-      await api.post("/insider/watches", { ticker, types });
+      await api.post("/insider/watches", cik ? { ticker, types, cik } : { ticker, types });
       await refresh();
       return { ok: true };
     } catch (err) {

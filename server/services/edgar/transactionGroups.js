@@ -17,6 +17,7 @@
 // Original rows are never mutated or dropped: every filing stays in reportedBy.
 
 import crypto from "node:crypto";
+import { isSuperseded } from "./amendments.js";
 
 const normalize = (s) =>
   String(s || "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
@@ -115,7 +116,8 @@ export function groupTransactions(rows) {
   const buckets = new Map();
   const singles = [];
   for (const r of rows) {
-    const key = candidateKey(r);
+    // Rows superseded by an amendment are kept as-is and never grouped.
+    const key = isSuperseded(r) ? null : candidateKey(r);
     if (!key) { singles.push({ r, key: null }); continue; }
     (buckets.get(key) || buckets.set(key, []).get(key)).push(r);
   }
@@ -169,9 +171,14 @@ export function groupTransactions(rows) {
 
 // Totals over ECONOMIC transactions — each confirmed group counted once.
 // Price anomalies stay in the counts but are excluded from monetary totals.
+// Rows superseded by a Form 4/A are excluded entirely (the amendment counts).
 export function computeTotals(economicRows) {
-  const t = { count: economicRows.length, purchases: 0, sales: 0, purchaseValue: 0, saleValue: 0, valueMissing: 0, confirmedGroups: 0, needsReview: 0, priceAnomalies: 0, anomalyValueExcluded: 0 };
+  const t = { count: 0, purchases: 0, sales: 0, purchaseValue: 0, saleValue: 0, valueMissing: 0, confirmedGroups: 0, needsReview: 0, priceAnomalies: 0, anomalyValueExcluded: 0, supersededByAmendment: 0, amendmentsFlagged: 0, lateFilings: 0 };
   for (const r of economicRows) {
+    if (isSuperseded(r)) { t.supersededByAmendment++; continue; }
+    t.count++;
+    if (r.filingDelay?.late) t.lateFilings++;
+    if (["original_not_held", "ambiguous", "unlinked"].includes(r.amendment?.status)) t.amendmentsFlagged++;
     if (r.code === "P") t.purchases++;
     if (r.code === "S") t.sales++;
     if (r.priceCheck?.status === "anomaly") { t.priceAnomalies++; t.anomalyValueExcluded += r.value || 0; }

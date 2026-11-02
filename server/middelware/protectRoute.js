@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.model.js";
+import { logWarn } from "../utils/safeLog.js";
 
 export default async function protectRoute(req, res, next) {
   try {
@@ -34,7 +35,8 @@ export default async function protectRoute(req, res, next) {
     req.user = user;
     next();
   } catch (err) {
-    console.error("protectRoute error:", err.message);
+    // Expected for bad/expired tokens — logged without the token itself.
+    logWarn("AUTH_REJECTED", { requestId: req.id, path: req.originalUrl?.split("?")[0], reason: err?.name, msg: err?.message });
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 }

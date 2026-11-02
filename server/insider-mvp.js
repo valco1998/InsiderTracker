@@ -13,12 +13,18 @@
 //   cd server && npm run insider:mvp
 import "dotenv/config";
 import { connectInsiderDb, getDbState, requireAccounts } from "./services/insiderDb.js"; // first: disables mongoose auto-create
+import crypto from "node:crypto";
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import { getAllowedOrigins } from "./config/clientUrls.js";
 import { checkFirebaseConfig, checkJwtSecret, readAlertFlags } from "./config/isolationGuards.js";
 import { getUserAgent, EdgarConfigError } from "./services/edgar/edgarClient.js";
-import { startInsiderIngest, stopInsiderIngest } from "./services/edgar/insiderIngest.js";
+import { startInsiderIngest, stopInsiderIngest, flushInsiderIngest, getIngestStatus } from "./services/edgar/insiderIngest.js";
+import { getSnapshotStats, snapshotStream } from "./services/edgar/insiderData.js";
+import { compressionFilter } from "./services/edgar/insiderStream.js";
+import { computeHealth } from "./services/healthReport.js";
+import { logError } from "./utils/safeLog.js";
 import { initFirebaseAdmin, isFcmReady } from "./services/fcm.js";
 import { initInsiderSocket } from "./socket/insiderSocket.js";
 import { rateLimit } from "./middelware/rateLimit.js";
@@ -52,18 +58,51 @@ const alertFlags = readAlertFlags();
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", false);
-app.use(cors({ origin: origins, credentials: true }));
-app.use(express.json({ limit: "100kb" }));
+app.use(cors({ origin: origins, credentials: true, exposedHeaders: ["X-Request-Id"] }));
 
+// Request id for log correlation (echoed in X-Request-Id and in 500 bodies).
+const REQUEST_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
+app.use((req, res, next) => {
+  const incoming = req.get("x-request-id");
+  req.id = incoming && REQUEST_ID_RE.test(incoming) ? incoming : crypto.randomUUID();
+  res.set("X-Request-Id", req.id);
+  next();
+});
+app.use(express.json({ limit: "100kb" }));
+// gzip JSON responses (Phase D3). Server-Sent Events are excluded (see
+// compressionFilter): compression would buffer the stream and delay notifications.
+app.use(compression({ filter: compressionFilter }));
+
+function healthReport() {
+  const db = getDbState();
+  return computeHealth({
+    db, ingest: getIngestStatus(), snapshot: getSnapshotStats(),
+    accountsConfigured: db.configured && jwtCheck.ok,
+  });
+}
+
+// Backward compatible: the client reads ok / accounts / push; always HTTP 200.
 app.get("/api/health", (_req, res) => {
   const db = getDbState();
+  const h = healthReport();
   res.json({
     ok: true,
     service: "insider-mvp",
     accounts: db.verified && jwtCheck.ok,
     push: isFcmReady(),
     alerts: { enabled: alertFlags.enabled, dryRun: alertFlags.dryRun, engine: getAlertEngineStats() },
+    status: h.status,
+    ready: h.ready,
+    reasons: h.reasons,
+    checks: h.checks,
+    checkedAt: new Date().toISOString(),
   });
+});
+// For monitors / load balancers.
+app.get("/api/health/live", (_req, res) => res.json({ ok: true }));
+app.get("/api/health/ready", (_req, res) => {
+  const h = healthReport();
+  res.status(h.ready ? 200 : 503).json({ ready: h.ready, status: h.status, reasons: h.reasons });
 });
 
 // Public SEC data.
@@ -80,9 +119,12 @@ app.use("/api/insider/alerts", requireAccounts, protectRoute, insiderAlertRoutes
 app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 
 // Generic error response — never leak internals to clients.
-app.use((err, _req, res, _next) => {
-  console.error(`[INSIDER_MVP] unhandled err=${err.message}`);
-  res.status(500).json({ error: "Internal server error" });
+app.use((err, req, res, _next) => {
+  // Body-parser errors are client errors, not server faults.
+  if (err?.type === "entity.parse.failed") return res.status(400).json({ error: "Invalid JSON body" });
+  if (err?.type === "entity.too.large") return res.status(413).json({ error: "Request body too large" });
+  logError("INSIDER_UNHANDLED", { requestId: req.id, method: req.method, path: req.path, err });
+  res.status(500).json({ error: "Internal server error", requestId: req.id });
 });
 
 function logConfig() {
@@ -111,9 +153,18 @@ const server = app.listen(PORT, HOST, async () => {
   startInsiderIngest().catch((err) => console.error(`[INSIDER_MVP] ingest start failed: ${err.message}`));
 });
 
+let shuttingDown = false;
 for (const sig of ["SIGINT", "SIGTERM"]) {
-  process.on(sig, () => {
+  process.on(sig, async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     stopInsiderIngest();
+    snapshotStream.close(); // open SSE connections would otherwise keep server.close() waiting
+    // Persist pending SEC cache changes (bounded wait) before exiting.
+    await Promise.race([
+      flushInsiderIngest().catch((err) => console.warn(`[INSIDER_CACHE] flush on shutdown failed: ${err.message}`)),
+      new Promise((r) => setTimeout(r, 5000).unref()),
+    ]);
     server.close(() => process.exit(0));
   });
 }
