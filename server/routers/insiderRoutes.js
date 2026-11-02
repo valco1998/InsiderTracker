@@ -12,6 +12,7 @@
 //   ?view=compact         list rows without owners / footnotes / remarks
 //   GET /transactions/:id full record of one row (economicId or raw row id)
 //   GET /stream           Server-Sent Events: snapshot version notifications (Phase D3)
+//   GET /companies        purchase-focused companies screener (companyScreener.js)
 //
 // Phase D3 caching: /transactions carries a weak ETag derived from the snapshot
 // version, the query and the attached ingest status — a matching If-None-Match
@@ -25,6 +26,7 @@ import { queryTransactions, getTransactionById } from "../services/edgar/insider
 import { lookupTicker as defaultLookupTicker, CompanyLookupUnavailable } from "../services/edgar/companyTickers.js";
 import { companyInsights, rowsForCompany } from "../services/edgar/insiderInsights.js";
 import { describeMarketData } from "../services/stockData/stockDataProvider.js";
+import { createScreener, screenCompanies } from "../services/edgar/companyScreener.js";
 
 const router = express.Router();
 const COMPANY_TICKER_RE = /^[A-Z0-9.-]{1,10}$/;
@@ -67,6 +69,22 @@ export function companyInsightsHandler({ lookupTicker = defaultLookupTicker, sna
   };
 }
 
+// Companies screener (purchase-focused): per-issuer unique buyers / purchase
+// value / dates over a trade-date or filing-date window, with SEC coverage.
+// Read-only over the published snapshot; the issuer index is rebuilt once per
+// snapshot version.
+export function companiesHandler({ snapshot = getSnapshot, ingestStatus = getIngestStatus, issuersOf = createScreener(), now = () => Date.now() } = {}) {
+  return (req, res, next) => {
+    try {
+      const snap = snapshot();
+      const r = screenCompanies({ issuers: issuersOf(snap), query: req.query, ingest: ingestStatus(), now: now() });
+      if (r.error) return res.status(400).json({ error: r.error });
+      res.set("Cache-Control", "no-cache");
+      res.json({ ...r, snapshotVersion: snap.version });
+    } catch (err) { next(err); }
+  };
+}
+
 export function transactionsEtag(version, query, status) {
   const h = crypto.createHash("sha1").update(JSON.stringify(query ?? {})).update("\n").update(JSON.stringify(status ?? null)).digest("base64url");
   return `W/"v${version}-${h.slice(0, 22)}"`;
@@ -103,6 +121,8 @@ router.get("/transactions/:id", (req, res) => {
 router.get("/stream", (req, res) => snapshotStream.handle(req, res));
 
 router.get("/company/:ticker/insights", companyInsightsHandler());
+
+router.get("/companies", companiesHandler());
 
 router.get("/status", (_req, res) => {
   res.json({ ...getIngestStatus(), snapshot: getSnapshotStats(), stream: snapshotStream.getStats() });

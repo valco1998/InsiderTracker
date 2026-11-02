@@ -3,13 +3,14 @@
 // (compact view, 1000 rows/page) up to ROW_CAP rows and marks the result
 // `partial` beyond that. It never polls on its own: it refetches only when the
 // query changes or the server's `dataVersion` (seen by the main feed's existing
-// refresh) changes — and at most once per MIN_REFETCH_MS for the same query.
+// refresh) changes — and at most once per MIN_REFETCH_MS for the same query,
+// except when the cached result is empty (utils/insiderAnalyticsCache.js).
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../lib/api";
+import { refetchDelay } from "../utils/insiderAnalyticsCache";
 
 const PAGE = 1000;
 export const ROW_CAP = 5000;
-const MIN_REFETCH_MS = 30_000;
 const CACHE_MAX = 8;
 
 // key → { version, fetchedAt, rows, total, totals, partial }
@@ -54,7 +55,8 @@ export default function useInsiderAnalytics(params, dataVersion, { enabled = tru
     if (cached) setState((s) => (s.key === key && s.rows === cached.rows ? s : { ...cached, key, loading: false, error: null }));
     else setState((s) => (s.key === key ? { ...s, loading: true } : { key, rows: [], total: 0, totals: null, partial: false, loading: true, error: null }));
 
-    if (cached && cached.version === dataVersion) return undefined;
+    const wait = refetchDelay(cached, dataVersion);
+    if (wait == null) return undefined;
 
     const run = async () => {
       if (!isCurrent()) return;
@@ -71,8 +73,7 @@ export default function useInsiderAnalytics(params, dataVersion, { enabled = tru
       }
     };
 
-    // Throttle refetches of the same query while the backlog is loading.
-    const wait = cached ? Math.max(0, cached.fetchedAt + MIN_REFETCH_MS - Date.now()) : 0;
+    // Throttled per query while data keeps changing — never when the cache is empty (see refetchDelay).
     const timer = setTimeout(run, wait);
     return () => { clearTimeout(timer); };
   }, [key, dataVersion, enabled]);
