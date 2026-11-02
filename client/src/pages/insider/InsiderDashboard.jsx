@@ -10,6 +10,7 @@ import StatusBar from "./components/StatusBar";
 import AccountDrawer from "./components/AccountDrawer";
 import { OverviewView, TransactionsView, CompaniesView, AnalyticsView } from "./views/Views";
 import CompanyView from "./views/CompanyView";
+import BacktestPage from "./backtest/BacktestPage";
 import useAuth from "../../hooks/useAuth";
 import "./insider.css";
 
@@ -18,6 +19,7 @@ const TABS = [
   { to: "/insider/transactions", label: "Transactions" },
   { to: "/insider/companies", label: "Companies" },
   { to: "/insider/analytics", label: "Analytics" },
+  { to: "/insider/backtesting", label: "Backtesting" },
 ];
 
 function TickerJump() {
@@ -101,6 +103,7 @@ export default function InsiderDashboard() {
             <Route path="companies" element={<CompaniesView />} />
             <Route path="company/:ticker" element={<CompanyRoute />} />
             <Route path="analytics" element={<AnalyticsView />} />
+            <Route path="backtesting" element={<BacktestPage />} />
             <Route path="*" element={<Navigate to="/insider" replace />} />
           </Routes>
           <footer className="pt-4 pb-2 text-[11px] leading-relaxed it-dim2">

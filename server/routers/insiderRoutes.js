@@ -13,6 +13,7 @@
 //   GET /transactions/:id full record of one row (economicId or raw row id)
 //   GET /stream           Server-Sent Events: snapshot version notifications (Phase D3)
 //   GET /companies        purchase-focused companies screener (companyScreener.js)
+//   /backtest/*           historical backtest (backtestRoutes.js)
 //
 // Phase D3 caching: /transactions carries a weak ETag derived from the snapshot
 // version, the query and the attached ingest status — a matching If-None-Match
@@ -27,6 +28,7 @@ import { lookupTicker as defaultLookupTicker, CompanyLookupUnavailable } from ".
 import { companyInsights, rowsForCompany } from "../services/edgar/insiderInsights.js";
 import { describeMarketData } from "../services/stockData/stockDataProvider.js";
 import { createScreener, screenCompanies } from "../services/edgar/companyScreener.js";
+import { createBacktestRouter } from "./backtestRoutes.js";
 
 const router = express.Router();
 const COMPANY_TICKER_RE = /^[A-Z0-9.-]{1,10}$/;
@@ -123,6 +125,9 @@ router.get("/stream", (req, res) => snapshotStream.handle(req, res));
 router.get("/company/:ticker/insights", companyInsightsHandler());
 
 router.get("/companies", companiesHandler());
+
+// Historical insider-buying backtest (backtestRoutes.js).
+router.use("/backtest", createBacktestRouter());
 
 router.get("/status", (_req, res) => {
   res.json({ ...getIngestStatus(), snapshot: getSnapshotStats(), stream: snapshotStream.getStats() });

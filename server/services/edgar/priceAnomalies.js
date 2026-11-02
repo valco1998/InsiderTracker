@@ -23,6 +23,8 @@
 // Original SEC-reported values are never modified: rows keep `price`, `value`
 // and `reported` exactly as parsed; the verdict is added as `priceCheck`.
 
+import { currencyOf } from "./currency.js";
+
 export const ANOMALY_LABEL = "Price anomaly — verify filing";
 
 const ECHO_MIN_SIG_DIGITS = 5;
@@ -69,6 +71,23 @@ export function statedRangeMismatch(t) {
   return null;
 }
 
+// Peer-group key: one security of one issuer.
+export const peerKey = (r) => (r.issuerCik ? `${Number(r.issuerCik)}|${normalize(r.securityTitle)}` : null);
+
+// Peer-price outlier rule alone. candidates: rows of the same peerKey (any
+// dates; filtered here). Exported so a point-in-time caller (backtest) can pass
+// only the peers that were public at a given moment. → detail string or null.
+export function peerOutlierDetail(t, candidates) {
+  if (t.price == null || !t.issuerCik) return null;
+  const d = dayNum(t.transactionDate);
+  const peers = candidates.filter((p) => p !== t && p.id !== t.id && p.price != null && d != null && Math.abs(dayNum(p.transactionDate) - d) <= PEER_WINDOW_DAYS);
+  if (peers.length < PEER_MIN) return null;
+  const m = median(peers.map((p) => p.price));
+  const ratio = Math.max(t.price / m, m / t.price);
+  if (ratio < PEER_RATIO) return null;
+  return `reported price ${t.price} is ${Math.round(ratio)}× the median ${m} of ${peers.length} other reported prices for this security within ±${PEER_WINDOW_DAYS} days`;
+}
+
 // rows: all known transactions (raw filing rows). Returns NEW objects with `priceCheck`.
 export function annotatePriceChecks(rows) {
   const peersByKey = new Map();
@@ -86,22 +105,18 @@ export function annotatePriceChecks(rows) {
     if (echo) reasons.push({ rule: "price_echoes_shares", detail: echo });
     const range = statedRangeMismatch(t);
     if (range) reasons.push({ rule: "outside_stated_range", detail: range });
+    // Form 4 has no currency field: a foreign-currency price without a USD
+    // conversion statement cannot be summed in USD (see currency.js).
+    const currency = currencyOf(t);
+    if (currency.basis === "unverified") reasons.push({ rule: "currency_unverified", detail: `price may be in ${currency.mentioned} — the filing does not state a U.S. dollar conversion` });
 
     if (t.price != null && t.issuerCik) {
-      const d = dayNum(t.transactionDate);
-      const peers = (peersByKey.get(`${Number(t.issuerCik)}|${normalize(t.securityTitle)}`) || [])
-        .filter((p) => p !== t && p.id !== t.id && d != null && Math.abs(dayNum(p.transactionDate) - d) <= PEER_WINDOW_DAYS);
-      if (peers.length >= PEER_MIN) {
-        const m = median(peers.map((p) => p.price));
-        const ratio = Math.max(t.price / m, m / t.price);
-        if (ratio >= PEER_RATIO) {
-          reasons.push({ rule: "peer_price_outlier", detail: `reported price $${t.price} is ${Math.round(ratio)}× the median $${m} of ${peers.length} other reported prices for this security within ±${PEER_WINDOW_DAYS} days` });
-        }
-      }
+      const detail = peerOutlierDetail(t, peersByKey.get(peerKey(t)) || []);
+      if (detail) reasons.push({ rule: "peer_price_outlier", detail });
     }
 
     const status = reasons.length ? "anomaly" : t.price == null || t.value == null ? "missing_price" : "ok";
-    return { ...t, priceCheck: { status, label: status === "anomaly" ? ANOMALY_LABEL : null, reasons } };
+    return { ...t, currency: { code: currency.code, basis: currency.basis }, priceCheck: { status, label: status === "anomaly" ? ANOMALY_LABEL : null, reasons } };
   });
 }
 
