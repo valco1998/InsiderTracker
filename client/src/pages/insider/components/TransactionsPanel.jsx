@@ -53,17 +53,17 @@ export default function TransactionsPanel({ limit, title = "Transactions", maxHe
 
   return (
     <section ref={panelRef} className="it-panel relative flex min-w-0 flex-col" aria-label={title}>
-      <header className="it-panel-head">
-        <div className="flex min-w-0 items-baseline gap-2">
+      <header className="it-panel-head flex-wrap">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
           <h2 className="it-panel-title">{title}</h2>
-          <span className="it-num truncate text-[11px] it-dim2">
+          <span className="it-chip it-num">
             {firstLoad ? "loading…" : `${count(visible.length)} of ${count(total)}${unfiltered ? "" : " matching"}`}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          {!isDefault && <button className="it-chip" onClick={() => toggle("filed")} title="Return to newest-filed order">Sorted within loaded rows · reset</button>}
-          {loading && status && <span className="text-[11px] it-dim2" aria-live="polite">Refreshing…</span>}
-          {limit && <Link to="/insider/transactions" className="it-link text-[12px]">All transactions →</Link>}
+        <div className="flex flex-wrap items-center gap-2">
+          {!isDefault && <button className="it-chip it-chip-x" onClick={() => toggle("filed")} title="Return to newest-filed order">Sorted within loaded rows · reset</button>}
+          {loading && status && <span className="text-[12px] it-dim2" aria-live="polite">Refreshing…</span>}
+          {limit && <Link to="/insider/transactions" className="it-link whitespace-nowrap text-[13px]">All transactions →</Link>}
         </div>
       </header>
 

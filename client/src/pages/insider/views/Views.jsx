@@ -1,8 +1,23 @@
 // Insider Tracker views: Overview · Transactions · Companies · Analytics.
 // (Company detail lives in CompanyView.jsx.)
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+const WIDE_QUERY = "(min-width: 1280px)"; // Tailwind xl — chart and list share a row
+function useWide() {
+  const [wide, setWide] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(WIDE_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.(WIDE_QUERY);
+    if (!mq) return undefined;
+    const on = () => setWide(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return wide;
+}
+import { Link } from "react-router-dom";
 import { useInsider } from "../InsiderContext";
 import KpiStrip from "../components/KpiStrip";
+import TopCompaniesList from "../components/TopCompaniesList";
 import FilterBar from "../components/FilterBar";
 import TransactionsPanel from "../components/TransactionsPanel";
 import { Disclaimer, ErrorNote, PageHeader } from "../components/Common";
@@ -31,16 +46,26 @@ export function OverviewView() {
   const { feed, analytics, filters } = useInsider();
   const { pickDay, pickTicker } = useCrossFilter();
   const chartsLoading = analytics.loading && analytics.rows.length === 0;
+  // Side by side with the ranked list on wide screens: match its height there.
+  const chartHeight = useWide() ? 492 : 300;
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader title="Overview" description="Insider purchases and sales reported to the SEC on Form 4 — the latest filings, the companies attracting buying, and how activity is trending." />
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Overview"
+        description="Insider purchases and sales reported to the SEC on Form 4 — the latest filings, the companies attracting buying, and how activity is trending."
+        right={<>
+          <Link to="/insider/analytics" className="it-btn">Analytics</Link>
+          <Link to="/insider/transactions" className="it-btn it-btn-primary">All transactions</Link>
+        </>} />
       <FilterBar />
       <KpiStrip totals={feed.totals} status={feed.status} analytics={analytics} filters={filters} loading={feed.loading && !feed.totals} />
       <AnalyticsNotice analytics={analytics} />
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="min-w-0 xl:col-span-2"><BuySellChart rows={analytics.rows} loading={chartsLoading} onPickDay={pickDay} /></div>
-        <TopCompaniesChart rows={analytics.rows} loading={chartsLoading} onPick={pickTicker} n={8} height={280} />
-      </div>
+      <section className="flex flex-col gap-3" aria-label="Activity">
+        <div className="it-section-head"><h2 className="it-eyebrow">Activity</h2><span className="text-[12px] it-dim2">Click a bar to filter that filing day · click a company to filter by ticker</span></div>
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+          <div className="min-w-0 xl:col-span-2"><BuySellChart rows={analytics.rows} loading={chartsLoading} onPickDay={pickDay} height={chartHeight} /></div>
+          <TopCompaniesList rows={analytics.rows} loading={chartsLoading} onPick={pickTicker} n={8} />
+        </div>
+      </section>
       <TransactionsPanel limit={25} title="Latest reported transactions" maxHeight="none" />
       <Disclaimer />
     </div>

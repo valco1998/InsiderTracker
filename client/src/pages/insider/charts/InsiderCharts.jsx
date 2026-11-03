@@ -29,20 +29,21 @@ function Seg({ value, onChange, options, label }) {
 }
 
 // Panel chrome with a chart ↔ table toggle (table = accessible data view).
-function ChartFrame({ title, subtitle, controls, children, table, empty, emptyText }) {
+function ChartFrame({ title, subtitle, controls, children, table, empty, emptyText, summary }) {
   const [mode, setMode] = useState("chart");
   return (
     <section className="it-panel flex h-full min-w-0 flex-col">
       <header className="it-panel-head flex-wrap">
         <div className="min-w-0">
           <h2 className="it-panel-title">{title}</h2>
-          {subtitle && <div className="text-[11px] it-dim2">{subtitle}</div>}
+          {subtitle && <div className="text-[12px] it-dim2">{subtitle}</div>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {controls}
           {!empty && <Seg label={`${title} view`} value={mode} onChange={setMode} options={[{ key: "chart", label: "Chart" }, { key: "table", label: "Table" }]} />}
         </div>
       </header>
+      {!empty && summary}
       <div className="min-w-0 px-2 pb-2 pt-1">
         {empty ? <EmptyState title="No data for these filters">{emptyText}</EmptyState> : mode === "chart" ? children : <div className="max-h-[300px] overflow-auto px-2">{table}</div>}
       </div>
@@ -64,15 +65,38 @@ const zoomFor = (n, keep = 30) => (n > keep
   : []);
 
 // 1. Purchases vs sales per day — purchases up, sales down (mirrored bars).
+// Period totals of the plotted days (same values the bars show).
+function BuySellSummary({ days }) {
+  const s = useMemo(() => days.reduce((a, d) => ({ buy: a.buy + d.buyValue, sell: a.sell + d.sellValue, bc: a.bc + d.buyCount, sc: a.sc + d.sellCount }), { buy: 0, sell: 0, bc: 0, sc: 0 }), [days]);
+  const net = s.buy - s.sell;
+  return (
+    <div className="it-legend" aria-label="Period totals">
+      <div className="it-legend-item"><span className="k"><i style={{ background: "var(--it-buy-fill)" }} />Purchases · {count(s.bc)}</span><span className="v">{compactUsd(s.buy)}</span></div>
+      <div className="it-legend-item"><span className="k"><i style={{ background: "var(--it-sell-fill)" }} />Sales · {count(s.sc)}</span><span className="v">{compactUsd(s.sell)}</span></div>
+      <div className="it-legend-item"><span className="k">Net reported</span><span className="v" style={{ color: net >= 0 ? "var(--it-buy)" : "var(--it-sell)" }}>{net >= 0 ? "+" : "−"}{compactUsd(Math.abs(net))}</span></div>
+    </div>
+  );
+}
+
 export const BuySellChart = memo(function BuySellChart({ rows, onPickDay, height = 280 }) {
   const [dateKey, setDateKey] = useState("filingDate");
+  const [view, setView] = useState("split");
   const days = useMemo(() => byDay(rows, dateKey), [rows, dateKey]);
   const option = useMemo(() => {
     const n = days.length;
+    const zero = { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: C.axis, type: "solid", width: 1 }, data: [{ yAxis: 0 }] };
+    const series = view === "net"
+      ? [{
+        name: "Net", type: "bar", barMaxWidth: 18, barCategoryGap: "38%", markLine: zero,
+        data: days.map((d) => { const v = d.buyValue - d.sellValue; return { value: v, itemStyle: { color: v >= 0 ? C.buy : C.sell, borderRadius: v >= 0 ? [4, 4, 0, 0] : [0, 0, 4, 4] } }; }),
+      }]
+      : [
+        { name: "Purchases", type: "bar", stack: "v", barMaxWidth: 18, barCategoryGap: "38%", data: days.map((d) => d.buyValue), itemStyle: { color: C.buy, borderRadius: [4, 4, 0, 0] }, emphasis: { focus: "none" }, markLine: zero },
+        { name: "Sales", type: "bar", stack: "v", barMaxWidth: 18, data: days.map((d) => -d.sellValue), itemStyle: { color: C.sell, borderRadius: [0, 0, 4, 4] }, emphasis: { focus: "none" } },
+      ];
     return {
       ...baseOption,
-      legend: { top: 0, right: 4, itemWidth: 10, itemHeight: 10, textStyle: { color: C.text2, fontSize: 11 }, data: ["Purchases", "Sales"] },
-      grid: { left: 8, right: 12, top: 30, bottom: n > 30 ? 30 : 8, containLabel: true },
+      grid: { left: 8, right: 12, top: 18, bottom: n > 30 ? 30 : 8, containLabel: true },
       tooltip: {
         ...baseOption.tooltip, trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: "rgba(148,163,184,0.06)" } },
         formatter: (ps) => {
@@ -85,15 +109,12 @@ export const BuySellChart = memo(function BuySellChart({ rows, onPickDay, height
             + "</div>";
         },
       },
-      xAxis: { type: "category", data: days.map((d) => shortDay(d.day)), ...axisCommon, splitLine: { show: false } },
-      yAxis: { type: "value", ...axisCommon, axisLabel: { ...axisCommon.axisLabel, formatter: axisUsd } },
+      xAxis: { type: "category", data: days.map((d) => shortDay(d.day)), ...axisCommon, axisLine: { show: false }, splitLine: { show: false } },
+      yAxis: { type: "value", ...axisCommon, axisLine: { show: false }, splitLine: { lineStyle: { color: C.grid, type: [3, 4] } }, axisLabel: { ...axisCommon.axisLabel, formatter: (v) => (v < 0 ? "−" : "") + axisUsd(v) } },
       dataZoom: zoomFor(n),
-      series: [
-        { name: "Purchases", type: "bar", stack: "v", barMaxWidth: 28, data: days.map((d) => d.buyValue), itemStyle: { color: C.buy, borderRadius: [4, 4, 0, 0] }, emphasis: { focus: "none" } },
-        { name: "Sales", type: "bar", stack: "v", barMaxWidth: 28, data: days.map((d) => -d.sellValue), itemStyle: { color: C.sell, borderRadius: [0, 0, 4, 4] }, emphasis: { focus: "none" } },
-      ],
+      series,
     };
-  }, [days, dateKey, onPickDay]);
+  }, [days, dateKey, onPickDay, view]);
   const onEvents = useMemo(() => ({
     click: (p) => { if (dateKey === "filingDate" && onPickDay && days[p.dataIndex]) onPickDay(days[p.dataIndex].day); },
   }), [days, dateKey, onPickDay]);
@@ -102,7 +123,11 @@ export const BuySellChart = memo(function BuySellChart({ rows, onPickDay, height
     <ChartFrame
       title="Insider buying vs selling"
       subtitle={`Reported value per ${dateKey === "filingDate" ? "SEC filing date" : "transaction (trade) date"} · days without filings omitted`}
-      controls={<Seg label="Date basis" value={dateKey} onChange={setDateKey} options={[{ key: "filingDate", label: "Filed" }, { key: "transactionDate", label: "Traded" }]} />}
+      controls={<>
+        <Seg label="Bars" value={view} onChange={setView} options={[{ key: "split", label: "Buy / sell" }, { key: "net", label: "Net" }]} />
+        <Seg label="Date basis" value={dateKey} onChange={setDateKey} options={[{ key: "filingDate", label: "Filed" }, { key: "transactionDate", label: "Traded" }]} />
+      </>}
+      summary={<BuySellSummary days={days} />}
       empty={!days.length}
       table={<DataTable head={[dateKey === "filingDate" ? "Filed" : "Traded", "Purchases", "#", "Sales", "#"]} rows={[...days].reverse().map((d) => [day(d.day), compactUsd(d.buyValue), count(d.buyCount), compactUsd(d.sellValue), count(d.sellCount)])} />}
     >

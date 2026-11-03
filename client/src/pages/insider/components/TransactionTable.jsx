@@ -11,8 +11,7 @@ const COLS = [
   { key: "filed", label: "Filed", get: (t) => t.acceptedAtET || t.filingDate || "" },
   { key: "trade", label: "Trade date", get: (t) => t.transactionDate || "" },
   { key: "ticker", label: "Company", get: (t) => t.ticker || t.issuerName || "" },
-  { key: "insider", label: "Insider", get: (t) => t.insiderName || "" },
-  { key: "role", label: "Role", sortable: false },
+  { key: "insider", label: "Insider · role", get: (t) => t.insiderName || "" },
   { key: "type", label: "Type", get: (t) => t.code || "" },
   { key: "shares", label: "Shares", num: true, get: (t) => t.shares },
   { key: "price", label: "Price", num: true, get: (t) => t.price },
@@ -41,6 +40,7 @@ export function useSortedRows(rows) {
   return { sorted, sort, toggle, isDefault: sort.key === "filed" && sort.dir === "desc" };
 }
 
+const monogram = (t) => (t.ticker || t.issuerName || "?").replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase();
 const companyHref = (t) => (t.ticker ? `/insider/company/${encodeURIComponent(t.ticker)}` : null);
 
 const Row = memo(function Row({ t, account, isNew }) {
@@ -51,16 +51,23 @@ const Row = memo(function Row({ t, account, isNew }) {
     <tr className={cls} data-id={t.id}>
       <td className="whitespace-nowrap it-num" style={{ color: "var(--it-text)" }} title={t.acceptedAtET ? `Accepted by SEC ${t.acceptedAtET}` : undefined}>{day(t.filingDate)}</td>
       <td className="whitespace-nowrap it-num it-dim">{day(t.transactionDate)}</td>
-      <td className="max-w-[230px]">
-        <div className="flex items-center gap-2">
-          {href ? <Link to={href} className="it-mono font-semibold hover:underline" style={{ color: "var(--it-text)" }} title={`Open ${t.ticker} insider activity`}>{t.ticker}</Link>
-            : <span className="it-mono font-semibold">—</span>}
-          <FollowButton t={t} account={account} />
+      <td className="max-w-[260px]">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="it-mono-badge" aria-hidden="true">{monogram(t)}</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              {href ? <Link to={href} className="font-semibold hover:underline" style={{ color: "var(--it-text)" }} title={`Open ${t.ticker} insider activity`}>{t.ticker}</Link>
+                : <span className="font-semibold">—</span>}
+              <FollowButton t={t} account={account} />
+            </div>
+            <div className="truncate text-[12px] it-dim2" title={t.issuerName}>{t.issuerName}</div>
+          </div>
         </div>
-        <div className="truncate text-[11.5px] it-dim2" title={t.issuerName}>{t.issuerName}</div>
       </td>
-      <td className="max-w-[260px]"><Reporters t={t} /></td>
-      <td className="max-w-[180px] text-[11.5px] it-dim">{t.role}</td>
+      <td className="max-w-[280px]">
+        <Reporters t={t} />
+        {t.role && <div className="it-role" title={t.role}>{t.role}</div>}
+      </td>
       <td><TypeBadge code={t.code} formType={t.formType} /><DetailBadges t={t} /></td>
       <td className="num whitespace-nowrap it-num" style={{ color: "var(--it-text)" }}>{shares(t.shares)}</td>
       <td className="num whitespace-nowrap it-num it-dim">{t.price == null ? <span className="it-dim2" title="No price reported in the filing">n/a</span> : price(t.price)}</td>
@@ -85,7 +92,7 @@ function SortHead({ col, sort, toggle }) {
 export function DesktopTable({ rows, account, newIds, sort, toggle, maxHeight, wrapRef }) {
   return (
     <div ref={wrapRef} className="it-table-wrap hidden lg:block" style={maxHeight ? { maxHeight } : undefined}>
-      <table className="it-table min-w-[1120px]">
+      <table className="it-table it-table-tx min-w-[1080px]">
         <thead>
           <tr>{COLS.map((c) => <SortHead key={c.key} col={c} sort={sort} toggle={toggle} />)}</tr>
         </thead>
@@ -101,26 +108,29 @@ const Card = memo(function Card({ t, account, isNew }) {
   const href = companyHref(t);
   const buy = t.code === "P";
   return (
-    <li className={`p-3.5 ${isNew ? "it-row-new" : ""}`} style={{ borderBottom: "1px solid var(--it-line-soft)", boxShadow: `inset 2px 0 0 ${buy ? "var(--it-buy)" : "var(--it-sell)"}`, opacity: t.amendment?.status === "superseded" ? 0.62 : 1 }}>
+    <li className={`it-tx-card ${isNew ? "it-row-new" : ""}`} style={{ boxShadow: `inset 3px 0 0 ${buy ? "var(--it-buy-fill)" : "var(--it-sell-fill)"}`, opacity: t.amendment?.status === "superseded" ? 0.62 : 1 }}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            {href ? <Link to={href} className="it-mono font-semibold" style={{ color: "var(--it-text)" }}>{t.ticker}</Link> : <span className="it-mono font-semibold">—</span>}
-            <TypeBadge code={t.code} formType={t.formType} />
-            <FollowButton t={t} account={account} />
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="it-mono-badge" aria-hidden="true">{monogram(t)}</span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {href ? <Link to={href} className="text-[14px] font-semibold" style={{ color: "var(--it-text)" }}>{t.ticker}</Link> : <span className="font-semibold">—</span>}
+              <TypeBadge code={t.code} formType={t.formType} />
+              <FollowButton t={t} account={account} />
+            </div>
+            <div className="truncate text-[12px] it-dim2">{t.issuerName}</div>
           </div>
-          <div className="truncate text-xs it-dim2">{t.issuerName}</div>
         </div>
         <div className="shrink-0 text-right">
-          <div className="it-num font-semibold" style={{ color: "var(--it-text)" }}><ValueCell t={t} /></div>
-          <div className="it-num text-[11px] it-dim2">{shares(t.shares)} sh @ {price(t.price)}</div>
+          <div className="it-num text-[15px] font-semibold" style={{ color: "var(--it-text)" }}><ValueCell t={t} /></div>
+          <div className="it-num text-[11.5px] it-dim2">{shares(t.shares)} sh @ {price(t.price)}</div>
         </div>
       </div>
       <DetailBadges t={t} />
-      <div className="mt-2 text-[12.5px]"><Reporters t={t} /></div>
-      <div className="text-[11.5px] it-dim2">{t.role}</div>
-      <div className="mt-2 flex items-start justify-between gap-2 text-[11.5px] it-dim2">
-        <span className="it-num">Traded {day(t.transactionDate)} · Filed {day(t.filingDate)}</span>
+      <div className="mt-2.5 text-[13px]"><Reporters t={t} /></div>
+      {t.role && <div className="it-role">{t.role}</div>}
+      <div className="mt-2.5 flex items-start justify-between gap-2">
+        <span className="it-tx-meta it-num"><span>Traded {day(t.transactionDate)}</span><span>Filed {day(t.filingDate)}</span></span>
         <FilingLinks t={t} />
       </div>
     </li>
