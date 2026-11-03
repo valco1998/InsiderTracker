@@ -88,18 +88,31 @@ export const isSignalRelevant = (rec) => rec?.formType === "4/A" || (rec?.transa
 
 // Loads every shard (cached by a cheap directory signature).
 let memo = { sig: null, data: null };
+const shardMemo = { dir: null, byName: new Map() };
 export function loadHistoryStore(dir = DEFAULT_STORE_DIR) {
   let names = [];
   try { names = fs.readdirSync(dir).filter((n) => SHARD_RE.test(n)).sort(); } catch { names = []; }
-  const sig = `${dir}|${names.length}|${names.map((n) => { try { return fs.statSync(path.join(dir, n)).mtimeMs; } catch { return 0; } }).join(",")}`;
+  const mtimes = names.map((n) => { try { return fs.statSync(path.join(dir, n)).mtimeMs; } catch { return 0; } });
+  const sig = `${dir}|${names.length}|${mtimes.join(",")}`;
   if (memo.sig === sig) return memo.data;
+  // Per-shard cache: an unchanged shard (same mtime) is never parsed again — while a
+  // backfill writes one shard every few seconds, only that shard is re-read.
+  if (shardMemo.dir !== dir) { shardMemo.dir = dir; shardMemo.byName = new Map(); }
   const records = new Map(), days = new Map();
-  for (const n of names) {
-    const s = readShard(dir, n.slice(0, 10));
-    if (!s) continue;
-    days.set(s.day, shardReport(s));
-    for (const [acc, rec] of Object.entries(s.records || {})) if (isSignalRelevant(rec)) records.set(acc, rec);
-  }
+  const seen = new Set();
+  names.forEach((n, i) => {
+    seen.add(n);
+    let c = shardMemo.byName.get(n);
+    if (!c || c.mtime !== mtimes[i]) {
+      const s = readShard(dir, n.slice(0, 10));
+      if (!s) { shardMemo.byName.delete(n); return; }
+      c = { mtime: mtimes[i], day: s.day, report: shardReport(s), recs: Object.entries(s.records || {}).filter(([, rec]) => isSignalRelevant(rec)) };
+      shardMemo.byName.set(n, c);
+    }
+    days.set(c.day, c.report);
+    for (const [acc, rec] of c.recs) records.set(acc, rec);
+  });
+  for (const n of [...shardMemo.byName.keys()]) if (!seen.has(n)) shardMemo.byName.delete(n);
   memo = { sig, data: { sig, records, days } };
   return memo.data;
 }

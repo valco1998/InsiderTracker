@@ -8,7 +8,7 @@ import useBacktestTrack from "../../../hooks/useBacktestTrack";
 import useTrackCurrent from "../../../hooks/useTrackCurrent";
 import { EmptyState, ErrorNote, Panel, Skeleton } from "../components/Common";
 import { compactUsd, count, day, acceptedShort, usd, shares as fmtShares } from "../../../utils/insiderFormat";
-import { pct, elapsedText, pubStatusText, SESSION_LABEL, METRIC_HELP, publishedParts, etParts, freshness, preciseUsd, buyersText, IPO_LABEL, IPO_HELP } from "../../../utils/insiderBacktest";
+import { pct, elapsedText, pubStatusText, SESSION_LABEL, METRIC_HELP, publishedParts, etParts, freshness, preciseUsd, buyersText, IPO_LABEL, IPO_HELP, HINDSIGHT_HELP, hindsightDelta } from "../../../utils/insiderBacktest";
 import { TRACK_STATUS_TEXT, FLAG_TEXT, PRICE_BASIS_TEXT, DAY_WINDOWS, eventsWithinDays, groupEventsByDay } from "../../../utils/insiderTrack";
 
 const LTrack = lazy(() => import("./BacktestCharts.jsx").then((m) => ({ default: m.TrackChart })));
@@ -173,6 +173,30 @@ function CalcLine({ label, m, latest }) {
   );
 }
 
+// At signal (what was public) vs by cluster end (hindsight). Display only.
+function ClusterComparison({ s }) {
+  const h = hindsightDelta(s);
+  return (
+    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <Section title="At signal — known at publication">
+        <Big>{buyersText(s.uniqueBuyers, s.purchases)}</Big>
+        <Line><span className="it-num">{compactUsd(s.valueUsd)}</span> combined · trades {day(s.windowFrom)}{s.windowTo !== s.windowFrom ? ` – ${day(s.windowTo)}` : ""}</Line>
+        <Line>This is what the strategy saw. Entry and returns are measured from here.</Line>
+      </Section>
+      <Section title="By cluster end — hindsight">
+        {h ? (
+          <>
+            <Big color="var(--it-text-2)">{buyersText(h.buyers, h.purchases)}</Big>
+            <Line><span className="it-num">{compactUsd(h.valueUsd)}</span> combined · trades {day(h.clusterFrom)} – {day(h.clusterTo)}</Line>
+            <Line>Reported after the signal: {h.buyersAdded} more buyer{h.buyersAdded === 1 ? "" : "s"}, {h.purchasesAdded} more purchase{h.purchasesAdded === 1 ? "" : "s"}, <span className="it-num">{compactUsd(h.valueAddedUsd)}</span>{h.addedBuyers?.length ? ` (${h.addedBuyers.join(", ")})` : ""}.</Line>
+          </>
+        ) : <Line>No further buyers or purchases were reported for this cluster after the signal.</Line>}
+        <Line><span className="it-dim2">{HINDSIGHT_HELP}</span></Line>
+      </Section>
+    </div>
+  );
+}
+
 // INFORMATIONAL: are these purchases IPO allocations? Evidence from SEC filings.
 function IpoSection({ c }) {
   if (!c) return null;
@@ -217,6 +241,7 @@ function PubNowBlock({ r, signal, checkedAt, market, ipo }) {
           {" "}The insider-buying criteria were publicly met when the SEC accepted the completing Form 4 filing on <strong style={{ color: "var(--it-text)" }}>{pub.date} at {pub.time}</strong>.
         </> : <>The insider-buying criteria were publicly met on <strong style={{ color: "var(--it-text)" }}>{pub.date} at {pub.time}</strong>.</>}
       </p>
+      {signal && <ClusterComparison s={signal} />}
 
       {restricted ? <div className="mt-3"><Waiting status={r.status} /></div> : (
         <>

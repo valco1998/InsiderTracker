@@ -41,6 +41,8 @@ export function createBacktestPriceService({
   entriesFile = path.join(process.env.STOCK_DATA_DIR || DEFAULT_PRICE_DIR, "_publication-entries.v1.json"),
   includeOddLots = process.env.BACKTEST_INCLUDE_ODD_LOTS === "1",
   latestTtlMs = (Number(process.env.BACKTEST_LATEST_TTL_SECONDS) || 60) * 1000,
+  entriesStatMs = 1000, // how often the entry-cache file is checked for writes by another process
+  pricingConcurrency = Math.max(1, Math.min(6, Number(process.env.BACKTEST_PRICING_CONCURRENCY) || 3)),
   now = () => Date.now(),
   log = console,
 } = {}) {
@@ -54,7 +56,11 @@ export function createBacktestPriceService({
   // file changed on disk; disk records win (they are newer final entries).
   let entries = null, entriesMtime = 0;
   const mtimeOf = (f) => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } };
+  let lastStatAt = -Infinity;
   const loadEntries = () => {
+    // Re-check the file for writes by another process at most once per second.
+    if (entries && Date.now() - lastStatAt < entriesStatMs) return entries;
+    lastStatAt = Date.now();
     const m = mtimeOf(entriesFile);
     if (!entries || (m && m !== entriesMtime)) {
       let disk = {};
@@ -64,10 +70,20 @@ export function createBacktestPriceService({
     }
     return entries;
   };
+  // Writes are coalesced: one file write per 500 ms burst (the background queue may finish
+  // many lookups in a row); flushEntries() writes immediately (CLI exit, queue drained).
+  let saveTimer = null;
   const saveEntries = () => {
+    if (saveTimer) return;
+    saveTimer = setTimeout(flushEntries, 500);
+    saveTimer.unref?.();
+  };
+  function flushEntries() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (!entries) return;
     try { fs.mkdirSync(path.dirname(entriesFile), { recursive: true }); fs.writeFileSync(`${entriesFile}.tmp`, JSON.stringify(entries)); fs.renameSync(`${entriesFile}.tmp`, entriesFile); entriesMtime = mtimeOf(entriesFile); }
     catch (err) { log.warn(`[BACKTEST_ENTRY_CACHE] write failed: ${String(err?.message || err).slice(0, 120)}`); }
-  };
+  }
   const latestCache = new Map(); // symbol → { at, rec }
   const splitCache = new Map();  // symbol|day → { at, rec }
 
@@ -115,7 +131,9 @@ export function createBacktestPriceService({
   // budget: { left } — max NEW Alpaca lookups for this call (the page passes a small budget
   // so one request never waits minutes on the rate limit; the precompute CLI passes none).
   // Over budget → "lookup_queued" (not stored; looked up on a later call).
-  async function getEntries(symbol, publishedAtET, { budget = null } = {}) {
+  // cachedOnly: never touches the network — kinds that need a lookup come back as
+  // "lookup_queued" (the caller hands them to the background pricing queue).
+  async function getEntries(symbol, publishedAtET, { budget = null, cachedOnly = false } = {}) {
     const sym = String(symbol || "").toUpperCase();
     const publishedIso = etToUtcIso(publishedAtET);
     if (!publishedIso) return { publishedIso: null, primary: { status: "invalid_publication_time" }, regular: { status: "invalid_publication_time" } };
@@ -126,6 +144,8 @@ export function createBacktestPriceService({
     const queued = {};
     for (const kind of ["primary", "regular"]) {
       if (!due(rec[kind])) continue;
+      // A stored non-final state (e.g. awaiting_sip) stays visible while its re-check is queued.
+      if (cachedOnly) { if (!rec[kind]) queued[kind] = { status: "lookup_queued" }; continue; }
       if (budget && budget.left <= 0) { queued[kind] = { status: "lookup_queued" }; continue; }
       if (budget) budget.left--;
       const startIso = kind === "primary" ? publishedIso : regularSearchStart(publishedIso);
@@ -141,53 +161,57 @@ export function createBacktestPriceService({
   }
 
   // ---- Daily SIP closes (split-adjusted, today's share terms) for fixed horizons ----
-  const dailyDir = path.join(path.dirname(entriesFile), "alpaca-daily-split");
-  const dailyMem = new Map(); // symbol → { from, through, closes: Map }
+  const dailyDirOf = (adj) => path.join(path.dirname(entriesFile), `alpaca-daily-${adj}`);
+  const dailyMem = new Map(); // "adj|symbol" → { from, through, closes: Map }
   const latestClosed = () => {
     let d = etParts(new Date(now()).toISOString()).date;
     if (!isSession(d) || !sessionClosed(d, now())) d = previousSession(d);
     return d;
   };
-  const readDaily = (sym) => {
-    if (dailyMem.has(sym)) return dailyMem.get(sym);
+  const readDaily = (sym, adj = "split") => {
+    const mk = `${adj}|${sym}`;
+    if (dailyMem.has(mk)) return dailyMem.get(mk);
     try {
-      const j = JSON.parse(fs.readFileSync(path.join(dailyDir, `${sym.replace(/[^A-Z0-9.]/g, "_")}.json`), "utf8"));
+      const j = JSON.parse(fs.readFileSync(path.join(dailyDirOf(adj), `${sym.replace(/[^A-Z0-9.]/g, "_")}.json`), "utf8"));
       const rec = { from: j.from, through: j.through, closes: new Map(Object.entries(j.closes || {})) };
-      dailyMem.set(sym, rec);
+      dailyMem.set(mk, rec);
       return rec;
     } catch { return null; }
   };
-  const writeDaily = (sym, rec) => {
-    dailyMem.set(sym, rec);
+  const writeDaily = (sym, rec, adj = "split") => {
+    dailyMem.set(`${adj}|${sym}`, rec);
     try {
-      fs.mkdirSync(dailyDir, { recursive: true });
-      const f = path.join(dailyDir, `${sym.replace(/[^A-Z0-9.]/g, "_")}.json`);
-      fs.writeFileSync(`${f}.tmp`, JSON.stringify({ symbol: sym, from: rec.from, through: rec.through, source: "alpaca_sip_daily_split", closes: Object.fromEntries(rec.closes) }));
+      const dir = dailyDirOf(adj);
+      fs.mkdirSync(dir, { recursive: true });
+      const f = path.join(dir, `${sym.replace(/[^A-Z0-9.]/g, "_")}.json`);
+      fs.writeFileSync(`${f}.tmp`, JSON.stringify({ symbol: sym, from: rec.from, through: rec.through, source: `alpaca_sip_daily_${adj}`, closes: Object.fromEntries(rec.closes) }));
       fs.renameSync(`${f}.tmp`, f);
     } catch (err) { log.warn(`[BACKTEST_DAILY_CACHE] write failed: ${String(err?.message || err).slice(0, 120)}`); }
   };
 
   // → { SYMBOL: Map(date → close) | null }  (null = could not load; never an empty "no data" guess)
-  async function getDailyCloses(symbols, { from }) {
+  async function getDailyCloses(symbols, { from, adjustment = "split" }) {
+    const adj = adjustment === "raw" ? "raw" : "split";
     const syms = [...new Set(symbols.map((s) => String(s || "").toUpperCase()).filter(Boolean))];
     const through = latestClosed();
     const out = {}, stale = [];
     for (const s of syms) {
-      const c = readDaily(s);
+      const c = readDaily(s, adj);
       if (c && c.from <= from && c.through >= through) out[s] = c.closes; else stale.push(s);
     }
     const client = stale.length ? getAlpaca() : null;
-    if (!client) { for (const s of stale) out[s] = readDaily(s)?.closes || null; return out; }
+    if (!client) { for (const s of stale) out[s] = readDaily(s, adj)?.closes || null; return out; }
     const endIso = new Date(Math.min(Date.parse(`${through}T23:59:59Z`), now() - SIP_DELAY_MS)).toISOString();
     for (let i = 0; i < stale.length; i += 100) {
       const chunk = stale.slice(i, i + 100);
       const got = Object.fromEntries(chunk.map((s) => [s, new Map()]));
       let token = null, ok = true;
+      const invalid = new Set(); // symbols Alpaca rejected — excluded from later pages too
       try {
         do {
-          const r = await client.barsMultiPage(chunk, { start: `${from}T00:00:00Z`, end: endIso, adjustment: "split", pageToken: token });
-          for (const [s, bars] of Object.entries(r.bars)) for (const b of bars || []) if (b?.c > 0 && got[s]) got[s].set(etParts(b.t).date, b.c);
-          token = r.next;
+          const r = await withoutInvalidSymbols(chunk.filter((x) => !invalid.has(x)), (syms) => client.barsMultiPage(syms, { start: `${from}T00:00:00Z`, end: endIso, adjustment: adj, pageToken: token, priority: true }), invalid);
+          for (const [s, bars] of Object.entries(r?.bars || {})) for (const b of bars || []) if (b?.c > 0 && got[s]) got[s].set(etParts(b.t).date, b.c);
+          token = r?.next || null;
         } while (token);
       } catch (err) {
         ok = false;
@@ -195,8 +219,9 @@ export function createBacktestPriceService({
         log.warn(`[ALPACA_DAILY] symbols=${chunk.length} error=${String(err?.message || err).slice(0, 120)}`);
       }
       for (const s of chunk) {
-        if (!ok) { out[s] = readDaily(s)?.closes || null; continue; }
-        writeDaily(s, { from, through, closes: got[s] });
+        if (invalid.has(s)) { out[s] = null; continue; } // unsupported symbol: no data, never an empty series cached
+        if (!ok) { out[s] = readDaily(s, adj)?.closes || null; continue; }
+        writeDaily(s, { from, through, closes: got[s] }, adj);
         out[s] = got[s];
       }
     }
@@ -204,6 +229,25 @@ export function createBacktestPriceService({
   }
 
   // Latest available price per symbol (IEX last trade on Basic), cached latestTtlMs.
+  // Alpaca rejects a WHOLE multi-symbol request when one symbol is invalid (HTTP 400
+  // "invalid symbol: X"). Drop the offending symbol (reported as unsupported) and retry the
+  // rest, so one malformed ticker never blanks every row. At most 10 retries per call.
+  async function withoutInvalidSymbols(symbols, fn, invalid) {
+    let syms = [...symbols];
+    for (let i = 0; i < 10 && syms.length; i++) {
+      try { return await fn(syms); } catch (err) {
+        const m = /invalid symbol:\s*([A-Za-z0-9.\-/]+)/i.exec(String(err?.message || ""));
+        if (!m) throw err;
+        const bad = m[1].toUpperCase();
+        if (!syms.includes(bad)) throw err;
+        invalid.add(bad);
+        log.warn(`[ALPACA_INVALID_SYMBOL] symbol=${bad} — excluded from the batch, reported as unsupported`);
+        syms = syms.filter((x) => x !== bad);
+      }
+    }
+    return syms.length ? fn(syms) : {};
+  }
+
   async function getLatest(symbols) {
     const syms = [...new Set(symbols.map((s) => String(s || "").toUpperCase()).filter(Boolean))];
     const out = {}, need = [];
@@ -211,7 +255,9 @@ export function createBacktestPriceService({
     const client = need.length ? getAlpaca() : null;
     if (client) {
       try {
-        const trades = await client.latestTrades(need, { feed: "iex" });
+        const invalid = new Set();
+        const trades = await withoutInvalidSymbols(need, (syms) => client.latestTrades(syms, { feed: "iex", priority: true }), invalid);
+        for (const s of invalid) out[s] = { status: "unsupported_symbol", provider: "alpaca" };
         for (const s of need) {
           const t = trades[s];
           if (t && t.p > 0 && !Number.isNaN(Date.parse(t.t))) {
@@ -264,8 +310,33 @@ export function createBacktestPriceService({
     }
   }
 
+  // ---- Background pricing queue: entry lookups run OUTSIDE HTTP requests ----
+  // Deduplicated per signal (symbol + publication), at most `concurrency` lookups in
+  // flight; every request still passes the Alpaca client's per-minute limiter.
+  const pq = new Map(), pInflight = new Set();
+  const pStats = { done: 0, failed: 0 };
+  let pActive = 0;
+  const pumpQueue = () => {
+    while (pActive < pricingConcurrency && pq.size) {
+      const [k, v] = pq.entries().next().value;
+      pq.delete(k); pInflight.add(k); pActive++;
+      getEntries(v.symbol, v.publishedAtET)
+        .then(() => { pStats.done++; })
+        .catch((err) => { pStats.failed++; log.warn(`[BACKTEST_PRICING] key=${k} error=${String(err?.message || err).slice(0, 120)}`); })
+        .finally(() => { pActive--; pInflight.delete(k); if (!pq.size && !pActive) flushEntries(); pumpQueue(); });
+    }
+  };
+  function enqueueEntries(symbol, publishedAtET) {
+    const k = `${String(symbol || "").toUpperCase()}|${publishedAtET}`;
+    if (pq.has(k) || pInflight.has(k)) return false;
+    pq.set(k, { symbol, publishedAtET });
+    pumpQueue();
+    return true;
+  }
+  const pricingStats = () => ({ queued: pq.size, inFlight: pActive, done: pStats.done, failed: pStats.failed });
+
   return {
-    getEntries, getLatest, getSplitFactor, getDailyCloses,
+    getEntries, getLatest, getSplitFactor, getDailyCloses, enqueueEntries, pricingStats, flushEntries,
     stats: () => ({ alpaca: alpaca ? alpaca.stats() : null, alpacaDisabled, latestCached: latestCache.size, tiingo: tiingo?.stats?.() || null }),
   };
 }

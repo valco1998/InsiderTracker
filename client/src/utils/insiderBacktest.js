@@ -143,7 +143,7 @@ export function pubStatusShort(s) {
   if (s === "awaiting_first_trade") return "No trade yet";
   if (s === "awaiting_newer_price") return "Awaiting newer price";
   if (s === "price_data_restricted") return "Internal only";
-  if (s === "lookup_queued") return "Price lookup queued";
+  if (s === "lookup_queued") return "Loading price…";
   return "Price data unavailable";
 }
 export const SESSION_LABEL = { pre: "Pre-market", regular: "Regular market", post: "After-hours" };
@@ -235,7 +235,7 @@ export function preciseUsd(v) {
 
 // ---------- Historical evaluation (display only; values computed by the server) ----------
 export const FIXED_HORIZONS = [1, 5, 10, 20, 60];
-PUB_STATUS_TEXT.lookup_queued = "Price lookup queued — fills in automatically within a few minutes";
+PUB_STATUS_TEXT.lookup_queued = "Loading the entry price from Alpaca in the background — fills in automatically";
 export const HORIZON_STATUS_TEXT = {
   immature: "Not yet available — the exit session has not closed",
   no_bar: "No daily bar for the exit session (halt or delisting) — not estimated",
@@ -269,4 +269,14 @@ export function signalsByMonth(signals = [], rows = {}) {
     if (rows?.[s.id]?.primary?.status === "ok") m[k].priced++;
   }
   return m;
+}
+
+// HINDSIGHT (server: signal.hindsight) — the cluster by its end, as reported by all filings
+// held now. Display only: the signal's own figures are what was public at publication.
+export const HINDSIGHT_HELP = "Hindsight — not known when the signal was published. The same cluster (same filters) as reported by every filing held now, including buyers and purchases filed after the signal. Returns always use the signal-time entry.";
+export function hindsightDelta(s) {
+  const h = s?.hindsight;
+  if (!h) return null;
+  const grew = h.buyers !== s.uniqueBuyers || h.purchases !== s.purchases || Math.abs((h.valueUsd || 0) - (s.valueUsd || 0)) >= 0.5;
+  return grew ? h : null;
 }

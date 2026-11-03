@@ -10,11 +10,11 @@ import useBacktest from "../../../hooks/useBacktest";
 import TrackPanel from "./TrackPanel";
 import { Disclaimer, EmptyState, ErrorNote, PageHeader, Panel, Skeleton } from "../components/Common";
 import { compactUsd, count, day, usd } from "../../../utils/insiderFormat";
-import { ROLE_OPTIONS, HORIZON_KEYS, defaultForm, toRunRequest, pct, plainPct, dataStatus, pubStatusText, pubStatusShort, publicationSummary, SESSION_LABEL, PROVIDER_LABEL, ENTRY_BASIS_LABEL, METRIC_HELP, publishedParts, etParts, freshness, buyersText, IPO_LABEL, IPO_HELP } from "../../../utils/insiderBacktest";
+import { ROLE_OPTIONS, HORIZON_KEYS, defaultForm, toRunRequest, pct, plainPct, dataStatus, pubStatusText, pubStatusShort, publicationSummary, SESSION_LABEL, PROVIDER_LABEL, ENTRY_BASIS_LABEL, METRIC_HELP, publishedParts, etParts, freshness, buyersText, IPO_LABEL, IPO_HELP, HINDSIGHT_HELP, hindsightDelta } from "../../../utils/insiderBacktest";
 import InfoTip from "./InfoTip";
 import ScrollableTable from "./ScrollableTable";
 import { HorizonPanel, CoveragePanel } from "./HistoricalPanels";
-import usePublicationNow from "../../../hooks/usePublicationNow";
+import usePublicationNow, { pricingPending } from "../../../hooks/usePublicationNow";
 import useIpoContext from "../../../hooks/useIpoContext";
 
 // v2: the threshold is in U.S. dollars. Forms saved under v1 (ILS threshold) are never read.
@@ -327,9 +327,13 @@ function ResultsTable({ signals, tracks = {}, rows = {}, market, ipo = {}, onTra
                   <td className="num"><EntryPrice m={r?.regular} metric="regEntry" small /></td>
                   <td className="num it-num bt-sep" title={s.buyers.map((b) => `${b.name} (${b.roles.join(", ")})`).join("\n")}>
                     <span data-metric="buyers" className="whitespace-nowrap"><span style={{ color: "var(--it-text)" }}>{s.uniqueBuyers} buyer{s.uniqueBuyers === 1 ? "" : "s"}</span><span className="it-dim2"> · {s.purchases} purchase{s.purchases === 1 ? "" : "s"}</span></span>
+                    <span className="bt-sub">at signal</span>
+                    {hindsightDelta(s) && <span className="bt-sub bt-hindsight" title={HINDSIGHT_HELP} data-metric="hindsight-buyers">{buyersText(s.hindsight.buyers, s.hindsight.purchases)} by cluster end</span>}
                   </td>
                   <td className="num it-num">
                     <span style={{ color: "var(--it-text)" }}>{compactUsd(s.valueUsd)}</span>
+                    <span className="bt-sub">at signal</span>
+                    {hindsightDelta(s) && <span className="bt-sub bt-hindsight" title={HINDSIGHT_HELP} data-metric="hindsight-value">{compactUsd(s.hindsight.valueUsd)} by cluster end</span>}
                     <span className="bt-sub">{s.valuesExcluded ? `${s.valuesExcluded} without USD value` : `${day(s.windowFrom)}${s.windowTo !== s.windowFrom ? ` – ${day(s.windowTo)}` : ""}`}</span>
                     <IpoChip c={ipo[s.id]} />
                   </td>
@@ -383,7 +387,8 @@ function ResultsTable({ signals, tracks = {}, rows = {}, market, ipo = {}, onTra
               )}
               <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[12px]">
                 <span className="it-dim2">Regular Market Return <span className="ml-1"><ReturnValue m={r?.regular} size="sm" /></span></span>
-                <span className="it-dim2">{buyersText(s.uniqueBuyers, s.purchases)} · <span className="it-num" style={{ color: "var(--it-text-2)" }}>{compactUsd(s.valueUsd)}</span> total</span>
+                <span className="it-dim2">At signal: {buyersText(s.uniqueBuyers, s.purchases)} · <span className="it-num" style={{ color: "var(--it-text-2)" }}>{compactUsd(s.valueUsd)}</span></span>
+                {hindsightDelta(s) && <span className="it-dim2 bt-hindsight" title={HINDSIGHT_HELP}>By cluster end (hindsight): {buyersText(s.hindsight.buyers, s.hindsight.purchases)} · <span className="it-num">{compactUsd(s.hindsight.valueUsd)}</span></span>}
                 <IpoChip c={ipo[s.id]} />
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
@@ -437,6 +442,22 @@ function DataStatus({ result, rows, pub }) {
   );
 }
 
+// Background pricing progress — results stay usable; values fill in as they arrive.
+function PricingProgress({ data }) {
+  if (!pricingPending(data)) return null;
+  const p = data.pricing, total = p.totalRows || 0, done = Math.max(0, total - p.pendingRows);
+  const ratio = total ? done / total : 0;
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-5 py-2.5 text-[12.5px]" role="status" aria-live="polite" style={{ borderBottom: "1px solid var(--it-line-soft)", background: "var(--it-accent-soft)" }}>
+      <span style={{ color: "var(--it-text)" }}>Loading prices in the background — <span className="it-num">{count(done)} of {count(total)}</span> signals ready</span>
+      <span className="h-1.5 min-w-[120px] flex-1 overflow-hidden rounded-full" style={{ background: "var(--it-line)" }} aria-hidden="true">
+        <span className="block h-full rounded-full" style={{ width: `${Math.round(ratio * 100)}%`, background: "var(--it-accent)", transition: "width 300ms ease" }} />
+      </span>
+      <span className="it-dim2">Summary figures update as prices arrive · the table stays usable</span>
+    </div>
+  );
+}
+
 function Results({ result, jobId }) {
   const [trackId, setTrackId] = useState(null);
   const openTrack = (id) => { setTrackId(id); setTimeout(() => document.getElementById("bt-track")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
@@ -459,6 +480,7 @@ function Results({ result, jobId }) {
 
       <div className="it-panel">
         <div className="it-panel-head"><h2 className="it-panel-title">Performance overview</h2><span className="text-[12.5px] it-dim2">Return Since Signal = first eligible trade after SEC publication → latest price</span></div>
+        <PricingProgress data={pub.data} />
         <div className="it-kpis grid grid-cols-2 sm:grid-cols-5">
           <Kpi label="Signals" value={count(result.signals.length)} sub={`${day(result.config.from)} – ${day(result.config.to)}`} />
           <Kpi label="Signals with prices" value={rows ? count(sum.withData) : "…"} sub={rows ? `${count(sum.total - sum.withData)} waiting or unavailable` : "loading"} />

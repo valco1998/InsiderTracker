@@ -212,7 +212,7 @@ export function screenCompanies({ issuers, query = {}, ingest = null, now = Date
     offset: opt.offset, limit: opt.limit,
     companies: matched.slice(opt.offset, opt.offset + opt.limit),
     definitions: {
-      uniqueBuyers: "Distinct reporting owners by SEC CIK with a Form 4 code P purchase in the window; joint filers on one Form 4 count once.",
+      uniqueBuyers: "Distinct buyers (SEC reporting-owner CIK) with a Form 4 code P purchase in the window — the actual count, at least the minimum selected. Joint filers count once, including related filers that report the same purchase in separate Form 4s.",
       purchaseValue: "Sum of shares × reported price of code P purchases. Superseded Form 4/A rows and price anomalies are excluded; duplicate reports count once. Sales are not subtracted.",
       purchase: "Form 4 code P is a reported purchase — not always an exchange-traded (open-market) purchase. Use “Open-market purchases only” to restrict to purchases the filing describes as open-market.",
       cluster: `${CLUSTER_MIN_BUYERS}+ distinct buyers within any ${CLUSTER_WINDOW_DAYS}-day trade-date window overlapping the selected period. Factual pattern — not a recommendation.`,

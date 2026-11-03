@@ -387,3 +387,6 @@ select.it-input { padding-right: 28px; }
 /* compact live-status strip */
 .it-statusbar .it-label { font-size: 10.5px; letter-spacing: 0.05em; }
 .it-statusbar { background: var(--it-bg); }
+
+/* Backtesting: hindsight figures (not known at signal time) — muted, italic, dashed underline */
+.bt-hindsight { font-style: italic; color: var(--it-text-3); text-decoration: underline dotted var(--it-line-strong); text-underline-offset: 3px; cursor: help; }

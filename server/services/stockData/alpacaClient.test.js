@@ -54,3 +54,16 @@ test("per-minute limiter waits instead of exceeding; latest trades batched by 10
   assert.equal(sleeps.length, 1, "third request waited for the minute window");
   assert.equal(c.stats().requests, 3);
 });
+
+test("priority requests (page polls) use a small reserve above the cap; background requests never do; hard cap respected", async () => {
+  let t = 0; const sleeps = [];
+  const c = createAlpacaClient({ keyId: "k", secretKey: "s", perMinute: 2, priorityReserve: 1, hardCap: 3, now: () => t, sleep: async (ms) => { sleeps.push(ms); t += ms; }, fetchImpl: async () => reply(200, { trades: [], bars: {}, next_page_token: null }) });
+  await c.tradesPage("A", {}); await c.tradesPage("B", {});         // background fills the cap (2)
+  await c.latestTrades(["X"], { priority: true });                   // priority: reserve slot, no wait
+  assert.equal(sleeps.length, 0, "page request did not wait behind background work");
+  await c.barsMultiPage(["X"], { priority: true });                  // hard cap (3) reached → waits
+  assert.equal(sleeps.length, 1);
+  const before = sleeps.length;
+  await c.tradesPage("C", {});                                       // background still bound by perMinute
+  assert.ok(sleeps.length >= before);
+});

@@ -405,3 +405,46 @@ be IPO allocations. It is never decided by price alone, and nothing is excluded.
 - API: `GET /api/insider/backtest/run/:id/ipo-context`.
 - Limitations: follow-on offerings and private placements are not classified here;
   name matching in prospectus text is conservative (it needs two meaningful words).
+
+## Performance architecture (2026-11-03)
+
+- **Background pricing.** A page poll (`GET /run/:id/publication-now`) answers from cached
+  prices only. Entries that still need an Alpaca lookup come back as `lookup_queued`
+  ("Loading price…") and go to a de-duplicated background queue
+  (`BACKTEST_PRICING_CONCURRENCY`, default 3) that runs under the same Alpaca limiter.
+  - The response carries `pricing` progress; the page polls every 4 s while it is
+    working, otherwise every 60 s, and never overlaps polls.
+  - Concurrent identical polls share one computation.
+  - The precompute CLI still prices inline (`background: false`).
+- **Batched split factors.** The factor (raw ÷ split-adjusted SIP daily close on the
+  entry day) comes from the batched daily-close caches (`alpaca-daily-raw` /
+  `alpaca-daily-split`, 100 symbols per request) instead of 2 requests per signal.
+- **Alpaca limiter.** Page requests (latest prices, daily closes) may use a reserve of
+  20/min above the background cap, never above 190/min (Alpaca allows 200).
+- **History and runs.**
+  - Unchanged history shards are never re-parsed.
+  - The snapshot is rebuilt at most every `BACKTEST_SNAPSHOT_MIN_REBUILD_MS` (30 s)
+    while only historical shards change (a running backfill); a live-ingest change
+    rebuilds at once.
+  - Identical runs (same settings, data version and day) are served from cache.
+  - An identical run submitted while running joins that job.
+- **Entry cache I/O.** Writes are coalesced (≤ 1 per 500 ms, flushed when the queue
+  drains or a CLI run ends); the file is re-checked for other processes' writes at most
+  once per second.
+- **Unchanged:** results are identical to the previous implementation — verified on 122
+  real signals (204 entries, 540 horizon results, 0 differences) and on synthetic data
+  (`backtestScale.test.js`).
+
+## At signal vs by cluster end (hindsight)
+
+- **At signal:** each signal's `uniqueBuyers`, `purchases` and `valueUsd` are what was
+  public when the strategy was first met (no lookahead). Entry and returns start here.
+- **By cluster end (`signal.hindsight`):** the same cluster (first window day →
+  `clusterTo`, same filters including open-market only) as reported by every filing held
+  now, including buyers and purchases filed after the signal.
+  - Display only: computed after detection; never used for signals, entries or returns.
+  - Shown in the table as "… by cluster end" (muted, dotted underline) and in Details
+    under "By cluster end — hindsight".
+- **Why the Companies screener can differ:** it totals every code-P purchase in its own
+  window (default: trade dates in the last 30 days), from 1 buyer up, with no
+  point-in-time cut. Backtesting counts only what was public at publication.

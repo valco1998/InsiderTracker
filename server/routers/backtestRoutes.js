@@ -90,10 +90,14 @@ export function createBacktestRouter({ service = createBacktestService({ live: l
   router.post("/run", (req, res) => {
     const n = service.normalize(req.body || {});
     if (n.error) return res.status(400).json({ error: n.error });
-    if (running) return res.status(409).json({ error: "A backtest is already running", jobId: running });
+    if (running) {
+      // Same settings already running (another tab, a double click): share that job.
+      if (jobs.get(running)?.configKey === JSON.stringify(n.config)) return res.status(202).json({ jobId: running, shared: true });
+      return res.status(409).json({ error: "A backtest is already running", jobId: running });
+    }
     prune();
     const id = crypto.randomUUID();
-    const job = { id, state: "running", createdAt: now(), progress: { stage: "queued", done: 0, total: 0 }, result: null, error: null };
+    const job = { id, state: "running", createdAt: now(), configKey: JSON.stringify(n.config), progress: { stage: "queued", done: 0, total: 0 }, result: null, error: null };
     jobs.set(id, job);
     running = id;
     const t0 = now();

@@ -128,7 +128,14 @@ test("freshness: recent vs old vs unavailable — never 'live'", () => {
   assert.match(METRIC_HELP.returnSinceSignal, /Includes pre-market and after-hours/);
 });
 
-import { horizonSummary, signalsByMonth, pubStatusShort as shortOf } from "./insiderBacktest.js";
+import { horizonSummary, signalsByMonth, pubStatusShort as shortOf, hindsightDelta } from "./insiderBacktest.js";
+
+test("hindsight shown only when the cluster grew after the signal", () => {
+  const base = { uniqueBuyers: 2, purchases: 3, valueUsd: 392441.08 };
+  assert.equal(hindsightDelta({ ...base, hindsight: { buyers: 2, purchases: 3, valueUsd: 392441.08 } }), null);
+  assert.equal(hindsightDelta({ ...base, hindsight: { buyers: 7, purchases: 11, valueUsd: 22023904.35 } }).buyers, 7);
+  assert.equal(hindsightDelta(base), null, "older runs without the field");
+});
 test("horizon summary counts only matured signals; months group signals and priced ones", () => {
   const h = (o) => ({ primary: { status: "ok", horizons: o } });
   const rows = { a: h({ 5: { status: "ok", changePct: 0.1 } }), b: h({ 5: { status: "ok", changePct: -0.02 } }), c: h({ 5: { status: "immature" } }), d: { primary: { status: "awaiting_sip", horizons: { 5: { status: "no_entry" } } } } };
@@ -137,5 +144,5 @@ test("horizon summary counts only matured signals; months group signals and pric
   assert.equal(horizonSummary({}, 60).average, null);
   const m = signalsByMonth([{ id: "a", publishedDate: "2026-03-05" }, { id: "d", publishedDate: "2026-03-09" }, { id: "x", publishedDate: "2026-04-01" }], rows);
   assert.deepEqual(m, { "2026-03": { signals: 2, priced: 1 }, "2026-04": { signals: 1, priced: 0 } });
-  assert.equal(shortOf("lookup_queued"), "Price lookup queued");
+  assert.equal(shortOf("lookup_queued"), "Loading price…");
 });

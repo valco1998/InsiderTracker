@@ -186,6 +186,7 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
     if (!buys.length) continue;
     stats.issuers++;
     const events = [...new Set(buys.map((x) => x.knownAt))].sort();
+    const firstSignalIdx = signals.length;
     let cluster = null; // { firstNum, lastNum, signal } — open cluster of the latest signal
     for (const T of events) {
       const tDate = T.slice(0, 10);
@@ -275,6 +276,50 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
         }]))).values()],
       });
       cluster.signal = signals[signals.length - 1];
+    }
+
+    // HINDSIGHT — display only, computed AFTER detection and never used for signals,
+    // entries or returns: the whole cluster (first window day → clusterTo) as reported by
+    // every filing held now, with the SAME filters as the run (open-market only, roles,
+    // minimum purchase). Buyers whose filings came after the signal are counted here,
+    // never in the signal itself (no lookahead).
+    if (signals.length > firstSignalIdx) {
+      const finalRows = items.filter((x) => !x.validUntil); // superseded rows are out; amendments count
+      const ids = buildIdentities(finalRows.map((x) => identityRowAt(x.r, "9999-12-31 23:59:59", reportOwners, acceptedAtByAccession)));
+      const peers = new Map();
+      for (const x of finalRows) { const pk = peerKey(x.r); if (pk) (peers.get(pk) || peers.set(pk, []).get(pk)).push(x.r); }
+      for (let i = firstSignalIdx; i < signals.length; i++) {
+        const sg = signals[i];
+        const T = sg.publishedAt.replace(/ ET$/, "");
+        const ps = [];
+        for (const x of finalRows) {
+          const r = x.r;
+          if (r.code !== "P" || r.transactionDate < sg.windowFrom || r.transactionDate > sg.clusterTo) continue;
+          if (cfg.openMarketOnly && r.purchaseContext !== "open_market") continue;
+          const roles = rowBacktestRoles(r);
+          if (cfg.roles.length && !roles.some((g) => cfg.roles.includes(g))) continue;
+          const rel = reliableUsd(r, peers.get(peerKey(r)) || []);
+          if (cfg.minTransactionUsd != null && !(rel.usd != null && rel.usd >= cfg.minTransactionUsd)) continue;
+          ps.push({ x, r, person: ids.personOf(r), usd: rel.usd });
+        }
+        const known = (p) => p.x.knownAt <= T && p.r.transactionDate <= sg.windowTo;
+        const people = new Set(ps.map((p) => p.person).filter(Boolean));
+        const atSignalPeople = new Set(ps.filter(known).map((p) => p.person).filter(Boolean));
+        const added = ps.filter((p) => !known(p));
+        const addedPeople = [...people].filter((p) => !atSignalPeople.has(p));
+        const nameOf = (person) => { const p = ps.find((q) => q.person === person); return p?.r.owners?.[0]?.name || p?.r.insiderName || "Unknown"; };
+        sg.hindsight = {
+          basis: "all filings held now",
+          clusterFrom: sg.windowFrom, clusterTo: sg.clusterTo,
+          buyers: people.size, purchases: ps.length,
+          valueUsd: round2(ps.reduce((a, p) => a + (p.usd ?? 0), 0)),
+          valuesExcluded: ps.filter((p) => p.usd == null).length,
+          buyersAdded: addedPeople.length, purchasesAdded: added.length,
+          valueAddedUsd: round2(added.reduce((a, p) => a + (p.usd ?? 0), 0)),
+          addedBuyers: addedPeople.slice(0, 12).map(nameOf),
+          lastReportedAt: ps.length ? `${ps.map((p) => p.x.knownAt).sort().at(-1)} ET` : null,
+        };
+      }
     }
   }
   signals.sort((a, b) => a.publishedAt.localeCompare(b.publishedAt) || a.issuerCik.localeCompare(b.issuerCik));

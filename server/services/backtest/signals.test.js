@@ -310,3 +310,60 @@ test("independent buyers are never merged: identical-looking purchases without r
   const f2 = tx({ owners: [{ cik: "0000000302", name: "Example Value Fund LP", role: "10% Owner", isTenPercentOwner: true }], date: "2026-04-01", accepted: "2026-04-02 17:10:00", shares: 3100, footnotes: mgr });
   assert.equal(signalsFor([f1, f2]).signals[0].uniqueBuyers, 2);
 });
+
+// ---------- AT LEAST 2 distinct independent buyers (not exactly 2); actual count reported ----------
+test("distinct buyers: 1 → excluded; 2, 3, 5 → included with the ACTUAL count; joint filers count once", () => {
+  // Each insider buys $150,000 on one day; all filings public before the last one completes the window.
+  const people = [O.CEO, O.CFO, O.COO, O.VP, O.DIR];
+  const cluster = (n, extra = []) => [...people.slice(0, n).map((o, i) => tx({ owners: [o], date: "2026-03-02", accepted: "2026-03-03 16:00:00", shares: 3000 + i })), ...extra];
+  // 1 buyer, even with a large value and several purchases → no signal.
+  assert.equal(signalsFor([tx({ owners: [O.CEO], date: "2026-03-02", accepted: "2026-03-03 16:00:00", shares: 50_000 }), tx({ owners: [O.CEO], date: "2026-03-03", accepted: "2026-03-04 16:00:00", shares: 50_000 })]).signals.length, 0);
+  for (const n of [2, 3, 5]) {
+    const s = signalsFor(cluster(n)).signals;
+    assert.equal(s.length, 1, `${n} buyers qualify`);
+    assert.equal(s[0].uniqueBuyers, n, `reports ${n}, not a capped 2`);
+    assert.equal(s[0].buyers.length, n);
+  }
+  // 5 people + a fund and its GP filing JOINTLY: the joint filing is ONE more buyer → 6, not 7.
+  const joint = tx({ owners: [O.FUND, O.FUND_GP], date: "2026-03-02", accepted: "2026-03-03 16:00:00", shares: 2000 });
+  assert.equal(signalsFor(cluster(5, [joint])).signals[0].uniqueBuyers, 6);
+  // 2 related joint filers alone are one buyer → no signal.
+  assert.equal(signalsFor([tx({ owners: [O.FUND, O.FUND_GP], date: "2026-03-02", accepted: "2026-03-03 16:00:00", shares: 20_000 })]).signals.length, 0);
+  // The value threshold still applies: 3 buyers with $250,000 combined (not more) → no signal.
+  const exactly = [O.CEO, O.CFO, O.COO].map((o, i) => tx({ owners: [o], date: "2026-03-02", accepted: "2026-03-03 16:00:00", shares: [2000, 2000, 1000][i] }));
+  assert.equal(signalsFor(exactly).signals.length, 0, "$250,000 exactly is not > $250,000");
+});
+
+// ---------- HINDSIGHT: cluster by its end — display only, never changes the signal ----------
+test("hindsight: buyers and value reported AFTER the signal are counted separately; the signal itself is unchanged", () => {
+  const base = [
+    tx({ owners: [O.CEO], date: "2026-10-21", accepted: "2026-10-21 17:46:54", context: "unspecified" }),           // $150,000
+    tx({ owners: [O.CFO], date: "2026-10-22", accepted: "2026-10-22 16:56:25", shares: 1000 }),                    // $50,000
+  ];
+  const completes = tx({ owners: [O.CFO], date: "2026-10-22", accepted: "2026-10-22 16:56:25", shares: 2001 }); // CFO again: total $300,050 > $250,000 → signal
+  const later = [
+    tx({ owners: [O.COO], date: "2026-10-22", accepted: "2026-10-22 16:56:38" }),                                   // 13 s after the signal
+    tx({ owners: [O.DIR], date: "2026-10-28", accepted: "2026-10-30 19:32:45", shares: 400_000 }),                 // big, filed days later
+  ];
+  const before = signalsFor([...base, completes]).signals;
+  const after = signalsFor([...base, completes, ...later]).signals;
+  assert.equal(after.length, 1);
+  const s = after[0];
+  // The signal is exactly what was public at its publication time …
+  for (const k of ["publishedAt", "uniqueBuyers", "purchases", "valueUsd", "windowFrom", "windowTo"]) assert.equal(s[k], before[0][k], k);
+  assert.deepEqual([s.uniqueBuyers, s.purchases, s.valueUsd], [2, 3, 300_050]);
+  // … and hindsight shows the whole cluster by its end.
+  assert.equal(s.clusterTo, "2026-10-28");
+  assert.deepEqual([s.hindsight.buyers, s.hindsight.purchases, s.hindsight.buyersAdded, s.hindsight.purchasesAdded], [4, 5, 2, 2]);
+  assert.equal(s.hindsight.valueUsd, 300_050 + 150_000 + 20_000_000);
+  assert.equal(s.hindsight.valueAddedUsd, 20_150_000);
+  assert.deepEqual(s.hindsight.addedBuyers.sort(), ["Eps Eve", "Gamma Gil"]);
+  // Open-market filter applies to hindsight too: the CEO's "unspecified" purchase never counts.
+  const om = signalsFor([...base, completes, ...later], { config: { openMarketOnly: true } }).signals[0];
+  assert.ok(om, "open-market-only signal exists (CFO + COO + DIR are open market)");
+  assert.ok(!om.buyers.some((b) => b.name === "Alpha Ann"));
+  assert.equal(om.hindsight.buyers, 3, "CFO, COO, DIR — the CEO's unspecified-venue purchase is filtered");
+  // No later activity → hindsight equals the signal.
+  const flat = before[0].hindsight;
+  assert.deepEqual([flat.buyers, flat.purchases, flat.valueUsd, flat.buyersAdded, flat.purchasesAdded], [2, 3, 300_050, 0, 0]);
+});

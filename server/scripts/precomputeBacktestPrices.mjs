@@ -24,7 +24,7 @@ const cfg = service.normalize({ from, to });
 if (cfg.error) { console.error(cfg.error); process.exit(2); }
 const result = await service.run(cfg.config);
 console.log(`[PRECOMPUTE] signals=${result.signals.length} range=${from}..${to} runMs=${Date.now() - t0}`);
-const r = await service.publicationNow({ result, lookupBudget: Infinity });
+const r = await service.publicationNow({ result, lookupBudget: Infinity, background: false });
 const rows = Object.values(r.rows);
 const count = (f) => rows.filter(f).length;
 const statuses = (k) => rows.reduce((m, x) => { const s = x[k]?.status || x.status; m[s] = (m[s] || 0) + 1; return m; }, {});

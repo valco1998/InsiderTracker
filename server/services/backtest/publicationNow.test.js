@@ -116,7 +116,8 @@ test("engine + API: primary & regular rows from Alpaca trades, split-adjusted, n
     const { jobId } = await (await fetch(`${base}/run`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from: "2026-01-01", to: "2026-10-31" }) })).json();
     let j; for (let i = 0; i < 200; i++) { j = await (await fetch(`${base}/run/${jobId}`)).json(); if (j.state !== "running") break; await new Promise((r) => setTimeout(r, 10)); }
     const acme = j.result.signals.find((s) => s.ticker === "ACME"), anon = j.result.signals.find((s) => !s.ticker);
-    const r = await (await fetch(`${base}/run/${jobId}/publication-now`)).json();
+    // Page polls answer from cache and price in the background: poll until the queue settles.
+    let r; for (let i = 0; i < 100; i++) { r = await (await fetch(`${base}/run/${jobId}/publication-now`)).json(); if (!r.pricing?.pendingRows && !r.pricing?.queued && !r.pricing?.inFlight) break; await new Promise((x) => setTimeout(x, 10)); }
     const a = r.rows[acme.id];
     assert.equal(a.publishedAt, "2026-03-05 10:15:00 ET");
     assert.ok(a.elapsedMs > 0);
@@ -136,6 +137,17 @@ test("engine + API: primary & regular rows from Alpaca trades, split-adjusted, n
   } finally { srv.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+// Poll publicationNow (background pricing) until the pricing queue has settled.
+async function settled(service, result) {
+  let r;
+  for (let i = 0; i < 200; i++) {
+    r = await service.publicationNow({ result });
+    if (!r.pricing?.pendingRows && !r.pricing?.queued && !r.pricing?.inFlight) return r;
+    await new Promise((x) => setTimeout(x, 5));
+  }
+  return r;
+}
+
 // ---------- Latest price for rows WITHOUT an entry (ASPE case) ----------
 async function pubNowWith(alpaca, nowIso = "2026-03-05T21:30:00Z") {
   const ROWS = [
@@ -147,7 +159,7 @@ async function pubNowWith(alpaca, nowIso = "2026-03-05T21:30:00Z") {
   const service = createBacktestService({ prices, loadStore: () => ({ sig: "x", records: new Map(), days: new Map() }), live: () => ({ transactions: ROWS, amendmentFilings: [], coverage: [], noIndexDays: [], dataVersion: 1 }),
     getProvider: () => ({ ...fakeProvider({ SPY: barsFor("2026-01-02", "2026-03-31", (d, i) => ({ open: 400 + i, close: 400 + i })), ACME: barsFor("2026-01-02", "2026-03-31", () => ({ open: 40, close: 40 })) }), licence: "internal" }), now: () => Date.parse(nowIso) });
   const result = await service.run(service.normalize({ from: "2026-01-01", to: "2026-03-31" }).config);
-  const r = await service.publicationNow({ result });
+  const r = await settled(service, result);
   fs.rmSync(dir, { recursive: true, force: true });
   return { r, row: Object.values(r.rows)[0] };
 }

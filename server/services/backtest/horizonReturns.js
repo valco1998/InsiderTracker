@@ -28,9 +28,9 @@ import { nextSession, closeTime } from "./sessionCalendar.js";
 export const FIXED_HORIZONS = [1, 5, 10, 20, 60];
 const SIP_DELAY_MS = 16 * 60_000;
 
+const ET_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 const etParts = (ms) => {
-  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
-    .formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const p = Object.fromEntries(ET_FMT.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
   return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}:${p.second}` };
 };
 
@@ -41,21 +41,29 @@ export function sessionClosed(date, nowMs) {
 }
 
 // N-th session after `date` (date itself excluded).
+const afterMemo = new Map(); // pure: (date, n) → session (calendar is fixed)
 export function sessionAfter(date, n) {
+  const k = `${date}|${n}`;
+  const hit = afterMemo.get(k);
+  if (hit) return hit;
   let d = date;
   for (let i = 0; i < n; i++) d = nextSession(d);
+  if (afterMemo.size > 100_000) afterMemo.clear();
+  afterMemo.set(k, d);
   return d;
 }
 
 // entry: { time (ISO), splitAdjustedPrice } ; closes: Map(date → split-adjusted close)
 export function horizonReturns({ entry, closes, nowMs, horizons = FIXED_HORIZONS }) {
   const out = {};
+  const closedMemo = new Map(); // per call: exitDate → closed?
   const entryPrice = Number(entry?.splitAdjustedPrice ?? entry?.price);
   if (!entry?.time || !(entryPrice > 0)) { for (const n of horizons) out[n] = { status: "no_entry" }; return out; }
   const entryDate = etParts(Date.parse(entry.time)).date;
   for (const n of horizons) {
     const exitDate = sessionAfter(entryDate, n);
-    if (!sessionClosed(exitDate, nowMs)) { out[n] = { status: "immature", exitDate }; continue; }
+    if (!closedMemo.has(exitDate)) closedMemo.set(exitDate, sessionClosed(exitDate, nowMs));
+    if (!closedMemo.get(exitDate)) { out[n] = { status: "immature", exitDate }; continue; }
     const c = closes?.get(exitDate);
     if (!(c > 0)) { out[n] = { status: "no_bar", exitDate }; continue; }
     out[n] = { status: "ok", exitDate, exitPrice: c, changePct: Math.round((c / entryPrice - 1) * 1e6) / 1e6 };

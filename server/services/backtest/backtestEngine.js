@@ -19,7 +19,7 @@ import { trackSignalsFor, purchaseEvents, priceTimeline, placeEvents, currentCha
 import { createQuoteService } from "./liveQuote.js";
 import { etToUtcIso } from "./publicationStart.js";
 import { createBacktestPriceService } from "./backtestPrices.js";
-import { sessionOf } from "./entrySelection.js";
+import { sessionOf, etParts } from "./entrySelection.js";
 import { createIpoContextService } from "./ipoContext.js";
 import { horizonReturns, FIXED_HORIZONS } from "./horizonReturns.js";
 import { entrySessionFor } from "./sessionCalendar.js";
@@ -91,21 +91,30 @@ export function createBacktestService({
   quotes = createQuoteService(),
   prices = createBacktestPriceService({ tiingo: quotes }),
   ipo = createIpoContextService(),
+  snapshotMinRebuildMs = Number(process.env.BACKTEST_SNAPSHOT_MIN_REBUILD_MS ?? 30_000),
   now = () => Date.now(),
 } = {}) {
   let snapCache = { key: null, snap: null, dataset: null };
 
+  // The point-in-time snapshot of all SEC data (history shards + live ingest). Rebuilt
+  // when the data changes — but while ONLY the historical store is changing (a running
+  // backfill writes a shard every few seconds) at most once per snapshotMinRebuildMs, so
+  // runs are not rebuilt from scratch continuously. A live-ingest change rebuilds at once.
   function dataset() {
     const store = loadStore();
     const l = live();
-    const key = `${store.sig}|${l?.dataVersion ?? "none"}`;
+    const liveKey = String(l?.dataVersion ?? "none");
+    const key = `${store.sig}|${liveKey}`;
     if (snapCache.key !== key) {
+      const historyOnly = snapCache.snap && snapCache.liveKey === liveKey;
+      if (historyOnly && Date.now() - snapCache.builtAt < snapshotMinRebuildMs) return snapCache;
       const ds = buildHistoryDataset({ store, live: l });
       const snap = buildSnapshot({ transactions: ds.transactions, amendmentFilings: ds.amendmentFilings, now: now() });
-      snapCache = { key, snap, dataset: ds, store, live: l };
+      snapCache = { key, liveKey, builtAt: Date.now(), snap, dataset: ds, store, live: l };
     }
     return snapCache;
   }
+  const runCache = new Map(); // settings + data version + day → result (identical runs are not recomputed)
 
   // Historical SEC coverage by month (history shards + live ingest) — what is held,
   // what failed and why, what is missing. Missing days are reported, never zero.
@@ -196,17 +205,33 @@ export function createBacktestService({
   // each compared with the latest available price (IEX on Alpaca Basic). Entry prices
   // are split-adjusted to today's share terms; a latest price older than the entry is
   // never used. Missing data is a status, never a number.
-  // lookupBudget: max NEW Alpaca entry lookups per call (page polls); Infinity for the CLI.
-  async function publicationNow({ result, lookupBudget = 40 }) {
+  // Page polls (background = true, default): answer from cached prices immediately; entries
+  // that still need an Alpaca lookup are "lookup_queued" and handed to the deduplicated
+  // background pricing queue (backtestPrices.enqueueEntries) — no request waits on Alpaca
+  // trade lookups. Concurrent identical calls for one run share a single computation.
+  // The precompute CLI passes background: false (+ lookupBudget: Infinity) to price inline.
+  const pubInflight = new WeakMap();
+  function publicationNow(args) {
+    const key = args.result;
+    if (args.background !== false && key && pubInflight.has(key)) return pubInflight.get(key);
+    const p = publicationNowOnce(args);
+    if (args.background !== false && key) { pubInflight.set(key, p); p.finally(() => pubInflight.delete(key)).catch(() => {}); }
+    return p;
+  }
+  async function publicationNowOnce({ result, lookupBudget = 40, background = true }) {
     const nowMs = now();
     const rows = {}, pending = [];
-    const budget = Number.isFinite(lookupBudget) ? { left: lookupBudget } : null;
+    const budget = !background && Number.isFinite(lookupBudget) ? { left: lookupBudget } : null;
+    let queuedNow = 0;
     for (const s of result.signals) {
       const symbol = String(s.ticker || "").trim().toUpperCase().replace(/-/g, ".");
       const publishedIso = etToUtcIso(s.publishedAt);
       const base = { symbol: symbol || null, publishedAt: s.publishedAt, publishedIso, elapsedMs: nowMs - Date.parse(publishedIso) };
       if (!symbol) { rows[s.id] = { ...base, status: "no_ticker", primary: { status: "no_ticker" }, regular: { status: "no_ticker" } }; continue; }
-      const e = await prices.getEntries(symbol, s.publishedAt, { budget });
+      const e = await prices.getEntries(symbol, s.publishedAt, background && prices.enqueueEntries ? { cachedOnly: true } : { budget });
+      if (background && prices.enqueueEntries && (e.primary?.status === "lookup_queued" || e.regular?.status === "lookup_queued" || isRecheckDue(e))) {
+        if (prices.enqueueEntries(symbol, s.publishedAt)) queuedNow++;
+      }
       pending.push({ s, base, e });
     }
     // Latest price for EVERY ticker row (one batched request) — also rows still waiting for
@@ -216,7 +241,19 @@ export function createBacktestService({
     const provider = getProvider();
     const tiingoSplits = new Map();
     // Split factor from Alpaca; else from the Tiingo daily files (split factors), else unknown.
+    // Split factor = raw ÷ split-adjusted SIP daily close on the entry day (same formula as
+    // prices.getSplitFactor) — read from the batched daily-close caches (100 symbols per
+    // request) instead of 2 requests per signal; per-signal lookup only if a bar is missing.
+    const todayEt = etParts(new Date(nowMs).toISOString()).date;
     async function splitFor(symbol, entryIso) {
+      const entryDay = etParts(entryIso).date;
+      if (entryDay === todayEt) return { factor: 1, source: "same_day" };
+      const raw = rawCloses[symbol]?.get(entryDay), adj = closes[symbol]?.get(entryDay);
+      if (raw > 0 && adj > 0) {
+        let factor = Math.round((raw / adj) * 1e4) / 1e4;
+        if (Math.abs(factor - 1) < 1e-3) factor = 1;
+        return { factor, source: "alpaca_daily_raw_vs_split" };
+      }
       const a = await prices.getSplitFactor(symbol, entryIso);
       if (a) return a;
       if (!tiingoSplits.has(symbol)) {
@@ -242,7 +279,14 @@ export function createBacktestService({
     // Fixed-horizon exits: split-adjusted SIP daily closes for every symbol with an entry.
     const withEntry = pending.filter((x) => x.e.primary?.status === "ok");
     const fromDay = withEntry.map((x) => String(x.e.primary.time).slice(0, 10)).sort()[0];
-    const closes = withEntry.length && prices.getDailyCloses ? await prices.getDailyCloses(withEntry.map((x) => x.base.symbol), { from: fromDay }) : {};
+    const entrySyms = withEntry.map((x) => x.base.symbol);
+    const regFrom = pending.filter((x) => x.e.regular?.status === "ok").map((x) => String(x.e.regular.time).slice(0, 10)).sort()[0];
+    const splitFrom = [fromDay, regFrom].filter(Boolean).sort()[0];
+    const closes = withEntry.length && prices.getDailyCloses ? await prices.getDailyCloses(entrySyms, { from: fromDay }) : {};
+    const regSyms = pending.filter((x) => x.e.regular?.status === "ok").map((x) => x.base.symbol);
+    const rawCloses = (withEntry.length || regSyms.length) && prices.getDailyCloses ? await prices.getDailyCloses([...new Set([...entrySyms, ...regSyms])], { from: splitFrom, adjustment: "raw" }) : {};
+    // Regular entries can predate fromDay only if no primary exists; make sure split-adjusted closes cover them too.
+    if (regSyms.some((sym) => !closes[sym]) && prices.getDailyCloses) Object.assign(closes, await prices.getDailyCloses(regSyms.filter((sym) => !closes[sym]), { from: splitFrom }));
     for (const { s, base, e } of pending) {
       const last = latest[base.symbol];
       const lastOut = last?.status === "ok" ? { ...last, ageMs: Math.max(0, nowMs - Date.parse(last.time)), session: sessionOf(last.time) } : last || { status: "unavailable" };
@@ -255,7 +299,19 @@ export function createBacktestService({
       rows[s.id] = { ...base, status: primary.status, latest: lastOut, primary, regular };
     }
     // market.session: the U.S. equity session right now (pre | regular | post | closed, NYSE calendar).
-    return { generatedAt: new Date(nowMs).toISOString(), market: { session: sessionOf(new Date(nowMs).toISOString()) }, rows, providers: prices.stats() };
+    if (!background) prices.flushEntries?.(); // inline (CLI) runs persist their lookups before returning
+    const pendingRows = Object.values(rows).filter((r) => r.primary?.status === "lookup_queued" || r.regular?.status === "lookup_queued").length;
+    return {
+      generatedAt: new Date(nowMs).toISOString(), market: { session: sessionOf(new Date(nowMs).toISOString()) }, rows, providers: prices.stats(),
+      // Background pricing progress (rows still waiting for an entry lookup).
+      pricing: { pendingRows, totalRows: Object.keys(rows).length, queuedNow, ...(prices.pricingStats ? prices.pricingStats() : {}) },
+    };
+  }
+
+  function isRecheckDue(e) {
+    const due = (m) => m && m.status !== "ok" && m.status !== "lookup_queued" && m.checkedAt
+      && now() - Date.parse(m.checkedAt) >= (String(m.status).startsWith("awaiting") ? 5 * 60_000 : 15 * 60_000);
+    return due(e.primary) || due(e.regular);
   }
 
   // INFORMATIONAL: possible IPO allocations among each signal's purchases (ipoContext.js).
@@ -304,11 +360,22 @@ export function createBacktestService({
     return out;
   }
 
-  async function run(config, { onProgress = () => {} } = {}) {
+  async function run(config, opts = {}) {
+    const ctx = dataset();
+    const provider0 = getProvider();
+    const cacheKey = JSON.stringify([config, ctx.key, easternToday(now()), describePriceProvider(provider0)]);
+    const hit = runCache.get(cacheKey);
+    if (hit) return hit;
+    const result = await runUncached(config, opts, ctx);
+    runCache.set(cacheKey, result);
+    while (runCache.size > 8) runCache.delete(runCache.keys().next().value);
+    return result;
+  }
+
+  async function runUncached(config, { onProgress = () => {} } = {}, ctx) {
     const started = now();
     const today = easternToday(started);
     onProgress({ stage: "loading", done: 0, total: 0 });
-    const ctx = dataset();
     const warmupFrom = addDays(config.from, -(config.windowDays + 5));
     const coverage = historyCoverage({ from: warmupFrom, to: config.to, store: ctx.store, live: ctx.live, today });
     const base = {

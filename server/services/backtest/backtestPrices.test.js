@@ -38,6 +38,7 @@ test("Alpaca entry: SIP trades for both metrics, provider + session recorded, pe
   assert.deepEqual([e.primary.status, e.primary.price, e.primary.session, e.primary.provider, e.primary.basis], ["ok", 26.65, "post", "alpaca", "sip_trade"]);
   assert.deepEqual([e.regular.price, e.regular.session, e.regular.time], [27.54, "regular", "2026-10-23T13:30:00.979126792Z"]);
   assert.deepEqual(a.calls.map((c) => c[2]), ["2026-10-22T20:56:25.000Z", "2026-10-23T13:30:00.000Z"], "searches start at publication / next open");
+  svc.flushEntries(); // writes are coalesced (≤ 500 ms) — flush as the queue/CLI does
   const again = createBacktestPriceService({ alpacaFactory: () => a, entriesFile: file, now: () => NOW, log: quiet });
   assert.equal((await again.getEntries("RAPP", "2026-10-22 16:56:25 ET")).primary.price, 26.65);
   assert.equal(a.calls.length, 2, "final entries come from the cache");
@@ -165,10 +166,11 @@ test("lookup budget: over-budget entries are 'lookup_queued' (not stored) and re
 
 test("entries written by another process (the precompute CLI) are picked up without a restart", async () => {
   const { dir, file } = tmp();
-  const server = createBacktestPriceService({ alpacaFactory: () => fakeAlpaca([]), entriesFile: file, now: () => NOW, log: quiet });
+  const server = createBacktestPriceService({ alpacaFactory: () => fakeAlpaca([]), entriesFile: file, now: () => NOW, log: quiet, entriesStatMs: 0 });
   await server.getEntries("ZZZ", "2026-10-22 11:00:00 ET", { budget: { left: 0 } }); // loads (empty) cache
   const cli = createBacktestPriceService({ alpacaFactory: () => fakeAlpaca([{ t: "2026-10-22T15:00:01Z", p: 7, s: 100, c: ["@"] }]), entriesFile: file, now: () => NOW, log: quiet });
   await cli.getEntries("ZZZ", "2026-10-22 11:00:00 ET");
+  cli.flushEntries();
   const seen = await server.getEntries("ZZZ", "2026-10-22 11:00:00 ET", { budget: { left: 0 } });
   assert.deepEqual([seen.primary.status, seen.primary.price], ["ok", 7]);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -192,5 +194,22 @@ test("daily closes: one batched multi-symbol request (paginated), cached on disk
   assert.equal(calls.length, 2, "served from the disk cache");
   const failing = createBacktestPriceService({ alpacaFactory: () => ({ ...fakeAlpaca([]), barsMultiPage: async () => { throw new Error("HTTP 503"); } }), entriesFile: path.join(dir, "x", "e.json"), now: () => NOW, log: quiet });
   assert.equal((await failing.getDailyCloses(["CCC"], { from: "2026-10-20" })).CCC, null);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("one invalid symbol never blanks a whole batch: it is excluded (unsupported) and the rest is retried", async () => {
+  const { dir, file } = tmp();
+  const seen = [];
+  const bad = (syms) => { const e = new Error("Alpaca code=400, message=invalid symbol: AXIA3"); e.status = 400; if (syms.includes("AXIA3")) throw e; };
+  const a = { ...fakeAlpaca([]),
+    latestTrades: async (syms) => { seen.push(["latest", syms.join(",")]); bad(syms); return Object.fromEntries(syms.map((s) => [s, { t: "2026-11-03T14:50:00Z", p: 5 }])); },
+    barsMultiPage: async (syms) => { seen.push(["bars", syms.join(",")]); bad(syms); return { bars: Object.fromEntries(syms.map((s) => [s, [{ t: "2026-10-22T04:00:00Z", c: 7 }]])), next: null }; } };
+  const svc = createBacktestPriceService({ alpacaFactory: () => a, entriesFile: file, now: () => NOW, log: quiet });
+  const l = await svc.getLatest(["AAA", "AXIA3", "BBB"]);
+  assert.deepEqual([l.AAA.status, l.BBB.status, l.AXIA3.status], ["ok", "ok", "unsupported_symbol"]);
+  assert.deepEqual(seen.filter((x) => x[0] === "latest").map((x) => x[1]), ["AAA,AXIA3,BBB", "AAA,BBB"]);
+  const c = await svc.getDailyCloses(["AAA", "AXIA3"], { from: "2026-10-20" });
+  assert.equal(c.AAA.get("2026-10-22"), 7);
+  assert.equal(c.AXIA3, null, "unsupported: no data, not an empty series");
   fs.rmSync(dir, { recursive: true, force: true });
 });

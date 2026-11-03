@@ -213,3 +213,16 @@ test("route: GET /companies validates, caches the issuer index per snapshot vers
     assert.match((await bad.json()).error, /sort must be/);
   } finally { srv.close(); }
 });
+
+test("screener buyer counts: actual numbers (1, 2, 3, 5), 'min buyers' means AT LEAST, joint filers once", () => {
+  const P = Array.from({ length: 5 }, (_, i) => ({ cik: String(900 + i), name: `Person ${i}`, role: "Director", isDirector: true }));
+  const co = (cik, ticker, n) => P.slice(0, n).map((o) => row({ issuerCik: cik, ticker, name: `${ticker} Inc`, date: "2026-10-20", owners: [o], value: 200_000 }));
+  const rows = [...co("5001", "ONE", 1), ...co("5002", "TWO", 2), ...co("5003", "THR", 3), ...co("5005", "FIV", 5),
+    row({ issuerCik: "5005", ticker: "FIV", name: "FIV Inc", date: "2026-10-21", owners: [FUND, FUND_GP], value: 200_000 })]; // joint filing → +1 buyer
+  const all = screen(rows, { minBuyers: "1" });
+  const byT = Object.fromEntries(all.companies.map((c) => [c.ticker, c.uniqueBuyers]));
+  assert.deepEqual(byT, { ONE: 1, TWO: 2, THR: 3, FIV: 6 }, "actual counts, never capped");
+  assert.deepEqual(tickers(screen(rows, { minBuyers: "2" })).sort(), ["FIV", "THR", "TWO"], "≥ 2 includes 2, 3 and 6");
+  assert.deepEqual(tickers(screen(rows, { minBuyers: "3" })).sort(), ["FIV", "THR"]);
+  assert.deepEqual(tickers(screen(rows, { minBuyers: "6" })), ["FIV"]);
+});
