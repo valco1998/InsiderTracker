@@ -92,3 +92,86 @@ test("backfill reuses records the live ingest already holds (no download)", asyn
   assert.ok(!client.calls.some((u) => u.endsWith(`${A}.txt`)));
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// ---------- Bounded concurrency, idempotent resume, slim store, monthly coverage ----------
+import { monthlyCoverage, isSignalRelevant, failureReason } from "./form4History.js";
+
+function slowClient(delayMs = 5) {
+  const base = fakeClient();
+  let inFlight = 0, peak = 0;
+  return {
+    calls: base.calls, peak: () => peak,
+    async getText(url) { inFlight++; peak = Math.max(peak, inFlight); try { await new Promise((r) => setTimeout(r, delayMs)); return await base.getText(url); } finally { inFlight--; } },
+  };
+}
+
+test("concurrency: never more than N filings in flight; same result as sequential", async () => {
+  const dirSeq = fs.mkdtempSync(path.join(os.tmpdir(), "bf-seq-")), dirPar = fs.mkdtempSync(path.join(os.tmpdir(), "bf-par-"));
+  await createForm4Backfill({ storeDir: dirSeq, client: fakeClient(), log: quiet, now: () => NOW }).run({ from: "2026-10-30", to: "2026-10-30" });
+  const c2 = slowClient();
+  const r = await createForm4Backfill({ storeDir: dirPar, client: c2, log: quiet, now: () => NOW }).run({ from: "2026-10-30", to: "2026-10-30", concurrency: 2 });
+  assert.equal(r.state, "complete");
+  assert.equal(c2.peak(), 2, "at most 2 concurrent requests");
+  const a = readShard(dirSeq, "2026-10-30"), b = readShard(dirPar, "2026-10-30");
+  assert.deepEqual(Object.keys(b.records).sort(), Object.keys(a.records).sort());
+  for (const acc of Object.keys(a.records)) assert.deepEqual(b.records[acc].transactions, a.records[acc].transactions);
+  assert.deepEqual(Object.keys(b.failed), Object.keys(a.failed));
+  for (const d of [dirSeq, dirPar]) fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("interrupted with 2 workers → resume: every filing exactly once, no duplicates; re-running a complete day is a no-op", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-res-"));
+  const c = slowClient();
+  let stop = false;
+  const bf = createForm4Backfill({ storeDir: dir, client: c, log: quiet, now: () => NOW });
+  // Abort as soon as the first filing has been stored.
+  const r1 = await bf.run({ from: "2026-10-30", to: "2026-10-30", concurrency: 2, isAborted: () => stop, onProgress: () => {} , maxFilings: Infinity }).catch((e) => e);
+  assert.equal(r1.state, "complete", "small day finishes");
+  // Simulate an interruption: remove one parsed record from the checkpoint and mark incomplete.
+  const s = readShard(dir, "2026-10-30");
+  delete s.records[B]; s.complete = false;
+  fs.writeFileSync(path.join(dir, "2026-10-30.json"), JSON.stringify(s));
+  const before = c.calls.length;
+  const r2 = await bf.run({ from: "2026-10-30", to: "2026-10-30", concurrency: 2 });
+  assert.equal(r2.state, "complete");
+  const fetched = c.calls.slice(before).filter((u) => u.endsWith(".txt"));
+  assert.deepEqual(fetched.map((u) => u.match(/(\d{10}-\d{2}-\d{6})\.txt$/)[1]), [B], "only the missing filing is fetched again");
+  const n = c.calls.length;
+  const r3 = await bf.run({ from: "2026-10-30", to: "2026-10-30", concurrency: 2 });
+  assert.equal(r3.state, "complete");
+  assert.equal(c.calls.length, n, "complete day: zero requests (idempotent)");
+  const st = loadHistoryStore(dir);
+  assert.equal(new Set([...st.records.keys()]).size, st.records.size);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("slim in-memory store keeps signal-relevant records only; day stats still count every filing", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-slim-"));
+  await createForm4Backfill({ storeDir: dir, client: fakeClient(), log: quiet, now: () => NOW }).run({ from: "2026-10-30", to: "2026-10-30" });
+  const shard = readShard(dir, "2026-10-30");
+  const st = loadHistoryStore(dir);
+  const relevant = Object.values(shard.records).filter(isSignalRelevant).length;
+  assert.equal(st.records.size, relevant);
+  const day = st.days.get("2026-10-30");
+  assert.equal(day.parsed, Object.keys(shard.records).length, "parsed counts every filing, relevant or not");
+  assert.equal(day.listed, 4);
+  assert.deepEqual(day.failedReasons, { "no ownershipDocument": 1 });
+  assert.equal(isSignalRelevant({ formType: "4", transactions: [] }), false);
+  assert.equal(isSignalRelevant({ formType: "4/A", transactions: [] }), true, "amendments always kept");
+  assert.equal(failureReason("[EDGAR] HTTP 404 /x"), "HTTP 404");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("monthly coverage: complete / partial / missing / SEC-closed days, never missing-as-zero", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-mon-"));
+  await createForm4Backfill({ storeDir: dir, client: fakeClient(), log: quiet, now: () => NOW }).run({ from: "2026-10-29", to: "2026-10-30" });
+  const store = loadHistoryStore(dir);
+  const live = { coverage: [{ day: "2026-11-02", listed: 10, parsed: 10, failed: 0, pending: 0 }], noIndexDays: [] };
+  const rows = monthlyCoverage({ from: "2026-10-26", to: "2026-11-03", store, live, today: "2026-11-03" });
+  const oct = rows.find((r) => r.month === "2026-10"), nov = rows.find((r) => r.month === "2026-11");
+  assert.deepEqual([oct.businessDays, oct.complete, oct.closed, oct.missing], [5, 1, 1, 3], "Oct 26–28 missing, 29 closed, 30 complete");
+  assert.equal(oct.listed, 4);
+  assert.ok(oct.ratio < 1);
+  assert.deepEqual([nov.businessDays, nov.complete, nov.source.live, nov.missing], [1, 1, 1, 0], "Nov 3 = today is excluded; Nov 2 from live");
+  fs.rmSync(dir, { recursive: true, force: true });
+});

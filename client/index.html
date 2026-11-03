@@ -3,8 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#050816" />
-    <title>SkinTel</title>
+    <meta name="theme-color" content="#F8FAFC" />
+    <!-- InsiderTracker theme: applied before first paint (no flash). Light is the default. -->
+    <script>
+      (function () {
+        var t = "light";
+        try { var s = localStorage.getItem("it.theme"); if (s === "dark" || s === "light") t = s; } catch (e) {}
+        document.documentElement.dataset.theme = t;
+        document.documentElement.style.colorScheme = t;
+        var m = document.querySelector("meta[name=theme-color]");
+        if (m) m.setAttribute("content", t === "dark" ? "#0B1120" : "#F8FAFC");
+      })();
+    </script>
+    <title>InsiderTracker</title>
     <link rel="icon" type="image/png" href="/telIcon.png" />
     <link rel="canonical" href="https://www.skin-tel.com/" />
 

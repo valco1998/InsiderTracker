@@ -40,7 +40,7 @@ function KpiStrip({ totals, status, analytics, filters, loading }) {
   return (
     <section className="it-panel" aria-label="Key figures">
       <div className="it-panel-head">
-        <h2 className="it-panel-title">Overview</h2>
+        <h2 className="it-panel-title">Summary</h2>
         <span className="min-w-0 truncate text-[11px] it-dim2">{periodLabel(filters, status)} · by filing date{filters.type !== "all" ? ` · ${filters.type === "purchase" ? "purchases" : "sales"} only` : ""}{filters.ticker ? ` · ${filters.ticker}` : ""}</span>
       </div>
       <div className="it-kpis grid grid-cols-2 lg:grid-cols-6">
@@ -61,7 +61,7 @@ function KpiStrip({ totals, status, analytics, filters, loading }) {
       </div>
       {t && (t.priceAnomalies > 0 || t.supersededByAmendment > 0) && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 border-t px-4 py-2 text-[11px] it-dim2" style={{ borderColor: "var(--it-line-soft)" }}>
-          {t.priceAnomalies > 0 && <span style={{ color: "#f3a3a6" }}>{t.priceAnomalies} price-anomaly transaction{t.priceAnomalies === 1 ? "" : "s"} ({compactUsd(t.anomalyValueExcluded)} as reported) excluded from values until verified.</span>}
+          {t.priceAnomalies > 0 && <span style={{ color: "var(--it-sell)" }}>{t.priceAnomalies} price-anomaly transaction{t.priceAnomalies === 1 ? "" : "s"} ({compactUsd(t.anomalyValueExcluded)} as reported) excluded from values until verified.</span>}
           {t.supersededByAmendment > 0 && <span>{t.supersededByAmendment} superseded by Form 4/A excluded (the amendment is counted).</span>}
           {t.confirmedGroups > 0 && <span>{t.confirmedGroups} duplicate reports grouped · {t.needsReview} flagged for review{t.valueMissing ? ` · ${t.valueMissing} without price` : ""}</span>}
         </div>

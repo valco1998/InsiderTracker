@@ -107,6 +107,18 @@ export function createTiingoClient({
       if (row != null && typeof row !== "object") throw new TiingoInvalidResponseError("unexpected IEX response");
       return toQuote(row);
     },
+    // Historical intraday IEX bars (documented: GET /iex/<ticker>/prices with
+    // startDate, resampleFreq, columns). Verified response: bars labelled by their
+    // START time in UTC, regular session only, from startDate through now.
+    // → [{ time (ISO UTC), open, close, volume }] or null (unknown ticker).
+    async iexIntraday(symbol, { startDate, resampleFreq = "1min" }) {
+      const q = `startDate=${encodeURIComponent(startDate)}&resampleFreq=${encodeURIComponent(resampleFreq)}&columns=open,high,low,close,volume`;
+      const rows = await get(`${IEX_BASE}/${encodeURIComponent(tiingoTicker(symbol))}/prices?${q}`);
+      if (rows == null) return null;
+      if (!Array.isArray(rows)) throw new TiingoInvalidResponseError("unexpected IEX intraday response (not a list)");
+      return rows.filter((r) => r && !Number.isNaN(Date.parse(r.date)) && Number.isFinite(r.open) && r.open > 0)
+        .map((r) => ({ time: new Date(Date.parse(r.date)).toISOString(), open: r.open, close: Number.isFinite(r.close) ? r.close : null, volume: Number.isFinite(r.volume) ? r.volume : null }));
+    },
     async dailyBars(symbol, { from, to }) {
       const q = `startDate=${encodeURIComponent(from)}&endDate=${encodeURIComponent(to)}`;
       const rows = await get(`/${encodeURIComponent(tiingoTicker(symbol))}/prices?${q}`);

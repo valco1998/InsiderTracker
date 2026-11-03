@@ -13,6 +13,7 @@
 //   • The TradingView attribution link is part of the embed and is kept.
 // Nothing is scraped and no undocumented API is used.
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "../theme";
 
 const TV_SCRIPT = (name) => `https://s3.tradingview.com/external-embedding/embed-widget-${name}.js`;
 
@@ -72,17 +73,18 @@ export default function StockOverview({ insights, loading }) {
   const [range, setRange] = useState("1Y");
   const [compare, setCompare] = useState(false);
   const r = RANGES.find((x) => x.key === range) || RANGES[4];
+  const [theme] = useTheme(); // TradingView widgets follow the app theme
 
   const chartConfig = useMemo(() => (tv?.symbol ? {
     autosize: true, symbol: tv.symbol, interval: r.interval, range: r.range, timezone: "America/New_York",
-    theme: "dark", style: "1", locale: "en", backgroundColor: "rgba(16,21,31,1)", gridColor: "rgba(148,163,184,0.06)",
+    theme, style: "1", locale: "en", backgroundColor: theme === "dark" ? "rgba(17,24,39,1)" : "rgba(255,255,255,1)", gridColor: theme === "dark" ? "rgba(148,163,184,0.07)" : "rgba(15,23,42,0.05)",
     hide_top_toolbar: false, hide_side_toolbar: true, hide_legend: false, allow_symbol_change: false,
     save_image: false, calendar: false, withdateranges: false, support_host: "https://www.tradingview.com",
     ...(compare ? { compareSymbols: [{ symbol: SP500.symbol, position: "SameScale" }] } : {}),
-  } : null), [tv?.symbol, r.interval, r.range, compare]);
+  } : null), [tv?.symbol, r.interval, r.range, compare, theme]);
 
-  const infoConfig = useMemo(() => (tv?.symbol ? { symbol: tv.symbol, width: "100%", locale: "en", colorTheme: "dark", isTransparent: true } : null), [tv?.symbol]);
-  const fundConfig = useMemo(() => (tv?.symbol ? { isTransparent: true, largeChartUrl: "", displayMode: "compact", width: "100%", height: "100%", colorTheme: "dark", symbol: tv.symbol, locale: "en" } : null), [tv?.symbol]);
+  const infoConfig = useMemo(() => (tv?.symbol ? { symbol: tv.symbol, width: "100%", locale: "en", colorTheme: theme, isTransparent: true } : null), [tv?.symbol, theme]);
+  const fundConfig = useMemo(() => (tv?.symbol ? { isTransparent: true, largeChartUrl: "", displayMode: "compact", width: "100%", height: "100%", colorTheme: theme, symbol: tv.symbol, locale: "en" } : null), [tv?.symbol, theme]);
 
   if (loading && !insights) {
     return <section className="it-panel"><div className="it-skel m-4" style={{ height: 360 }} aria-hidden="true" /></section>;

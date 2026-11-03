@@ -47,7 +47,7 @@ export default function StatusBar() {
   const coverage = status?.coverage || [];
   return (
     <div className="it-statusbar">
-      <div className="it-scroll-x mx-auto flex max-w-[1600px] items-center gap-5 px-4 py-1.5 sm:px-6" role="status" aria-live="polite">
+      <div className="it-scroll-x mx-auto flex max-w-[1440px] items-center gap-5 px-4 py-2 sm:px-6 lg:px-8" role="status" aria-live="polite">
         <span className="inline-flex shrink-0 items-center gap-2 text-[11.5px] font-medium" style={{ color: "var(--it-text)" }}>
           <span className={`it-dot ${dot}`} />
           {text}

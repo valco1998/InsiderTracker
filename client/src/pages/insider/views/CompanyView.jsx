@@ -60,21 +60,21 @@ export default function CompanyView() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <nav className="text-[12px] it-dim2" aria-label="Breadcrumb">
+    <div className="flex flex-col gap-5">
+      <nav className="text-[13px] it-dim2" aria-label="Breadcrumb">
         <Link to="/insider/companies" className="it-link">Companies</Link> <span aria-hidden="true">/</span> <span className="it-mono">{ticker}</span>
       </nav>
 
       <section className="it-panel">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: "1px solid var(--it-line-soft)" }}>
+        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-5" style={{ borderBottom: "1px solid var(--it-line-soft)" }}>
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <h1 className="it-mono text-[22px] font-semibold leading-none" style={{ color: "var(--it-text)" }}>{ticker}</h1>
+              <h1 className="text-[28px] font-bold leading-none tracking-tight" style={{ color: "var(--it-text)" }}>{ticker}</h1>
               {head && <FollowButton t={head} account={account} />}
             </div>
-            <div className="mt-1 truncate text-[13px] it-dim">{loading && !company ? <Skeleton className="h-3 w-48" /> : head?.issuerName || company?.name || "No reported purchases or sales in the loaded window"}</div>
+            <div className="mt-1.5 truncate text-[15px] it-dim">{loading && !company ? <Skeleton className="h-3 w-48" /> : head?.issuerName || company?.name || "No reported purchases or sales in the loaded window"}</div>
           </div>
-          <div className="text-right text-[11px] it-dim2">
+          <div className="text-right text-[12.5px] it-dim2">
             {(head?.issuerCik || company?.cik) && <div className="it-num">CIK {head?.issuerCik || company.cik}{company?.exchange ? ` · ${company.exchange}` : ""}</div>}
             <div>{periodLabel({}, feed.status)}</div>
           </div>
@@ -86,7 +86,7 @@ export default function CompanyView() {
             <Stat label="Reported purchases" value={compactUsd(t.purchaseValue)} sub={`${count(t.purchases)} transactions`} color="var(--it-buy)" />
             <Stat label="Reported sales" value={compactUsd(t.saleValue)} sub={`${count(t.sales)} transactions`} color="var(--it-sell)" />
             <Stat label="Net reported" value={signedCompactUsd(t.purchaseValue - t.saleValue)} sub="purchases − sales" />
-            <Stat label="Reporting insiders" value={count(insiders.length)} sub="primary filers" />
+            <Stat label="Reporting filers" value={count(insiders.length)} sub="Form 4 filer groups — not distinct buyers" />
             <Stat label="Late filings" value={count(t.lateFilings)} sub={t.priceAnomalies ? `${t.priceAnomalies} anomaly excluded` : "Form 4 due in 2 business days"} />
           </div>
         )}
@@ -99,7 +99,7 @@ export default function CompanyView() {
       ) : (
         <>
           <StockOverview insights={insights.data} loading={insights.loading} />
-          <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <InsiderBuyersPanel insights={insights.data} loading={insights.loading} error={insights.error} days={days} onDays={setDays} />
             <ClusterBuyingPanel insights={insights.data} loading={insights.loading} threshold={threshold} onThreshold={setThreshold} />
           </div>
@@ -110,12 +110,12 @@ export default function CompanyView() {
         <Panel><EmptyState title={`No reported open-market purchases or sales for ${ticker}.`}>Only the most recent SEC daily indexes are loaded. Check the ticker, or follow the company to be alerted on its next Form 4.</EmptyState></Panel>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <BuySellChart rows={rows} loading={loading} height={240} />
             <ActivityTimeline rows={rows} loading={loading} height={240} />
           </div>
 
-          <Panel title="Insiders" subtitle="Identities and roles as stated in the filings">
+          <Panel title="Reporting filers" subtitle="One row per Form 4 filer group, as stated in the filings. Related joint filers can appear on separate rows — see Insider buyers for distinct-buyer counts.">
             {loading ? <TableSkeleton rows={4} /> : (
               <div className="overflow-x-auto">
                 <table className="it-table min-w-[680px]">

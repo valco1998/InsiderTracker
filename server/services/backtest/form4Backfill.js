@@ -17,6 +17,9 @@
 //     429/403 honouring Retry-After). When SEC throttles, the backfill waits for
 //     the pause and retries the same filing without consuming an attempt.
 //   • A day whose index does not exist (404) before today is a day SEC was closed.
+//   • Bounded concurrency: at most `concurrency` filings of a day in flight (default 1).
+//     The shared edgarClient still spaces every request at its rps limit, and its
+//     circuit breaker pauses all workers together.
 
 import { dailyIndexUrl, parseDailyFormIndex } from "../edgar/edgarSources.js";
 import { parseForm4Submission, PARSER_VERSION } from "../edgar/form4Parser.js";
@@ -65,7 +68,8 @@ export function createForm4Backfill({ storeDir, client, knownRecords = new Map()
     }
   }
 
-  async function run({ from, to, maxFilings = Infinity, isAborted = () => false, onProgress = () => {} }) {
+  async function run({ from, to, maxFilings = Infinity, concurrency = 1, isAborted = () => false, onProgress = () => {} }) {
+    const workers = Math.max(1, Math.min(4, Math.floor(concurrency) || 1));
     const today = todayEt();
     const end = to < today ? to : addDays(today, -1);
     const days = [];
@@ -101,12 +105,13 @@ export function createForm4Backfill({ storeDir, client, knownRecords = new Map()
         writeShard(storeDir, shard);
       }
 
-      let sinceSave = 0;
-      for (const acc of shard.accessions) {
-        if (shard.records[acc] || shard.failed[acc]?.permanent || shard.failed[acc]?.exhausted) continue;
-        if (isAborted() || progress.downloaded >= maxFilings) break;
+      let sinceSave = 0, stopDay = false, inFlight = 0;
+      const queue = shard.accessions.filter((acc) => !(shard.records[acc] || shard.failed[acc]?.permanent || shard.failed[acc]?.exhausted));
+      // One filing: reuse the live record, else download + parse. Shared shard state is only
+      // mutated synchronously between awaits (single-threaded), so workers never clash.
+      async function processOne(acc) {
         const known = knownRecords.get(acc);
-        if (known) { shard.records[acc] = known; progress.reused++; continue; }
+        if (known) { shard.records[acc] = known; progress.reused++; return; }
         const cikDir = shard.cikDirs?.[acc];
         try {
           const txt = await getWithThrottleWait(`https://www.sec.gov/Archives/edgar/data/${cikDir}/${acc}.txt`, { retries: 2 }, isAborted);
@@ -114,7 +119,7 @@ export function createForm4Backfill({ storeDir, client, knownRecords = new Map()
           delete shard.failed[acc];
           progress.downloaded++;
         } catch (err) {
-          if (isThrottled(err)) { progress.stoppedReason = "aborted"; break; } // only when aborted during a throttle wait
+          if (isThrottled(err)) { stopDay = true; progress.stoppedReason = "aborted"; return; } // only when aborted during a throttle wait
           const f = shard.failed[acc] || { attempts: 0 };
           f.attempts++;
           f.error = String(err.message || err).slice(0, 160);
@@ -126,6 +131,15 @@ export function createForm4Backfill({ storeDir, client, knownRecords = new Map()
         }
         if (++sinceSave >= SAVE_EVERY) { writeShard(storeDir, { ...shard, updatedAt: new Date(now()).toISOString() }); sinceSave = 0; save(); }
       }
+      async function worker() {
+        while (queue.length && !stopDay) {
+          if (isAborted() || progress.downloaded + inFlight >= maxFilings) return;
+          const acc = queue.shift();
+          inFlight++;
+          try { await processOne(acc); } finally { inFlight--; }
+        }
+      }
+      await Promise.all(Array.from({ length: workers }, worker));
       // Complete when every listed filing is parsed or permanently/exhaustively failed.
       const st = shardStats(shard);
       shard.complete = st.parsed + st.failed >= st.listed && !Object.values(shard.failed).some((f) => !f.permanent && !f.exhausted);

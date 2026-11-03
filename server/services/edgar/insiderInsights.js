@@ -57,13 +57,21 @@ const ownerKey = (o) => (o.cik ? `cik:${Number(o.cik)}` : o.name ? `name:${normN
 const ownersOf = (r) => (r.owners?.length ? r.owners : [{ cik: r.insiderCik, name: r.insiderName, role: r.role }]);
 
 // Union-find of owner keys that appear together on a filing → stable person ids.
-export function buildIdentities(rows) {
+// reportOwners(rowId) (optional) → reporting owners of one raw report: owners of a row's
+// CONFIRMED duplicate reports (transactionGroups.js — relationship evidence + an indirect
+// holder) are joined too, so related filers reporting the same shares in separate Form 4s
+// (e.g. two fund families of one joint filing) are one buyer — the same rule as the
+// backtest's signal engine. Rows without confirmed duplicates are unaffected.
+export function buildIdentities(rows, { reportOwners = null } = {}) {
   const parent = new Map();
   const find = (k) => { let p = parent.get(k) ?? k; while (p !== (parent.get(p) ?? p)) p = parent.get(p) ?? p; return p; };
   const add = (k) => { if (!parent.has(k)) parent.set(k, k); };
   const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra < rb ? rb : ra, ra < rb ? ra : rb); };
   for (const r of rows) {
-    const keys = ownersOf(r).map(ownerKey).filter(Boolean);
+    const linked = reportOwners && r.reportedBy?.length > 1
+      ? r.reportedBy.filter((rep) => rep.rowId && rep.rowId !== r.id).flatMap((rep) => reportOwners(rep.rowId) || [])
+      : [];
+    const keys = [...ownersOf(r), ...linked].map(ownerKey).filter(Boolean);
     keys.forEach(add);
     for (let i = 1; i < keys.length; i++) union(keys[0], keys[i]);
   }
@@ -97,10 +105,10 @@ function people(rows, personOf) {
     const id = personOf(r);
     if (!id) continue;
     let p = map.get(id);
-    if (!p) { p = { id, names: new Map(), ciks: new Set(), roles: new Set(), transactions: 0, shares: 0, value: 0, valueMissing: 0, firstDate: null, lastDate: null, filings: new Map() }; map.set(id, p); }
+    if (!p) { p = { id, names: new Map(), ownerNames: new Set(), ciks: new Set(), roles: new Set(), transactions: 0, shares: 0, value: 0, valueMissing: 0, firstDate: null, lastDate: null, filings: new Map() }; map.set(id, p); }
     const primary = ownersOf(r)[0];
     if (primary?.name) p.names.set(primary.name, (p.names.get(primary.name) || 0) + 1);
-    for (const o of ownersOf(r)) if (o.cik) p.ciks.add(String(o.cik));
+    for (const o of ownersOf(r)) { if (o.cik) p.ciks.add(String(o.cik)); if (o.name) p.ownerNames.add(o.name); }
     for (const g of rowRoleGroups(r)) p.roles.add(g);
     p.transactions++;
     if (r.shares != null) p.shares += r.shares;
@@ -116,6 +124,8 @@ function people(rows, personOf) {
       id: p.id,
       name: [...p.names.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || "Unknown",
       ciks: [...p.ciks].sort(),
+      // Every reporting owner merged into this buyer (joint filers / related filers).
+      reportingOwners: [...p.ownerNames].sort(),
       roles: roles.length > 1 ? roles.filter((g) => g !== "Other") : roles,
       transactions: p.transactions, shares: p.shares, value: round2(p.value), valueMissing: p.valueMissing,
       firstDate: p.firstDate, lastDate: p.lastDate,
@@ -250,7 +260,7 @@ const PRESET_DAYS = new Set([7, 30, 90]);
 
 // Full company insight payload. rows: economic rows of the issuer.
 // query: { days=7|30|90 | from+to (custom), threshold=2..10 }.
-export function companyInsights({ rows, company, query = {}, ingest = null, now = Date.now() }) {
+export function companyInsights({ rows, company, query = {}, ingest = null, now = Date.now(), reportOwners = null }) {
   const today = easternToday(now);
   const threshold = query.threshold === undefined ? 3 : Number(query.threshold);
   if (!Number.isInteger(threshold) || threshold < 2 || threshold > 10) return { error: "threshold must be an integer from 2 to 10" };
@@ -267,7 +277,7 @@ export function companyInsights({ rows, company, query = {}, ingest = null, now 
   }
 
   const counted = countedRows(rows);
-  const identities = buildIdentities(counted);
+  const identities = buildIdentities(counted, { reportOwners });
   const activity = insiderActivity(counted, win, identities);
   const clusterWindowDays = 30;
   const activeFrom = addDays(today, -(clusterWindowDays - 1));
@@ -296,7 +306,7 @@ export function companyInsights({ rows, company, query = {}, ingest = null, now 
     definitions: {
       purchase: "Form 4 transaction code P (purchase). Code P is not always an exchange-traded purchase — check the venue badge.",
       sale: "Form 4 transaction code S (sale).",
-      uniqueInsider: "Distinct reporting owners by SEC CIK; joint filers on the same Form 4 count as one.",
+      uniqueInsider: "Distinct buyers by SEC reporting-owner CIK. Joint filers count as one — including related filers (e.g. funds of one investment firm) that report the same purchase in separate Form 4s. Two CIKs therefore do not always mean two independent buyers.",
       excluded: "Rows superseded by a Form 4/A; confirmed duplicate reports by related filers are counted once.",
     },
   };

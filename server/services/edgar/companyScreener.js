@@ -93,7 +93,7 @@ export function parseScreenerQuery(q = {}, now = Date.now()) {
 }
 
 // Per-version precomputation: issuer → { counted rows, identities, clusters }.
-export function indexIssuers(economic) {
+export function indexIssuers(economic, { reportOwners = null } = {}) {
   const groups = new Map();
   for (const r of countedRows(economic)) {
     const k = r.issuerCik ? `cik:${Number(r.issuerCik)}` : r.ticker ? `t:${String(r.ticker).toUpperCase()}` : null;
@@ -102,7 +102,7 @@ export function indexIssuers(economic) {
   }
   const issuers = [];
   for (const [key, rows] of groups) {
-    const identities = buildIdentities(rows);
+    const identities = buildIdentities(rows, { reportOwners });
     // Newest ticker / name as filed (rows are newest-first in the snapshot).
     const ticker = rows.find((r) => r.ticker)?.ticker || null;
     issuers.push({
@@ -225,7 +225,7 @@ export function screenCompanies({ issuers, query = {}, ingest = null, now = Date
 export function createScreener() {
   let cached = { version: null, issuers: null };
   return (snap) => {
-    if (cached.version !== snap.version || !cached.issuers) cached = { version: snap.version, issuers: indexIssuers(snap.economic) };
+    if (cached.version !== snap.version || !cached.issuers) cached = { version: snap.version, issuers: indexIssuers(snap.economic, { reportOwners: (rowId) => snap.rawById?.get(rowId)?.owners }) };
     return cached.issuers;
   };
 }

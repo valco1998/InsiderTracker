@@ -248,3 +248,37 @@ test("route: /company/:ticker/insights — 400 invalid, 404 unknown, SEC list ou
     assert.equal((await fetch(`${base}/ACME/insights?days=45`)).status, 400);
   } finally { await new Promise((r) => server.close(r)); }
 });
+
+// ---------- ASPE regression: related joint filers reporting the same purchase = ONE buyer ----------
+import { buildSnapshot as buildSnap } from "./insiderSnapshot.js";
+import { companyInsights as insightsOf } from "./insiderInsights.js";
+import { tx as mk } from "../backtest/testFixtures.js";
+
+test("company insights: two ARCH fund families of one joint filing are 1 buyer (with duplicate-report owners); unrelated buyers stay separate", () => {
+  const XIV = [{ cik: "0002138046", name: "ARCH Venture Fund XIV, L.P.", role: "10% Owner", isTenPercentOwner: true }, { cik: "0001202769", name: "BERNS PAUL L", role: "10% Owner", isTenPercentOwner: true }];
+  const X = [{ cik: "0001757011", name: "ARCH Venture Fund X, L.P.", role: "10% Owner", isTenPercentOwner: true }, { cik: "0001219039", name: "CRANDELL KEITH", role: "10% Owner", isTenPercentOwner: true }];
+  const base = { date: "2026-11-02", price: 15, ticker: "ASPE", issuerCik: "0002124080", context: "unspecified" };
+  const rows = [
+    mk({ ...base, owners: XIV, accepted: "2026-11-02 21:46:27", shares: 1_200_000, sharesOwnedAfter: 1_200_000 }),
+    mk({ ...base, owners: X, accepted: "2026-11-02 21:50:27", shares: 66_666, sharesOwnedAfter: 66_666, accessionNo: "0001193125-26-444147" }),
+    { ...mk({ ...base, owners: X, accepted: "2026-11-02 21:50:27", shares: 1_200_000, sharesOwnedAfter: 1_200_000, ownership: "I", accessionNo: "0001193125-26-444147",
+      footnotes: [{ id: "F5", text: "Shares were purchased by ARCH Venture Fund XIV, L.P." }] }), id: "0001193125-26-444147:11" },
+  ];
+  const snap = buildSnap({ transactions: rows, amendmentFilings: [] });
+  const q = { from: "2026-10-20", to: "2026-11-03" };
+  const now = Date.parse("2026-11-03T15:00:00Z");
+  const company = { ticker: "ASPE", cik: "0002124080", name: "Aspen Neuroscience, Inc." };
+  const linked = insightsOf({ rows: snap.economic, company, query: q, now, reportOwners: (id) => snap.rawById.get(id)?.owners });
+  assert.equal(linked.activity.uniqueBuyers, 1, "one ARCH joint-filing group");
+  assert.equal(linked.activity.purchaseValue, 18_999_990, "the duplicate report is still counted once");
+  assert.ok(linked.activity.buyers[0].reportingOwners.length >= 4, "every reporting owner listed for the merged buyer");
+  assert.match(linked.definitions.uniqueInsider, /do not always mean two independent buyers/);
+  const unlinked = insightsOf({ rows: snap.economic, company, query: q, now });
+  assert.equal(unlinked.activity.uniqueBuyers, 2, "default (no report owners) behaviour unchanged");
+  // Unrelated insiders with identical-looking purchases (no relationship evidence) stay 2.
+  const ind = buildSnap({ transactions: [
+    mk({ ...base, owners: [{ cik: "0000000501", name: "Indep One", role: "Director", isDirector: true }], accepted: "2026-11-02 18:00:00", shares: 1000, sharesOwnedAfter: 5000 }),
+    mk({ ...base, owners: [{ cik: "0000000502", name: "Indep Two", role: "Director", isDirector: true }], accepted: "2026-11-02 18:05:00", shares: 1000, sharesOwnedAfter: 5000 }),
+  ], amendmentFilings: [] });
+  assert.equal(insightsOf({ rows: ind.economic, company, query: q, now, reportOwners: (id) => ind.rawById.get(id)?.owners }).activity.uniqueBuyers, 2);
+});

@@ -42,7 +42,7 @@ export function signalsFor(transactions, { amendmentFilings = [], config = {}, r
   const a = amendmentFilings.filter((r) => cut(r.acceptedAtET));
   const ds = buildHistoryDataset({ store: { records: new Map() }, live: { transactions: t, amendmentFilings: a } });
   const snap = buildSnapshot({ transactions: ds.transactions, amendmentFilings: ds.amendmentFilings });
-  return detectSignals({ rows: snap.economic, acceptedAtByAccession: ds.acceptedAtByAccession, config, range });
+  return detectSignals({ rows: snap.economic, acceptedAtByAccession: ds.acceptedAtByAccession, config, range, reportOwners: (id) => snap.rawById.get(id)?.owners });
 }
 
 // Synthetic daily bars on every NYSE session in [from, to].

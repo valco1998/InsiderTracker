@@ -284,3 +284,124 @@ Shown at the top of the tracking panel.
   "Close of <date> — not live" with the reason.
 - **Licence guard:** the current price is internal-only like all price data. Non-local
   requests get no price.
+
+## Primary metrics: SEC Publication → NOW and Regular Hours → NOW (Alpaca)
+
+The Backtesting table shows two numbers for each qualifying signal. The fixed
+7D/30D/90D/180D columns are not shown (the server still computes them), and nothing is
+ever shown as "pending".
+
+**Market data provider (Backtesting only):** Alpaca Market Data API v2
+(`https://data.alpaca.markets`, Basic plan) is the primary source and Tiingo is the
+fallback. Credentials go in `server/.env` as `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY`.
+They are never sent to the browser or written to logs. Every price records its provider.
+- Code: `services/stockData/alpacaClient.js`, `services/backtest/backtestPrices.js` and
+  `services/backtest/entrySelection.js`. `isolation.test.js` enforces that only
+  Backtesting reaches these modules.
+- Alpaca Basic, verified:
+  - SIP (consolidated) trades and bars back to 2016, **except the most recent 15
+    minutes** (HTTP 403);
+  - the latest trade is available from the **IEX feed only**;
+  - 200 requests per minute. We cap at `ALPACA_REQUESTS_PER_MINUTE` (default 150) and
+    batch latest trades 100 symbols per request.
+
+### SEC Publication → NOW (primary)
+- **Entry:** the first *eligible* SIP trade with a timestamp at or after the SEC
+  acceptance time, in any session: pre-market (04:00–09:30 ET), regular, or after-hours
+  (until 20:00 ET).
+  - Timestamps are compared at nanosecond precision. A trade earlier in the same second
+    as publication is never used.
+  - Ineligible prints are skipped: odd lots (condition `I`; set
+    `BACKTEST_INCLUDE_ODD_LOTS=1` to include them), plus report-only and
+    non-representative conditions — official open/close reports `Q`/`M`, average-price
+    `B`/`W`, cash/next-day/seller `C`/`N`/`R`, prior-reference `P`/`Z`/`L`/`U`/`4`/`7`/`9`,
+    contingent `V`, and cross/derivative `H`.
+  - Recorded: price, exact timestamp, session, size, exchange, conditions, provider and
+    basis (`sip_trade`).
+- **Change:** ((latest ÷ split-adjusted entry) − 1) × 100.
+
+### Regular Hours → NOW (secondary)
+- **Entry:** the first eligible regular-session trade (09:30 to the close, including
+  early closes) at or after publication.
+  - Signals published outside the session start at the next session's 09:30 ET. The NYSE
+    holiday calendar and DST are handled in `sessionCalendar.js`.
+  - Prints flagged as extended-hours (`T`, `U`) are excluded, so the entry is normally
+    the opening print (`O`).
+
+### Latest price, splits and missing data
+- **Latest price:** the Alpaca IEX last trade, with its own timestamp, age and provider.
+  It is **IEX only, not the consolidated tape**. The fallback is the Tiingo IEX
+  reference price, marked "cached" when stale.
+  - A latest price older than the entry is never used ("Awaiting newer price").
+- **Splits:** the entry is converted to today's share terms. The factor is the raw ÷
+  split-adjusted daily close of the entry day from Alpaca, or else the Tiingo daily
+  split factors.
+- **Recent signals:**
+  - **"Awaiting SIP data":** published less than 16 minutes ago. No request is made, the
+    403 is not permanent, and the entry is retried every 5 minutes.
+  - **"Awaiting regular-session trade":** the secondary metric before the next open.
+  - **"No trade yet":** no eligible trade since publication.
+  - A missing value is a labelled status. It is never 0 % and never a price from before
+    publication.
+- **Cache:** final entries are stored in
+  `server/.cache/prices/_publication-entries.v1.json`. Awaiting and error states are
+  re-checked automatically.
+
+### Fallback (Tiingo) — a minute-bar approximation
+Tiingo is used only when Alpaca cannot answer: not configured, credentials rejected
+(401), or a request error. It is never used to fill an "awaiting" state.
+- The Tiingo entry is the open of the first IEX 1-minute bar that **starts** at or after
+  publication **with volume > 0**. It is labelled "IEX 1-min bar open (approx.)": a
+  minute open is not a guaranteed executable trade, and Tiingo has no extended-hours
+  bars.
+
+**Bug fixed on 2026-11-03:** Tiingo IEX minute bars are forward-filled with volume 0,
+even across days. The old cache (`_publication-starts.json`, no volume check) had 5 of
+18 starts on such filler bars: NXG, NPB, STC, DSM and NMCO.
+- Starts now require volume > 0.
+- Cached records are revalidated on read, and the new cache is
+  `_publication-starts.v2.json`. The old file is kept for audit and never read.
+- Regression tests: `backtestPrices.test.js`.
+
+**Licence:** prices remain visible only on this computer (loopback; `STOCK_DATA_LICENSE`
+is not `public`). Other viewers get statuses only. No new public API was added. Alpaca's
+market-data redistribution / display terms must be checked before any subscriber-facing
+use.
+
+**Separate from the first-purchase metric:** "Since 1st buy" and the first-purchase
+timeline are unchanged. Its headline quote still comes from Tiingo.
+
+## Joint filers across duplicate reports; IPO-allocation labels (2026-11-03)
+
+**Buyer identity.** The strategy counts distinct reporting owners, with joint filers
+counted as one. Related filers sometimes report the same shares in separate Form 4s,
+for example two fund families in one joint filing where one reports the other's
+purchase as an indirect holding. `transactionGroups.js` merges such reports only with
+relationship evidence and an indirect holder. The merged row's identity now also
+includes the reporting owners of its confirmed duplicate reports (`identityRowAt` in
+`signals.js`):
+- Point-in-time: a duplicate report links owners only from its own SEC acceptance.
+- Unrelated investors are never linked. Without a confirmed duplicate, nothing changes.
+- Effect on the real data: ASPE (ARCH Venture Fund X and XIV, one joint filing) is one
+  buyer and no longer qualifies (20 → 19 signals). The other 19 signals are unchanged.
+
+**Latest price for every ticker row.** The latest IEX trade is requested in one batch
+for all rows, including rows still waiting for their first eligible trade. Returns
+still need a valid entry. The response also carries `market.session`
+(pre/regular/post/closed) and the session of the latest trade, so the page can show
+"Market closed · last trade …", "Pre-market · …" or "Stale · …". It never says "live".
+
+**IPO allocations (informational).** `ipoContext.js` labels code-P purchases that may
+be IPO allocations. It is never decided by price alone, and nothing is excluded.
+- **Verified:** an IPO prospectus (424B4/424B1, "initial public offering" with "no
+  public market"), a purchase from 3 days before to 10 days after it at exactly the
+  offering price, **and** an explicit statement (a Form 4 footnote, or the prospectus
+  naming the buyer as purchasing in the offering).
+- **Possible:** the same without the explicit statement.
+- **None:** no IPO prospectus around the purchase, or a different price.
+- **Unknown:** the SEC lookup failed; it is retried.
+- Data: SEC submissions index and prospectus text, through its own 2 req/s EDGAR
+  client, cached in `server/.cache/ipo-context.v1.json`.
+- API: `GET /api/insider/backtest/run/:id/ipo-context`.
+- Limitations: follow-on offerings and private placements are not classified here;
+  name matching in prospectus text is conservative (it needs two meaningful words).

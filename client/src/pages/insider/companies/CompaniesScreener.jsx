@@ -9,7 +9,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useInsider } from "../InsiderContext";
 import useCompanyScreener from "../../../hooks/useCompanyScreener";
-import { Disclaimer, EmptyState, ErrorNote, Panel, Skeleton } from "../components/Common";
+import { Disclaimer, EmptyState, ErrorNote, PageHeader, Panel, Skeleton } from "../components/Common";
 import { compactUsd, count, day } from "../../../utils/insiderFormat";
 import {
   BASIS_OPTIONS, BUYER_OPTIONS, DEFAULT_SCREENER_FILTERS, PERIOD_OPTIONS, SORT_OPTIONS, VALUE_OPTIONS,
@@ -123,7 +123,7 @@ function ScreenerFilters({ filters: f, patch, reset }) {
 function CoverageNote({ coverage, window: w }) {
   if (!coverage || coverage.complete) return null;
   return (
-    <div role="status" className="rounded-md px-3 py-2 text-[11.5px] leading-relaxed" style={{ color: "#d7c08f", background: "var(--it-warn-soft)", border: "1px solid rgba(232,176,75,0.18)" }}>
+    <div role="status" className="rounded-md px-3 py-2 text-[11.5px] leading-relaxed" style={{ color: "var(--it-warn)", background: "var(--it-warn-soft)", border: "1px solid var(--it-warn-line)" }}>
       <strong className="font-semibold" style={{ color: "var(--it-warn)" }}>Partial data.</strong>{" "}
       {String(coverage.note || "").replace(/^Partial data:s*/, "")} Totals below cover only the loaded days and are not complete statistics for {day(w.from)} – {day(w.to)}.
     </div>
@@ -133,7 +133,7 @@ function CoverageNote({ coverage, window: w }) {
 function ClusterChip({ c }) {
   if (!c) return <span className="it-dim2">—</span>;
   return (
-    <span className="it-chip" style={{ color: "var(--it-buy)", borderColor: "rgba(38,194,129,0.35)" }}
+    <span className="it-chip" style={{ color: "var(--it-buy)", borderColor: "var(--it-buy-line)" }}
       title={`${c.peakBuyers} distinct buyers within 30 days · trade dates ${c.from} – ${c.to}. Factual pattern, not a recommendation.`}>
       Cluster · {c.peakBuyers}
     </span>
@@ -141,7 +141,7 @@ function ClusterChip({ c }) {
 }
 
 const COLS = [
-  { key: "buyers", label: "Unique buyers", title: "Distinct insiders (SEC CIK) with a code P purchase" },
+  { key: "buyers", label: "Unique buyers", title: "Distinct buyers (SEC reporting-owner CIK) with a code P purchase. Joint filers count once — including related filers (e.g. funds of one investment firm) reporting the same purchase in separate Form 4s." },
   { key: "transactions", label: "Purchases", title: "Number of purchase transactions" },
   { key: "value", label: "Purchase value", title: "Total reported purchase value (shares × price)" },
   { key: "recent", label: "Latest purchase", title: "Most recent trade date", date: true },
@@ -242,11 +242,12 @@ export default function CompaniesScreener() {
     : "loading…";
 
   return (
-    <div className="flex flex-col gap-3">
-      <Panel title="Companies · insider purchases" subtitle={subtitle}
+    <div className="flex flex-col gap-5">
+      <PageHeader title="Companies" description="Companies ranked by reported insider purchases (Form 4 code P). Buyers are counted once per joint-filing group, so related funds of one firm are not shown as independent buyers." />
+      <Panel title="Insider purchases by company" subtitle={subtitle}
         right={data && (
           <span className="it-chip" title={data.coverage.note}
-            style={data.coverage.complete ? { color: "var(--it-buy)" } : { color: "var(--it-warn)", borderColor: "rgba(232,176,75,0.35)", background: "var(--it-warn-soft)" }}>
+            style={data.coverage.complete ? { color: "var(--it-buy)" } : { color: "var(--it-warn)", borderColor: "var(--it-warn-line)", background: "var(--it-warn-soft)" }}>
             {data.coverage.complete ? "Complete" : "Partial data"}
           </span>
         )}>

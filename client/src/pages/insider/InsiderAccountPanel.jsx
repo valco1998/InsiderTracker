@@ -10,7 +10,7 @@ const panel = { background: "var(--bg-panel)", border: "1px solid var(--border)"
 const input = "h-9 w-full rounded-lg px-3 text-sm text-white/90 outline-none focus:ring-1 focus:ring-cyan-400/50";
 const inputStyle = { background: "var(--bg-surface)", border: "1px solid var(--border)" };
 const btn = "h-9 rounded-lg px-3 text-sm font-medium transition-colors disabled:opacity-50";
-const primary = { background: "rgba(34,211,238,0.15)", color: "var(--cyan)", border: "1px solid rgba(34,211,238,0.35)" };
+const primary = { background: "var(--it-accent-soft)", color: "var(--cyan)", border: "1px solid var(--it-accent-line)" };
 const TYPE_LABEL = { both: "Purchases & sales", purchase: "Purchases only", sale: "Sales only" };
 
 const day = (iso) => (iso ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" }) : "—");

@@ -63,6 +63,7 @@ export function companyInsightsHandler({ lookupTicker = defaultLookupTicker, sna
         },
         query: req.query,
         ingest: ingestStatus(),
+        reportOwners: (rowId) => snap.rawById?.get(rowId)?.owners,
       });
       if (r.error) return res.status(400).json({ error: r.error });
       res.set("Cache-Control", "no-cache");

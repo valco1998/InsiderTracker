@@ -27,7 +27,7 @@ function CoverageBadge({ coverage, window: w }) {
     return <span className="it-chip" title={coverage.note} style={{ color: "var(--it-buy)" }}>Complete · {day(w.from)} – {day(w.to)}</span>;
   }
   return (
-    <span className="it-chip" title={coverage.note} style={{ color: "var(--it-warn)", borderColor: "rgba(232,176,75,0.35)", background: "var(--it-warn-soft)" }}>
+    <span className="it-chip" title={coverage.note} style={{ color: "var(--it-warn)", borderColor: "var(--it-warn-line)", background: "var(--it-warn-soft)" }}>
       Partial data · SEC filings loaded {coverage.coveredFrom ? `from ${day(coverage.coveredFrom)}` : "—"}
     </span>
   );
@@ -69,7 +69,7 @@ function BuyerList({ buyers }) {
           <tbody>
             {buyers.map((b) => (
               <tr key={b.id}>
-                <td style={{ color: "var(--it-text)" }} title={b.ciks.length ? `SEC CIK ${b.ciks.join(", ")}` : undefined}>{b.name}</td>
+                <td style={{ color: "var(--it-text)" }} title={b.ciks.length ? `SEC CIK ${b.ciks.join(", ")}` : undefined}>{b.name}<GroupNote b={b} /></td>
                 <td className="text-[11.5px] it-dim">{b.roles.join(" · ")}</td>
                 <td className="num it-num">{count(b.transactions)}</td>
                 <td className="num it-num">{shares(b.shares)}</td>
@@ -90,6 +90,7 @@ function BuyerList({ buyers }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="truncate text-[13px]" style={{ color: "var(--it-text)" }}>{b.name}</div>
+                <GroupNote b={b} />
                 <div className="text-[11.5px] it-dim2">{b.roles.join(" · ")}</div>
               </div>
               <div className="shrink-0 text-right">
@@ -108,6 +109,19 @@ function BuyerList({ buyers }) {
   );
 }
 
+// One buyer can be several SEC reporting owners: joint filers, or related filers (e.g. funds
+// of one investment firm) reporting the same purchase. Make that explicit — two CIKs do not
+// automatically mean two independent buyers.
+function GroupNote({ b }) {
+  const names = b.reportingOwners || [];
+  if (names.length < 2) return null;
+  return (
+    <span className="block text-[11px] it-dim2" title={`Counted as ONE buyer — joint / related filers:\n${names.join("\n")}`}>
+      Joint filing group · {names.length} reporting owners · counted as 1 buyer
+    </span>
+  );
+}
+
 function InsiderBuyersPanel({ insights, loading, error, days, onDays }) {
   const a = insights?.activity;
   const w = insights?.window;
@@ -117,7 +131,7 @@ function InsiderBuyersPanel({ insights, loading, error, days, onDays }) {
       <header className="it-panel-head flex-wrap gap-2">
         <div className="min-w-0">
           <h2 className="it-panel-title">Insider buyers · last {days} days</h2>
-          <div className="text-[11px] it-dim2">By trade date{w ? ` ${day(w.from)} – ${day(w.to)}` : ""} · unique people by SEC CIK · Form 4 code P</div>
+          <div className="text-[11px] it-dim2">By trade date{w ? ` ${day(w.from)} – ${day(w.to)}` : ""} · unique buyers by SEC CIK (joint &amp; related filers = 1) · Form 4 code P</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {insights && <CoverageBadge coverage={insights.coverage} window={w} />}
@@ -130,7 +144,7 @@ function InsiderBuyersPanel({ insights, loading, error, days, onDays }) {
         </div>
       </header>
 
-      {error && <div className="px-4 py-3 text-[12.5px]" style={{ color: "#f3a3a6" }}>{error}</div>}
+      {error && <div className="px-4 py-3 text-[12.5px]" style={{ color: "var(--it-sell)" }}>{error}</div>}
       {loading && !a ? (
         <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-6">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-10" />)}</div>
       ) : a && (
@@ -142,7 +156,7 @@ function InsiderBuyersPanel({ insights, loading, error, days, onDays }) {
           )}
           <div className="it-kpis grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="Unique buyers" value={count(a.uniqueBuyers)} sub={partial ? "partial window" : "distinct insiders"} color="var(--it-buy)"
-              title="Distinct reporting owners (SEC CIK) with a code-P purchase in the window. Joint filers on one Form 4 count once." />
+              title="Distinct buyers (SEC reporting-owner CIK) with a code-P purchase in the window. Joint filers count once — including related filers that report the same purchase in separate Form 4s." />
             <Stat label="Purchases" value={count(a.purchaseTransactions)} sub="transactions" />
             <Stat label="Reported purchase value" value={compactUsd(a.purchaseValue)} sub={a.purchaseValueMissing ? `${a.purchaseValueMissing} without price` : "shares × reported price"} color="var(--it-buy)" />
             <Stat label="Unique sellers" value={count(a.uniqueSellers)} sub={`${count(a.saleTransactions)} sale transactions`} color="var(--it-sell)" />

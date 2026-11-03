@@ -52,6 +52,40 @@ export function shardStats(shard) {
   return { day: shard.day, listed, parsed, failed, noIndex: !!shard.noIndex, complete: !!shard.complete };
 }
 
+// Short, stable failure reason for reporting ("HTTP 404", "not a Form 4", …).
+export function failureReason(error) {
+  const e = String(error || "");
+  const http = /HTTP (\d{3})/.exec(e);
+  if (http) return `HTTP ${http[1]}`;
+  if (/not a Form 4/i.test(e)) return "not a Form 4";
+  if (/no ownershipDocument/i.test(e)) return "no ownershipDocument";
+  if (/timeout|timed out|abort/i.test(e)) return "timeout";
+  return "other";
+}
+
+// Rich per-day stats for reporting (computed from the FULL shard before slimming).
+export function shardReport(shard) {
+  const st = shardStats(shard);
+  const failedReasons = {};
+  let pending = 0;
+  for (const f of Object.values(shard.failed || {})) {
+    if (f.permanent || f.exhausted) { const r = failureReason(f.error); failedReasons[r] = (failedReasons[r] || 0) + 1; } else pending++;
+  }
+  let withPurchases = 0, withPS = 0, amendments = 0;
+  for (const rec of Object.values(shard.records || {})) {
+    if (rec.formType === "4/A") amendments++;
+    const codes = new Set((rec.transactions || []).map((t) => t.code));
+    if (codes.has("P")) withPurchases++;
+    if (codes.has("P") || codes.has("S")) withPS++;
+  }
+  return { ...st, notFetched: Math.max(0, st.listed - st.parsed - st.failed - pending), retryable: pending, failedReasons, withPurchases, withPS, amendments };
+}
+
+// A record is needed in memory only if it can affect signals: it has P/S transactions
+// (the parser keeps only those) or it is a Form 4/A (amendment supersession). All others
+// are still counted in the per-day stats — never treated as missing.
+export const isSignalRelevant = (rec) => rec?.formType === "4/A" || (rec?.transactions?.length ?? 0) > 0;
+
 // Loads every shard (cached by a cheap directory signature).
 let memo = { sig: null, data: null };
 export function loadHistoryStore(dir = DEFAULT_STORE_DIR) {
@@ -63,8 +97,8 @@ export function loadHistoryStore(dir = DEFAULT_STORE_DIR) {
   for (const n of names) {
     const s = readShard(dir, n.slice(0, 10));
     if (!s) continue;
-    days.set(s.day, shardStats(s));
-    for (const [acc, rec] of Object.entries(s.records || {})) records.set(acc, rec);
+    days.set(s.day, shardReport(s));
+    for (const [acc, rec] of Object.entries(s.records || {})) if (isSignalRelevant(rec)) records.set(acc, rec);
   }
   memo = { sig, data: { sig, records, days } };
   return memo.data;
@@ -126,6 +160,40 @@ export function historyCoverage({ from, to, store, live = null, today }) {
     firstMissing: missing.slice(0, 10), firstPartial: partial.slice(0, 10),
     historicalDaysHeld: store.days.size,
   };
+}
+
+// Month-by-month coverage of SEC business days in [from, to] (history shards + live
+// ingest). A day counts as covered only when held completely; "missing" days are
+// never treated as zero activity.
+export function monthlyCoverage({ from, to, store, live = null, today }) {
+  const liveDays = new Map((live?.coverage || []).map((c) => [c.day, c]));
+  const noIndex = new Set(live?.noIndexDays || []);
+  const end = to < today ? to : addDays(today, -1);
+  const months = new Map();
+  const m = (d) => {
+    const k = d.slice(0, 7);
+    if (!months.has(k)) months.set(k, { month: k, businessDays: 0, complete: 0, partial: 0, missing: 0, closed: 0, listed: 0, parsed: 0, failed: 0, notFetched: 0, withPurchases: 0, amendments: 0, failedReasons: {}, source: { history: 0, live: 0 } });
+    return months.get(k);
+  };
+  for (let d = from; d <= end; d = addDays(d, 1)) {
+    if (!isBusinessDay(d)) continue;
+    const x = m(d);
+    x.businessDays++;
+    const h = store.days.get(d), l = liveDays.get(d);
+    if (noIndex.has(d) || h?.noIndex) { x.closed++; continue; }
+    const liveOk = l && l.pending === 0 && l.parsed + l.failed >= l.listed && l.listed > 0;
+    if (h?.complete) {
+      x.complete++; x.source.history++;
+    } else if (liveOk) {
+      x.complete++; x.source.live++;
+    } else if (h || l) x.partial++; else { x.missing++; continue; }
+    const s = h || { listed: l.listed, parsed: l.parsed, failed: l.failed, notFetched: Math.max(0, l.listed - l.parsed - l.failed), withPurchases: null, amendments: null, failedReasons: {} };
+    x.listed += s.listed || 0; x.parsed += s.parsed || 0; x.failed += s.failed || 0; x.notFetched += s.notFetched || 0;
+    if (s.withPurchases != null) x.withPurchases += s.withPurchases;
+    if (s.amendments != null) x.amendments += s.amendments;
+    for (const [r, n] of Object.entries(s.failedReasons || {})) x.failedReasons[r] = (x.failedReasons[r] || 0) + n;
+  }
+  return [...months.values()].map((x) => ({ ...x, ratio: x.businessDays ? Math.round(((x.complete + x.closed) / x.businessDays) * 1000) / 1000 : 0 }));
 }
 
 // Read-only view of the live ingest's cache file in the same shape as the

@@ -237,3 +237,76 @@ test("daily: weekend and holiday trade dates count as calendar days", () => {
   const hol = [tx({ owners: [O.CEO], date: "2026-04-03", accepted: "2026-04-06 17:00:00" }), tx({ owners: [O.CFO], date: "2026-04-06", accepted: "2026-04-07 17:00:00" })];
   assert.equal(signalsFor(hol).signals[0].windowFrom, "2026-04-03");
 });
+
+// ---------- Joint filers across CONFIRMED duplicate reports (ASPE regression) ----------
+// Structure of the REAL ASPE (Aspen Neuroscience) Form 4s of 2026-11-02: two ARCH Venture
+// fund families filing jointly; the second filing also reports the first family's
+// 1,200,000-share purchase as an INDIRECT holding (footnote F5). Owner names / CIKs /
+// share counts are from SEC accessions 0001193125-26-444141 and 0001193125-26-444147.
+const ARCH = {
+  AVP14: { cik: "0002147717", name: "ARCH Venture Partners XIV, L.P.", role: "10% Owner", isTenPercentOwner: true },
+  AVP14LLC: { cik: "0002148927", name: "ARCH Venture Partners XIV, LLC", role: "10% Owner", isTenPercentOwner: true },
+  AVF14: { cik: "0002138046", name: "ARCH Venture Fund XIV, L.P.", role: "10% Owner", isTenPercentOwner: true },
+  BERNS: { cik: "0001202769", name: "BERNS PAUL L", role: "10% Owner", isTenPercentOwner: true },
+  AVF10: { cik: "0001757011", name: "ARCH Venture Fund X, L.P.", role: "10% Owner", isTenPercentOwner: true },
+  AVF10O: { cik: "0001757017", name: "ARCH Venture Fund X Overage, L.P.", role: "10% Owner", isTenPercentOwner: true },
+  CRANDELL: { cik: "0001219039", name: "CRANDELL KEITH", role: "10% Owner", isTenPercentOwner: true },
+};
+const XIV = [ARCH.AVP14, ARCH.AVP14LLC, ARCH.AVF14, ARCH.BERNS];
+const X = [ARCH.AVF10, ARCH.AVF10O, ARCH.CRANDELL];
+const aspeRows = ({ xivAt = "2026-11-02 21:46:27", xAt = "2026-11-02 21:50:27", withIndirect = true } = {}) => {
+  const xiv = tx({ owners: XIV, date: "2026-11-02", accepted: xivAt, shares: 1_200_000, price: 15, sharesOwnedAfter: 1_200_000, ticker: "ASPE", issuerCik: "0002124080", context: "unspecified", accessionNo: "0001193125-26-444141" });
+  const xRows = [
+    tx({ owners: X, date: "2026-11-02", accepted: xAt, shares: 66_666, price: 15, sharesOwnedAfter: 66_666, ticker: "ASPE", issuerCik: "0002124080", context: "unspecified", accessionNo: "0001193125-26-444147" }),
+    { ...tx({ owners: X, date: "2026-11-02", accepted: xAt, shares: 66_667, price: 15, sharesOwnedAfter: 66_667, ticker: "ASPE", issuerCik: "0002124080", context: "unspecified", accessionNo: "0001193125-26-444147" }), id: "0001193125-26-444147:6" },
+  ];
+  if (withIndirect) {
+    xRows.push({ ...tx({ owners: X, date: "2026-11-02", accepted: xAt, shares: 1_200_000, price: 15, sharesOwnedAfter: 1_200_000, ownership: "I", nature: "See Footnote", ticker: "ASPE", issuerCik: "0002124080", context: "unspecified", accessionNo: "0001193125-26-444147",
+      footnotes: [{ id: "F5", text: "Shares were purchased by ARCH Venture Fund XIV, L.P. (\"ARCH XIV\"). The AVP X Investment Committee Members also are members of the investment committee for ARCH XIV." }] }), id: "0001193125-26-444147:11" });
+  }
+  return [xiv, ...xRows];
+};
+
+test("ASPE: two fund families of one joint filing are ONE buyer — no signal; the duplicate is still counted once", () => {
+  assert.equal(signalsFor(aspeRows()).signals.length, 0, "1 distinct buyer < 2");
+  // An unrelated insider joins: now 2 buyers; ARCH's $18M counted once, not twice.
+  const ceo = tx({ owners: [O.CEO], date: "2026-11-02", accepted: "2026-11-03 08:00:00", ticker: "ASPE", issuerCik: "0002124080" });
+  const s = signalsFor([...aspeRows(), ceo]).signals;
+  assert.equal(s.length, 1);
+  assert.equal(s[0].uniqueBuyers, 2, "ARCH (all joint filers) + the CEO");
+  assert.equal(s[0].valueUsd, 18_000_000 + 999_990 + 1_000_005 + 150_000, "duplicate report not double-counted");
+  assert.equal(s[0].purchases, 4);
+});
+
+test("without the linking report the two families stay separate (no invented links)", () => {
+  // No indirect duplicate → nothing ties the CIK groups together → 2 buyers, as filed.
+  const s = signalsFor(aspeRows({ withIndirect: false })).signals;
+  assert.equal(s.length, 1);
+  assert.equal(s[0].uniqueBuyers, 2);
+});
+
+test("point-in-time: a link that becomes public LATER never retracts an earlier signal", () => {
+  // X family files first (Oct 30), XIV family files (Nov 2 21:46) → signal with 2 buyers then;
+  // the linking indirect report only appears on Nov 3.
+  const rows = aspeRows({ xivAt: "2026-11-02 21:46:27", xAt: "2026-10-30 18:00:00", withIndirect: false });
+  const late = { ...aspeRows({ xAt: "2026-11-03 09:00:00" })[3], accessionNo: "0001193125-26-999999", id: "0001193125-26-999999:0", acceptedAtET: "2026-11-03 09:00:00 ET", filingDate: "2026-11-03" };
+  const s = signalsFor([...rows, late]).signals;
+  assert.equal(s.length, 1, "signal published before the link was public");
+  assert.equal(s[0].publishedAt, "2026-11-02 21:46:27 ET");
+  assert.equal(s[0].uniqueBuyers, 2);
+});
+
+test("independent buyers are never merged: identical-looking purchases without relationship evidence, or a shared manager", () => {
+  // Same issuer, date, shares, price and shares-owned-after — but no filing names the other and
+  // both hold directly: transactionGroups keeps them separate ("needs_review"), so 2 buyers.
+  const a = tx({ owners: [O.DIR], date: "2026-03-02", accepted: "2026-03-03 17:00:00", sharesOwnedAfter: 9_000 });
+  const b = tx({ owners: [O.DIR2], date: "2026-03-02", accepted: "2026-03-03 17:05:00", sharesOwnedAfter: 9_000 });
+  const s = signalsFor([a, b]).signals;
+  assert.equal(s.length, 1);
+  assert.deepEqual([s[0].uniqueBuyers, s[0].valueUsd], [2, 300_000]);
+  // Two funds advised by the same investment manager (named in both footnotes) buying different blocks.
+  const mgr = [{ id: "F1", text: "Shares held by the fund, which is advised by Example Capital Management LLC." }];
+  const f1 = tx({ owners: [{ cik: "0000000301", name: "Example Growth Fund LP", role: "10% Owner", isTenPercentOwner: true }], date: "2026-04-01", accepted: "2026-04-02 17:00:00", footnotes: mgr });
+  const f2 = tx({ owners: [{ cik: "0000000302", name: "Example Value Fund LP", role: "10% Owner", isTenPercentOwner: true }], date: "2026-04-01", accepted: "2026-04-02 17:10:00", shares: 3100, footnotes: mgr });
+  assert.equal(signalsFor([f1, f2]).signals[0].uniqueBuyers, 2);
+});

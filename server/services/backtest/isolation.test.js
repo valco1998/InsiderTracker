@@ -72,3 +72,17 @@ test("company pages never report the backtest's price files, even when they are 
     assert.match(m.reason, /No licensed market-data provider/);
   } finally { if (prev === undefined) delete process.env.STOCK_DATA_PROVIDER; else process.env.STOCK_DATA_PROVIDER = prev; }
 });
+
+// Alpaca (primary Backtesting market data) — same isolation as Tiingo.
+test("Alpaca is reached only through the Backtesting price service; the browser never contacts Alpaca", () => {
+  const graph = [...importGraph(path.join(SERVER, "insider-mvp.js"))];
+  const importers = (target) => graph.filter((f) => [...fs.readFileSync(f, "utf8").matchAll(IMPORT_RE)]
+    .some((m) => path.resolve(path.dirname(f), m[1] || m[2] || m[3]) === path.join(SERVER, target))).map(rel).sort();
+  assert.deepEqual(importers("services/stockData/alpacaClient.js"), ["services/backtest/backtestPrices.js"]);
+  assert.deepEqual(importers("services/backtest/backtestPrices.js"), ["services/backtest/backtestEngine.js"]);
+  const files = walk(SERVER).filter((f) => !/\.test\.(m?js)$/.test(f));
+  assert.deepEqual(files.filter((f) => fs.readFileSync(f, "utf8").includes("data.alpaca.markets")).map(rel), ["services/stockData/alpacaClient.js"]);
+  assert.deepEqual(files.filter((f) => /alpacaClient\.js["']/.test(fs.readFileSync(f, "utf8"))).map(rel), ["services/backtest/backtestPrices.js"]);
+  const clientHits = walk(CLIENT_SRC).filter((f) => /alpaca\.markets|APCA-API|VITE_ALPACA|ALPACA_API/i.test(fs.readFileSync(f, "utf8"))).map((f) => path.relative(CLIENT_SRC, f));
+  assert.deepEqual(clientHits, [], "the browser app never contacts Alpaca or handles its keys");
+});

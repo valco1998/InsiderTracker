@@ -12,7 +12,7 @@ export function Panel({ title, subtitle, right, children, className = "", bodyCl
         <header className="it-panel-head">
           <div className="min-w-0">
             {title && <h2 className="it-panel-title truncate">{title}</h2>}
-            {subtitle && <div className="truncate text-[11px] it-dim2">{subtitle}</div>}
+            {subtitle && <div className="truncate text-[12.5px] it-dim2">{subtitle}</div>}
           </div>
           {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
         </header>
@@ -22,28 +22,47 @@ export function Panel({ title, subtitle, right, children, className = "", bodyCl
   );
 }
 
+// Page title area: consistent hierarchy on every page (title, one-line description, actions).
+export function PageHeader({ title, description, badge, right }) {
+  return (
+    <div className="it-page-head">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="it-h1">{title}</h1>
+          {badge}
+        </div>
+        {description && <p className="it-lede mt-1 max-w-3xl">{description}</p>}
+      </div>
+      {right && <div className="flex flex-wrap items-center gap-2">{right}</div>}
+    </div>
+  );
+}
+
 export function EmptyState({ title, children }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-1 px-6 py-12 text-center">
-      <div className="text-[13px] font-medium it-dim">{title}</div>
-      {children && <div className="max-w-md text-xs it-dim2">{children}</div>}
+    <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
+      <span className="grid h-10 w-10 place-items-center rounded-full" style={{ background: "var(--it-surface)", color: "var(--it-text-3)" }} aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      </span>
+      <div className="text-[14px] font-medium" style={{ color: "var(--it-text)" }}>{title}</div>
+      {children && <div className="max-w-md text-[13px] it-dim2">{children}</div>}
     </div>
   );
 }
 
 export function ErrorNote({ children, onRetry }) {
   return (
-    <div role="alert" className="flex items-center justify-between gap-3 rounded-md px-3 py-2 text-[12.5px]"
-      style={{ color: "#f3a3a6", background: "var(--it-sell-soft)", border: "1px solid var(--it-sell-line)" }}>
+    <div role="alert" className="flex items-center justify-between gap-3 rounded-lg px-4 py-3 text-[13px]"
+      style={{ color: "var(--it-sell)", background: "var(--it-sell-soft)", border: "1px solid var(--it-sell-line)" }}>
       <span>{children}</span>
-      {onRetry && <button className="it-btn" style={{ height: 28 }} onClick={onRetry}>Retry</button>}
+      {onRetry && <button className="it-btn" style={{ height: 30 }} onClick={onRetry}>Retry</button>}
     </div>
   );
 }
 
 export function Disclaimer() {
   return (
-    <p className="rounded-md px-3 py-2 text-[11.5px] leading-relaxed" style={{ color: "#d7c08f", background: "var(--it-warn-soft)", border: "1px solid rgba(232,176,75,0.18)" }}>
+    <p className="rounded-xl px-4 py-3 text-[12.5px] leading-relaxed" style={{ color: "var(--it-text-2)", background: "var(--it-surface)", border: "1px solid var(--it-line-soft)" }}>
       These are <strong>reported</strong> trades, not real-time trades. Insiders file Form 4 up to two business days after the
       <strong> trade date</strong>; the <strong>filed</strong> date is when the SEC received the report. Reported value = shares × reported
       price per share. Data is informational only and is not investment advice. Always verify against the official SEC filing.

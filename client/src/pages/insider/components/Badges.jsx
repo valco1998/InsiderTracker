@@ -69,7 +69,7 @@ export function DetailBadges({ t }) {
         </span>
       )}
       {late && (
-        <span className="it-chip" style={{ color: "var(--it-warn)", borderColor: "rgba(232,176,75,0.35)" }}
+        <span className="it-chip" style={{ color: "var(--it-warn)", borderColor: "var(--it-warn-line)" }}
           title={`Traded ${day(t.transactionDate)}, ${t.filingDelay.measuredTo === "original_submission" ? "originally filed" : "filed"} ${t.filingDelay.businessDays} business days later. Form 4 is due within 2 business days of the trade — this is not a recent trade.`}>
           Late filing · {t.filingDelay.businessDays} business days
         </span>
@@ -77,7 +77,7 @@ export function DetailBadges({ t }) {
       <AmendmentBadge t={t} />
       {t.is10b5_1 && <span className="it-chip" title="Filing indicates a Rule 10b5-1 trading plan">10b5-1 plan</span>}
       {dup && (
-        <span className="it-chip" style={{ color: "var(--it-warn)", borderColor: "rgba(232,176,75,0.35)" }}
+        <span className="it-chip" style={{ color: "var(--it-warn)", borderColor: "var(--it-warn-line)" }}
           title={`Possible duplicate of another filing — kept separate. ${t.dedupe.reason || ""}`}>
           Possible duplicate · review
         </span>

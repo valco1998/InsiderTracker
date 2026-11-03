@@ -7,8 +7,9 @@ export const usd = (n, digits = 2) =>
 export function compactUsd(n) {
   if (n == null) return "—";
   const abs = Math.abs(n);
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  // Thresholds at the rounding boundary: $999,990 is "$1.00M", never "$1000.0K".
+  if (abs >= 999_995_000) return `$${(n / 1e9).toFixed(2)}B`;
+  if (abs >= 999_950) return `$${(n / 1e6).toFixed(2)}M`;
   if (abs >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
   return usd(n, 0);
 }

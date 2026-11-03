@@ -135,9 +135,35 @@ export function normalizeSignalConfig(c = {}) {
   return { config: out };
 }
 
+// Identity view of an economic row at time T: its own reporting owners plus those of
+// every CONFIRMED duplicate report of the same transaction (transactionGroups.js merges
+// only with relationship evidence + an indirect holder) that was public at T. Related
+// filers who report the same shares (e.g. two fund families of one joint filing, one
+// reporting the other's purchase as an indirect holding) are then one buyer: "joint
+// filers = one". Unrelated investors are never linked: rows without confirmed
+// duplicate reports are returned unchanged. Display names and roles still come from
+// the row's own (primary) report.
+export function identityRowAt(r, T, reportOwners, acceptedAtByAccession) {
+  if (!reportOwners || !(r.reportedBy?.length > 1)) return r;
+  const keyOf = (o) => (o.cik ? `cik:${Number(o.cik)}` : `name:${String(o.name || "").toLowerCase()}`);
+  const owners = [...(r.owners?.length ? r.owners : [{ cik: r.insiderCik, name: r.insiderName, role: r.role }])];
+  const seen = new Set(owners.map(keyOf));
+  let added = false;
+  for (const rep of r.reportedBy) {
+    if (rep.rowId === r.id) continue;
+    const at = stampOf(acceptedAtByAccession.get(rep.accessionNo));
+    if (!at || at > T) continue; // that report was not public yet (no lookahead)
+    for (const o of reportOwners(rep.rowId) || []) {
+      if (!seen.has(keyOf(o))) { seen.add(keyOf(o)); owners.push(o); added = true; }
+    }
+  }
+  return added ? { ...r, owners } : r;
+}
+
 // rows: economic rows. range: publication dates { from, to } (inclusive, ET).
-// → { signals, stats }
-export function detectSignals({ rows, acceptedAtByAccession = new Map(), config = DEFAULTS, range = {} }) {
+// reportOwners(rowId) → reporting owners of one raw report; links joint filers across
+// confirmed duplicate reports (identityRowAt). → { signals, stats }
+export function detectSignals({ rows, acceptedAtByAccession = new Map(), config = DEFAULTS, range = {}, reportOwners = null }) {
   const cfg = { ...DEFAULTS, ...config };
   const stats = { rowsWithoutAcceptance: 0, purchasesConsidered: 0, purchasesUnreliableValue: 0, staleClusters: 0, issuers: 0 };
 
@@ -164,7 +190,7 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
     for (const T of events) {
       const tDate = T.slice(0, 10);
       const known = items.filter((x) => x.knownAt <= T && (!x.validUntil || x.validUntil > T));
-      const identities = buildIdentities(known.map((x) => x.r));
+      const identities = buildIdentities(known.map((x) => identityRowAt(x.r, T, reportOwners, acceptedAtByAccession)));
       const peersByKey = new Map();
       for (const x of known) { const pk = peerKey(x.r); if (pk) (peersByKey.get(pk) || peersByKey.set(pk, []).get(pk)).push(x.r); }
 

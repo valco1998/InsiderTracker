@@ -8,6 +8,11 @@
 //   GET  /run/:id/track/:signalId
 //                           continuous purchase-date timeline of that signal's
 //                           company (tracking.js) — baseline never reset
+//   GET  /run/:id/publication-now
+//                           PRIMARY METRIC per signal: SEC publication → now
+//                           (Alpaca SIP trade at/after publication, any session + first regular-session trade → latest price; Tiingo fallback)
+//   GET  /coverage?from&to   historical SEC Form 4 coverage by month
+//   GET  /run/:id/ipo-context  INFORMATIONAL: possible IPO allocations per signal (SEC filings only)
 //   GET  /run/:id/track/:signalId/current
 //                           headline only: first-purchase-date close → current
 //                           price (Tiingo IEX quote, cached) or the latest daily close
@@ -128,6 +133,48 @@ export function createBacktestRouter({ service = createBacktestService({ live: l
     } catch (err) {
       log.error(`[BACKTEST_TRACK_FAILED] job=${j.id} error=${String(err?.message || err).slice(0, 200)}`);
       res.status(500).json({ error: "Could not build the tracking timeline" });
+    }
+  });
+
+  router.get("/run/:id/publication-now", async (req, res) => {
+    const j = jobs.get(String(req.params.id));
+    if (!j) return res.status(404).json({ error: "Unknown or expired backtest job" });
+    if (j.state !== "done") return res.status(409).json({ error: "The backtest run has not finished" });
+    try {
+      const r = await service.publicationNow({ result: j.result });
+      res.set("Cache-Control", "no-store");
+      if (pricesVisible(req, j.result.prices?.licence)) return res.json(r);
+      // Licence: no prices or derived changes for non-local viewers.
+      const restrict = (m) => ({ status: m?.status === "ok" ? "price_data_restricted" : m?.status || "unavailable" });
+      res.json({ generatedAt: r.generatedAt, market: r.market, restrictedNote: RESTRICTED_NOTE, rows: Object.fromEntries(Object.entries(r.rows).map(([k, v]) => [k, {
+        symbol: v.symbol, publishedAt: v.publishedAt, elapsedMs: v.elapsedMs, status: restrict(v).status, primary: restrict(v.primary), regular: restrict(v.regular),
+      }])) });
+    } catch (err) {
+      log.error(`[BACKTEST_PUBLICATION_NOW_FAILED] job=${j.id} error=${String(err?.message || err).slice(0, 200)}`);
+      res.status(500).json({ error: "Could not compute SEC publication → now" });
+    }
+  });
+
+  // Historical SEC Form 4 coverage by month (no market data).
+  router.get("/coverage", (req, res) => {
+    const from = String(req.query.from || ""), to = String(req.query.to || "");
+    if (!DATE_RE.test(from) || !DATE_RE.test(to) || from > to) return res.status(400).json({ error: "from and to must be YYYY-MM-DD with from ≤ to" });
+    try { res.set("Cache-Control", "no-store"); res.json({ from, to, months: service.coverageByMonth({ from, to }) }); }
+    catch (err) { log.error(`[BACKTEST_COVERAGE_FAILED] error=${String(err?.message || err).slice(0, 200)}`); res.status(500).json({ error: "Could not compute coverage" }); }
+  });
+
+  // INFORMATIONAL: possible IPO allocations among each signal's purchases (public SEC
+  // filings only — no market data, so no licence restriction).
+  router.get("/run/:id/ipo-context", async (req, res) => {
+    const j = jobs.get(String(req.params.id));
+    if (!j) return res.status(404).json({ error: "Unknown or expired backtest job" });
+    if (j.state !== "done") return res.status(409).json({ error: "The backtest run has not finished" });
+    try {
+      res.set("Cache-Control", "no-store");
+      res.json(await service.ipoContext({ result: j.result }));
+    } catch (err) {
+      log.error(`[BACKTEST_IPO_CONTEXT_FAILED] job=${j.id} error=${String(err?.message || err).slice(0, 200)}`);
+      res.status(500).json({ error: "Could not classify IPO-related purchases" });
     }
   });
 

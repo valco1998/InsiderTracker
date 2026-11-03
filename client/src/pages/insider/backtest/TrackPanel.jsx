@@ -8,7 +8,7 @@ import useBacktestTrack from "../../../hooks/useBacktestTrack";
 import useTrackCurrent from "../../../hooks/useTrackCurrent";
 import { EmptyState, ErrorNote, Panel, Skeleton } from "../components/Common";
 import { compactUsd, count, day, acceptedShort, usd, shares as fmtShares } from "../../../utils/insiderFormat";
-import { pct } from "../../../utils/insiderBacktest";
+import { pct, elapsedText, pubStatusText, SESSION_LABEL, METRIC_HELP, publishedParts, etParts, freshness, preciseUsd, buyersText, IPO_LABEL, IPO_HELP } from "../../../utils/insiderBacktest";
 import { TRACK_STATUS_TEXT, FLAG_TEXT, PRICE_BASIS_TEXT, DAY_WINDOWS, eventsWithinDays, groupEventsByDay } from "../../../utils/insiderTrack";
 
 const LTrack = lazy(() => import("./BacktestCharts.jsx").then((m) => ({ default: m.TrackChart })));
@@ -129,7 +129,148 @@ function Headline({ jobId, signalId, initial }) {
 
 const chipOn = { color: "var(--it-text)", borderColor: "var(--it-accent)", background: "var(--it-accent-soft)" };
 
-export default function TrackPanel({ jobId, signalId, onClose }) {
+// SIGNAL DETAILS: a structured, plain-English explanation of one signal's two returns.
+// Display only — every value comes from the server unchanged.
+function Section({ title, children, className = "" }) {
+  return (
+    <section className={`bt-detail-card ${className}`}>
+      <h4 className="it-label mb-1.5">{title}</h4>
+      {children}
+    </section>
+  );
+}
+const Big = ({ children, color }) => <div className="it-num text-[19px] font-semibold" style={{ color: color || "var(--it-text)" }}>{children}</div>;
+const Line = ({ children }) => <div className="text-[12.5px] leading-relaxed" style={{ color: "var(--it-text-2)" }}>{children}</div>;
+const Waiting = ({ status }) => <div className="text-[13px] leading-relaxed" style={{ color: String(status || "").startsWith("awaiting") ? "var(--it-warn)" : "var(--it-text-3)" }}>{pubStatusText(status)}</div>;
+
+function EntrySection({ title, m }) {
+  const e = m?.entry;
+  if (!e) return <Section title={title}><Waiting status={m?.status} /></Section>;
+  const t = etParts(e.time, { seconds: true });
+  const split = e.splitFactor && e.splitFactor !== 1;
+  return (
+    <Section title={title}>
+      <Big>{usd(e.splitAdjustedPrice ?? e.price)}</Big>
+      <Line>{t.date} at {t.time} · {SESSION_LABEL[e.session] || e.session}</Line>
+      <Line>{e.size ? `${fmtShares(e.size)} shares · ` : ""}{e.basis === "iex_minute_bar" ? "Approximation: opening price of the first traded 1-minute bar (fallback data)" : "An actual recorded trade"}</Line>
+      {split && <Line>Traded at {usd(e.price)}; shown adjusted for a {e.splitFactor}-for-1 stock split so it compares with today&apos;s price.</Line>}
+    </Section>
+  );
+}
+
+function CalcLine({ label, m, latest }) {
+  const e = m?.entry;
+  if (m?.status !== "ok" || !e || latest?.status !== "ok") {
+    return <div className="text-[12.5px]"><span style={{ color: "var(--it-text)" }}>{label}:</span> <span style={{ color: "var(--it-text-3)" }}>{pubStatusText(m?.status)}</span></div>;
+  }
+  return (
+    <div className="text-[12.5px] leading-relaxed">
+      <span style={{ color: "var(--it-text)" }}>{label}</span>
+      <span className="it-num block" style={{ color: "var(--it-text-2)" }}>
+        ({preciseUsd(latest.price)} ÷ {preciseUsd(e.splitAdjustedPrice ?? e.price)} − 1) × 100 = <strong style={{ color: tone(m.changePct) ?? "var(--it-text)" }}>{pct(m.changePct, 2)}</strong>
+      </span>
+    </div>
+  );
+}
+
+// INFORMATIONAL: are these purchases IPO allocations? Evidence from SEC filings.
+function IpoSection({ c }) {
+  if (!c) return null;
+  if (c.status === "unknown") return <Section title="Purchase type" className="mt-3"><Line>Could not check SEC offering documents right now — retried automatically.</Line></Section>;
+  if (!IPO_LABEL[c.status]) return <Section title="Purchase type" className="mt-3"><Line>No IPO prospectus around these purchase dates — not identified as IPO allocations.</Line></Section>;
+  const flagged = c.purchases.filter((p) => p.level === "verified" || p.level === "possible");
+  return (
+    <Section title="Purchase type" className="mt-3">
+      <div className="text-[13.5px] font-semibold" style={{ color: c.status === "verified" ? "var(--it-accent)" : "var(--it-warn)" }}>{IPO_LABEL[c.status]}{c.status === "possible" ? " (unverified)" : ""}</div>
+      <Line>{IPO_HELP[c.status]}</Line>
+      <ul className="mt-1.5 list-disc pl-5 text-[12.5px] leading-relaxed" style={{ color: "var(--it-text-2)" }}>
+        {[...new Set(flagged.flatMap((p) => p.evidence))].map((e) => <li key={e}>{e}</li>)}
+        {[...new Set(flagged.flatMap((p) => p.missing))].map((m) => <li key={m} style={{ color: "var(--it-warn)" }}>Not found: {m}.</li>)}
+      </ul>
+      <Line>{flagged.length} of {c.purchases.length} purchases ({compactUsd(c.flaggedValueUsd)}) are at the offering price.{c.offering?.url ? <> <a className="it-link" href={c.offering.url} target="_blank" rel="noreferrer">Open the prospectus on SEC.gov ↗</a></> : null}</Line>
+      <Line>{IPO_HELP.note}</Line>
+    </Section>
+  );
+}
+
+function PubNowBlock({ r, signal, checkedAt, market, ipo }) {
+  if (!r) return null;
+  const pub = publishedParts(r.publishedAt, { seconds: true });
+  const l = r.latest;
+  const f = freshness(l, market);
+  const ticker = r.symbol || signal?.ticker || "this company";
+  const restricted = r.status === "no_ticker" || r.status === "price_data_restricted";
+  const lt = l?.status === "ok" ? etParts(l.time, { seconds: true }) : null;
+  const entryProvider = [r.primary?.entry?.provider, r.regular?.entry?.provider].filter(Boolean);
+  return (
+    <div className="mx-4 mt-3 rounded-lg p-4" style={{ background: "var(--it-elevated)", border: "1px solid var(--it-accent)" }} aria-live="polite">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-[14px] font-semibold" style={{ color: "var(--it-text)" }}>Signal details</h3>
+        <span className="text-[12px] it-dim2">{elapsedText(r.elapsedMs)} since the signal became public</span>
+      </div>
+
+      {/* Signal summary */}
+      <p className="mt-2 text-[13.5px] leading-relaxed" style={{ color: "var(--it-text-2)" }}>
+        {signal ? <>
+          Insider buying in {signal.issuerName}: <strong style={{ color: "var(--it-text)" }}>{buyersText(signal.uniqueBuyers, signal.purchases)}</strong>
+          {" "}(Form 4 code P, <strong style={{ color: "var(--it-text)" }}>{compactUsd(signal.valueUsd)}</strong> in total) between {day(signal.windowFrom)} and {day(signal.windowTo)}.
+          {" "}The insider-buying criteria were publicly met when the SEC accepted the completing Form 4 filing on <strong style={{ color: "var(--it-text)" }}>{pub.date} at {pub.time}</strong>.
+        </> : <>The insider-buying criteria were publicly met on <strong style={{ color: "var(--it-text)" }}>{pub.date} at {pub.time}</strong>.</>}
+      </p>
+
+      {restricted ? <div className="mt-3"><Waiting status={r.status} /></div> : (
+        <>
+          {/* The two returns */}
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Section title="Return Since Signal">
+              {r.primary?.status === "ok" ? <div className="it-num text-[28px] font-semibold leading-tight" style={{ color: tone(r.primary.changePct) ?? "var(--it-text)" }}>{pct(r.primary.changePct, 2)}</div> : <Waiting status={r.primary?.status} />}
+              <Line>{METRIC_HELP.returnSinceSignal}</Line>
+            </Section>
+            <Section title="Regular Market Return">
+              {r.regular?.status === "ok" ? <div className="it-num text-[22px] font-semibold leading-tight" style={{ color: tone(r.regular.changePct) ?? "var(--it-text)" }}>{pct(r.regular.changePct, 2)}</div> : <Waiting status={r.regular?.status} />}
+              <Line>{METRIC_HELP.regularMarketReturn}</Line>
+            </Section>
+          </div>
+
+          {/* Prices */}
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <EntrySection title="First price after signal" m={r.primary} />
+            <EntrySection title="Regular market entry price" m={r.regular} />
+            <Section title="Latest stock price">
+              {lt ? <>
+                <Big>{usd(l.price)}</Big>
+                <Line>{lt.date} at {lt.time}</Line>
+                <Line><span className="bt-dot" style={{ background: f.level === "recent" ? "var(--it-buy)" : f.level === "old" ? "var(--it-warn)" : "var(--it-text-3)" }} aria-hidden="true" /><span style={{ color: f.level === "old" ? "var(--it-warn)" : undefined }}>{f.label}</span>{f.level === "recent" ? "" : " — not a live price"}</Line>
+              </> : <Waiting status={l?.status || "no_latest_price"} />}
+            </Section>
+          </div>
+
+          <IpoSection c={ipo} />
+
+          {/* Calculations */}
+          <Section title="How the returns are calculated" className="mt-3">
+            <Line>Each return compares the latest stock price with an entry price: (latest price ÷ entry price − 1) × 100.</Line>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <CalcLine label="Return Since Signal" m={r.primary} latest={l} />
+              <CalcLine label="Regular Market Return" m={r.regular} latest={l} />
+            </div>
+          </Section>
+
+          {/* Source & freshness */}
+          <Section title="Data source and freshness" className="mt-3">
+            <Line>Entry prices: {entryProvider.includes("tiingo") ? "Tiingo IEX 1-minute bars (fallback — approximate)" : "recorded trades from the consolidated U.S. tape (SIP) via Alpaca"}. Odd-lot and special-condition trades are skipped.</Line>
+            <Line>Latest price: {l?.provider === "tiingo" ? "Tiingo IEX reference price (fallback)" : "last trade on the IEX exchange via Alpaca"} — one exchange, not the full U.S. market.{lt ? ` That trade happened ${elapsedText(l.ageMs)} ago.` : ""}</Line>
+            <Line>The page re-checks prices every minute{checkedAt ? `; last check ${etParts(new Date(checkedAt).toISOString(), { seconds: true }).time}` : ""}. A re-check does not make an old trade newer.</Line>
+            <Line>{METRIC_HELP.disclaimer}</Line>
+          </Section>
+        </>
+      )}
+      <div className="mt-2 text-[11.5px] it-dim2">Signal for {ticker} · SEC acceptance {r.publishedAt}</div>
+    </div>
+  );
+}
+
+export default function TrackPanel({ jobId, signalId, pubNow, signal, checkedAt, market, ipo, onClose }) {
   const [windowDays, setWindowDays] = useState(null); // null = all purchases
   const [grouping, setGrouping] = useState("purchase");
   const { data: t, loading, error } = useBacktestTrack(jobId, signalId);
@@ -140,26 +281,28 @@ export default function TrackPanel({ jobId, signalId, onClose }) {
   const days = useMemo(() => groupEventsByDay(shown), [shown]);
   return (
     <Panel
-      title={t ? `${t.ticker || "—"} · since first insider purchase` : "Insider purchase tracking"}
-      subtitle={t ? `${t.issuerName || ""} · baseline ${day(t.startDate)} (trade date) · ${count(t.events?.length)} purchases · ${t.clusters.length} cluster${t.clusters.length === 1 ? "" : "s"}` : "loading…"}
+      title={t ? `${t.ticker || "No ticker"} — ${t.issuerName || ""}` : signal ? `${signal.ticker || "No ticker"} — ${signal.issuerName}` : "Signal details"}
+      subtitle={t ? `Signal details and insider purchase history · baseline ${day(t.startDate)} (trade date) · ${count(t.events?.length)} purchases · ${t.clusters.length} cluster${t.clusters.length === 1 ? "" : "s"}` : "loading…"}
       right={<>
         {t?.ticker && <Link className="it-btn" to={`/insider/company/${encodeURIComponent(t.ticker)}`}>Company</Link>}
-        <button className="it-btn" onClick={onClose} aria-label="Close tracking timeline">Close</button>
+        <button className="it-btn" onClick={onClose} aria-label="Close signal details">Close</button>
       </>}>
       {error && <div className="p-3"><ErrorNote>{error}</ErrorNote></div>}
       {loading && <div className="flex flex-col gap-2 p-4"><Skeleton className="h-6" /><Skeleton className="h-[280px]" /></div>}
+      <div className="bt-results"><PubNowBlock r={pubNow} signal={signal} checkedAt={checkedAt} market={market} ipo={ipo} /></div>
       {t && (
         <div className="flex flex-col">
           <div className="px-4 pt-3 text-[11.5px] leading-relaxed it-dim2">
             {t.methodology.hindsight} {t.methodology.noReset} Shaded = cluster period · grey dashed “SEC n” = signal published · blue dashed = backtest entry (next session open).
           </div>
           {!priced && (
-            <div role="status" className="mx-4 mt-3 rounded-md px-3 py-2 text-[12px] leading-relaxed" style={{ color: "#d7c08f", background: "var(--it-warn-soft)", border: "1px solid rgba(232,176,75,0.25)" }}>
+            <div role="status" className="mx-4 mt-3 rounded-md px-3 py-2 text-[12px] leading-relaxed" style={{ color: "var(--it-warn)", background: "var(--it-warn-soft)", border: "1px solid var(--it-warn-line)" }}>
               {t.restrictedNote || TRACK_STATUS_TEXT[t.status] || t.status}
             </div>
           )}
           {priced && (
             <>
+              <div className="mx-4 mt-3 it-label">Separate metric · since the first insider purchase (trade date)</div>
               <Headline jobId={jobId} signalId={signalId} initial={t.current} />
               <div className="it-kpis grid grid-cols-2 sm:grid-cols-5" style={{ borderTop: "1px solid var(--it-line-soft)" }}>
                 <Kpi label="Peak" value={pct(s.peakPct)} color={tone(s.peakPct)} sub={day(s.peakDate)} />
