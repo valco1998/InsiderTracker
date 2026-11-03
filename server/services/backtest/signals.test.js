@@ -25,11 +25,14 @@ test("two distinct insiders signal; one insider buying many times never does", (
   assert.equal(s.windowTo, "2026-03-04");
 });
 
-test("USD threshold: combined across buyers, strictly greater than $250,000", () => {
+test("USD threshold: combined across buyers, AT LEAST the user's minimum (≥)", () => {
   assert.equal(DEFAULTS.minValueUsd, 250_000);
-  // 2 buyers × 2,500 shares × $50 = $250,000 exactly → no signal
+  // 2 buyers × 2,500 shares × $50 = $250,000 exactly → qualifies (minimum is inclusive)
   const exact = [tx({ owners: [O.CEO], date: "2026-03-02", accepted: "2026-03-03 17:00:00", shares: 2500 }), tx({ owners: [O.CFO], date: "2026-03-04", accepted: "2026-03-05 17:00:00", shares: 2500 })];
-  assert.equal(signalsFor(exact).signals.length, 0);
+  assert.equal(signalsFor(exact).signals.length, 1);
+  assert.equal(signalsFor(exact).signals[0].valueUsd, 250_000);
+  // $1 below the minimum → no signal
+  assert.equal(signalsFor(exact, { config: { minValueUsd: 250_001 } }).signals.length, 0);
   // Each buyer far below $250,000 alone ($125,050) — combined $250,100 > threshold
   const combined = [tx({ owners: [O.CEO], date: "2026-03-02", accepted: "2026-03-03 17:00:00", shares: 2501 }), tx({ owners: [O.CFO], date: "2026-03-04", accepted: "2026-03-05 17:00:00", shares: 2501 })];
   const r = signalsFor(combined);
@@ -329,9 +332,11 @@ test("distinct buyers: 1 → excluded; 2, 3, 5 → included with the ACTUAL coun
   assert.equal(signalsFor(cluster(5, [joint])).signals[0].uniqueBuyers, 6);
   // 2 related joint filers alone are one buyer → no signal.
   assert.equal(signalsFor([tx({ owners: [O.FUND, O.FUND_GP], date: "2026-03-02", accepted: "2026-03-03 16:00:00", shares: 20_000 })]).signals.length, 0);
-  // The value threshold still applies: 3 buyers with $250,000 combined (not more) → no signal.
+  // The value threshold still applies: 3 buyers with $249,950 combined → no signal; $250,000 → signal (≥).
+  const below = [O.CEO, O.CFO, O.COO].map((o, i) => tx({ owners: [o], date: "2026-03-02", accepted: "2026-03-03 16:00:00", shares: [2000, 2000, 999][i] }));
+  assert.equal(signalsFor(below).signals.length, 0, "$249,950 is below the $250,000 minimum");
   const exactly = [O.CEO, O.CFO, O.COO].map((o, i) => tx({ owners: [o], date: "2026-03-02", accepted: "2026-03-03 16:00:00", shares: [2000, 2000, 1000][i] }));
-  assert.equal(signalsFor(exactly).signals.length, 0, "$250,000 exactly is not > $250,000");
+  assert.equal(signalsFor(exactly).signals.length, 1, "$250,000 exactly meets a $250,000 minimum");
 });
 
 // ---------- HINDSIGHT: cluster by its end — display only, never changes the signal ----------

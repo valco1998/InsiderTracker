@@ -40,7 +40,7 @@
 
 import { cleanBars, maxDrawdown } from "./returns.js";
 import { rowBacktestRoles, knownAtOf } from "./signals.js";
-import { isSession, lastClosedSession, sessionsBetween, closeTime } from "./sessionCalendar.js";
+import { isSession, lastClosedSession, sessionsBetween, closeTime, entrySessionFor } from "./sessionCalendar.js";
 
 const BASELINE_FALLBACK_SESSIONS = 5;
 const DATA_END_TOLERANCE_SESSIONS = 5;
@@ -71,9 +71,22 @@ export function purchaseEvents({ rows, issuerCik, from, to, clusters = [], accep
     if (!d || d < from || d > to) continue;
     const roles = rowBacktestRoles(r);
     const cluster = clusters.findIndex((c) => d >= c.windowFrom && d <= (c.clusterTo || c.windowTo));
+    const publishedAt = (knownAtOf(r, acceptedAtByAccession) || "").replace(/ ET$/, "") + " ET";
+    // Relation to the FROZEN signal snapshots (signals.js): in a signal, published after
+    // a signal of its cluster (subsequent SEC publication), or neither.
+    const inSnapshot = clusters.findIndex((c) => (c.snapshot?.purchases || []).some((p) => p.rowId === r.id));
+    const c = cluster >= 0 ? clusters[cluster] : null;
+    const signalRole = inSnapshot >= 0 ? "signal_snapshot"
+      : c && publishedAt > c.publishedAt ? "subsequent_publication"
+        : c ? "in_window_not_in_signal" : "outside_signal_clusters";
     out.push({
       date: d,
-      publishedAt: (knownAtOf(r, acceptedAtByAccession) || "").replace(/ ET$/, "") + " ET",
+      rowId: r.id,
+      publishedAt,
+      // First session whose open is at/after the SEC publication — where the event is plotted.
+      publicationSession: entrySessionFor(publishedAt),
+      signalRole,
+      signalCluster: inSnapshot >= 0 ? inSnapshot : null,
       insider: r.owners?.[0]?.name || r.insiderName || "Unknown",
       jointFilers: (r.owners?.length || 1) - 1,
       roles,
@@ -178,13 +191,18 @@ export function priceTimeline({ startDate, bars, benchBars = [], today }) {
 //   non_trading_day   weekend or market holiday → latest earlier close
 //   missing_bar       a trading session without a price bar → latest earlier close
 //   before_baseline   no close on or before the date (cannot happen for cluster events)
+// The publication marker uses the close of the first session that opened at/after the
+// SEC publication (exact date only — a missing bar leaves it unplaced, never shifted).
 export function placeEvents(events, series) {
-  if (!series.length) return events.map((e) => ({ ...e, pctAtEvent: null, priceDate: null, priceBasis: null }));
+  if (!series.length) return events.map((e) => ({ ...e, pctAtEvent: null, priceDate: null, priceBasis: null, pctAtPublication: null, publicationPriceDate: null }));
+  const byDate = new Map(series.map((p) => [p.date, p]));
   return events.map((e) => {
+    const pub = e.publicationSession ? byDate.get(e.publicationSession) : null;
+    const pubPart = { pctAtPublication: pub ? pub.pct : null, publicationPriceDate: pub ? pub.date : null };
     const i = floorIdx(series, e.date);
-    if (i < 0) return { ...e, pctAtEvent: null, priceDate: null, priceBasis: "before_baseline" };
+    if (i < 0) return { ...e, pctAtEvent: null, priceDate: null, priceBasis: "before_baseline", ...pubPart };
     const basis = series[i].date === e.date ? "same_day" : isSession(e.date) ? "missing_bar" : "non_trading_day";
-    return { ...e, pctAtEvent: series[i].pct, priceDate: series[i].date, priceBasis: basis };
+    return { ...e, pctAtEvent: series[i].pct, priceDate: series[i].date, priceBasis: basis, ...pubPart };
   });
 }
 

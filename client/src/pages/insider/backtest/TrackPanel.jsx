@@ -8,7 +8,8 @@ import useBacktestTrack from "../../../hooks/useBacktestTrack";
 import useTrackCurrent from "../../../hooks/useTrackCurrent";
 import { EmptyState, ErrorNote, Panel, Skeleton } from "../components/Common";
 import { compactUsd, count, day, acceptedShort, usd, shares as fmtShares } from "../../../utils/insiderFormat";
-import { pct, elapsedText, pubStatusText, SESSION_LABEL, METRIC_HELP, publishedParts, etParts, freshness, preciseUsd, buyersText, IPO_LABEL, IPO_HELP, HINDSIGHT_HELP, hindsightDelta } from "../../../utils/insiderBacktest";
+import { pct, elapsedText, pubStatusText, SESSION_LABEL, METRIC_HELP, publishedParts, etParts, freshness, preciseUsd, buyersText, IPO_LABEL, IPO_HELP, HINDSIGHT_HELP, hindsightDelta, EVENT_ROLE_LABEL } from "../../../utils/insiderBacktest";
+import { SignalSnapshot, EventStudy } from "./SignalEvents";
 import { TRACK_STATUS_TEXT, FLAG_TEXT, PRICE_BASIS_TEXT, DAY_WINDOWS, eventsWithinDays, groupEventsByDay } from "../../../utils/insiderTrack";
 
 const LTrack = lazy(() => import("./BacktestCharts.jsx").then((m) => ({ default: m.TrackChart })));
@@ -33,7 +34,7 @@ function Events({ events, priced }) {
           <thead><tr>
             <th scope="col">Trade date</th><th scope="col">Insider</th><th scope="col">Role</th><th scope="col" className="num">Shares</th>
             <th scope="col" className="num" title="Price reported on the Form 4 — reference only, not used for performance">Form 4 price</th>
-            <th scope="col" className="num">Value</th><th scope="col">SEC published</th><th scope="col">Cluster</th>
+            <th scope="col" className="num">Value</th><th scope="col">SEC published</th><th scope="col" title="Relation to the frozen signal snapshot">Signal</th>
             {priced && <th scope="col" className="num" title="Stock change vs the fixed baseline on the purchase date">vs baseline</th>}
           </tr></thead>
           <tbody>
@@ -46,7 +47,10 @@ function Events({ events, priced }) {
                 <td className="num it-num it-dim">{e.form4Price != null ? usd(e.form4Price) : "—"}{e.priceFlag ? <div className="text-[10px] it-dim2">{e.priceFlag === "price_anomaly" ? "anomaly" : "no price"}</div> : null}</td>
                 <td className="num it-num it-buy">{e.valueUsd != null ? compactUsd(e.valueUsd) : "—"}<div className="text-[10px] it-dim2">{e.openMarket ? "open market" : e.purchaseContext === "offering_or_private" ? "offering / private" : "venue not stated"}</div></td>
                 <td className="it-num whitespace-nowrap text-[12px] it-dim">{acceptedShort(e.publishedAt)}</td>
-                <td className="text-[11.5px] it-dim">{e.cluster != null ? `Cluster ${e.cluster + 1}` : "later purchase"}</td>
+                <td className="text-[11.5px] it-dim" title={e.publicationSession ? `Plotted at the ${day(e.publicationSession)} session (first session after SEC publication)` : undefined}>
+                  <span style={e.signalRole === "signal_snapshot" ? { color: "var(--it-text)", fontWeight: 600 } : undefined}>{EVENT_ROLE_LABEL[e.signalRole] || (e.cluster != null ? `Cluster ${e.cluster + 1}` : "later purchase")}</span>
+                  {e.signalCluster != null && e.signalCluster > 0 ? <span className="it-dim2"> · signal {e.signalCluster + 1}</span> : null}
+                </td>
                 {priced && <td className="num it-num font-medium" style={{ color: tone(e.pctAtEvent) }}>{pct(e.pctAtEvent)}{PRICE_BASIS_TEXT[e.priceBasis] ? <div className="text-[10px] font-normal it-dim2">{PRICE_BASIS_TEXT[e.priceBasis]}</div> : null}</td>}
               </tr>
             ))}
@@ -60,7 +64,7 @@ function Events({ events, priced }) {
               <span className="truncate text-[13px]" style={{ color: "var(--it-text)" }}>{e.insider}</span>
               {priced && <span className="it-num shrink-0 font-semibold" style={{ color: tone(e.pctAtEvent) }}>{pct(e.pctAtEvent)}</span>}
             </div>
-            <div className="text-[11.5px] it-dim2">{day(e.date)} · {e.roles.join(" · ")} · {e.valueUsd != null ? compactUsd(e.valueUsd) : "—"} · {e.cluster != null ? `cluster ${e.cluster + 1}` : "later purchase"}</div>
+            <div className="text-[11.5px] it-dim2">{day(e.date)} · {e.roles.join(" · ")} · {e.valueUsd != null ? compactUsd(e.valueUsd) : "—"} · SEC {acceptedShort(e.publishedAt)} · {EVENT_ROLE_LABEL[e.signalRole] || (e.cluster != null ? `cluster ${e.cluster + 1}` : "later purchase")}</div>
           </li>
         ))}
       </ul>
@@ -304,6 +308,9 @@ export default function TrackPanel({ jobId, signalId, pubNow, signal, checkedAt,
   // Daily filtering: purchases within the first N calendar days from the first purchase (day 1 = baseline date).
   const shown = useMemo(() => (t?.events ? eventsWithinDays(t.events, t.startDate, windowDays) : []), [t, windowDays]);
   const days = useMemo(() => groupEventsByDay(shown), [shown]);
+  // The chart marks the STRATEGY entry session of this signal (from the run results) when known.
+  const stratEntryDate = pubNow?.strategy?.entry?.date || null;
+  const chartTrack = useMemo(() => (t && stratEntryDate ? { ...t, clusters: t.clusters.map((c) => (c.signalId === signalId ? { ...c, entryDate: stratEntryDate } : c)) } : t), [t, stratEntryDate, signalId]);
   return (
     <Panel
       title={t ? `${t.ticker || "No ticker"} — ${t.issuerName || ""}` : signal ? `${signal.ticker || "No ticker"} — ${signal.issuerName}` : "Signal details"}
@@ -318,7 +325,7 @@ export default function TrackPanel({ jobId, signalId, pubNow, signal, checkedAt,
       {t && (
         <div className="flex flex-col">
           <div className="px-4 pt-3 text-[11.5px] leading-relaxed it-dim2">
-            {t.methodology.hindsight} {t.methodology.noReset} Shaded = cluster period · grey dashed “SEC n” = signal published · blue dashed = backtest entry (next session open).
+            {t.methodology.hindsight} {t.methodology.noReset} Shaded = cluster period · grey dashed “SEC n” = signal published · blue dashed = strategy entry session · ◆ = SEC publication in the signal · ○ = later SEC publication (both at the first session after acceptance; daily closes only).
           </div>
           {!priced && (
             <div role="status" className="mx-4 mt-3 rounded-md px-3 py-2 text-[12px] leading-relaxed" style={{ color: "var(--it-warn)", background: "var(--it-warn-soft)", border: "1px solid var(--it-warn-line)" }}>
@@ -343,7 +350,7 @@ export default function TrackPanel({ jobId, signalId, pubNow, signal, checkedAt,
                 </ul>
               )}
               <div className="px-1 pt-2">
-                <Suspense fallback={<Skeleton className="m-4 h-[300px]" />}><LTrack track={t} events={shown} /></Suspense>
+                <Suspense fallback={<Skeleton className="m-4 h-[300px]" />}><LTrack track={chartTrack} events={shown} /></Suspense>
               </div>
             </>
           )}
@@ -360,12 +367,14 @@ export default function TrackPanel({ jobId, signalId, pubNow, signal, checkedAt,
             <span className="text-[11px] it-dim2">{count(shown.length)} of {count(t.events?.length)} purchases · {count(days.length)} transaction date{days.length === 1 ? "" : "s"}</span>
           </div>
           {!shown.length ? <EmptyState title="No purchases in this window." /> : grouping === "day" ? <DayRows days={days} priced={priced} /> : <Events events={shown} priced={priced} />}
+          <SignalSnapshot signal={signal} />
+          <EventStudy jobId={jobId} signalId={signalId} />
           {priced && t.missingSessions?.length > 0 && (
             <div className="px-4 py-2 text-[11px] it-dim2">Trading sessions without a price bar ({t.missingSessions.length}): {t.missingSessions.slice(0, 8).map(day).join(", ")}{t.missingSessions.length > 8 ? " …" : ""} — shown as gaps.</div>
           )}
           <div className="px-4 py-2 text-[11px] leading-relaxed it-dim2" style={{ borderTop: "1px solid var(--it-line-soft)" }}>
             {t.methodology.baseline} {t.methodology.dataEnd}
-            {priced ? ` Prices: ${t.prices.provider} files (${t.symbol}, benchmark ${t.benchmarkSymbol}) · licence: ${t.prices.licence}.` : ""}
+            {priced ? ` Prices: ${t.prices.provider === "alpaca_sip_daily_closes" ? "Alpaca SIP daily closes, split-adjusted (no intraday prices drawn)" : `${t.prices.provider} files`} (${t.symbol}, benchmark ${t.benchmarkSymbol}) · licence: ${t.prices.licence}.` : ""}
           </div>
         </div>
       )}

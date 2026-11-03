@@ -88,7 +88,14 @@ test("page poll never waits on Alpaca trade lookups; identical concurrent polls 
   assert.ok(Object.values(a.rows).every((x) => x.primary.status === "lookup_queued" && x.primary.changePct === undefined), "never a fabricated 0 %");
   const done = await settle(service, result);
   assert.ok(Object.values(done.rows).every((x) => x.primary.status === "ok"));
-  assert.ok(alpaca.calls.trades <= 40, `each signal looked up once per kind (trades=${alpaca.calls.trades})`);
+  // Per signal at most: primary + regular acceptance-based entries + the SPY benchmark at the
+  // strategy entry time. The strategy entry itself reuses the acceptance-based one (regular
+  // hours rule, next-open start) — no extra request.
+  assert.ok(alpaca.calls.trades <= 60, `each signal looked up once per kind (trades=${alpaca.calls.trades})`);
+  const withStrategyEntry = Object.values(done.rows).filter((x) => x.strategy.entry);
+  assert.equal(withStrategyEntry.length, 20, "every signal has a strategy entry");
+  assert.ok(withStrategyEntry.every((x) => x.strategy.entry.reused === true), "strategy entries reused the acceptance-based regular entry");
+  assert.ok(withStrategyEntry.every((x) => Date.parse(x.strategy.entry.time) >= Date.parse(x.strategy.availableAt)), "never before SEC acceptance + latency");
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

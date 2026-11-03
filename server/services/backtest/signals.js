@@ -19,14 +19,19 @@
 // A signal can therefore only be produced at the acceptance time of a filing,
 // using filings accepted at or before it.
 //
-// Signal rule (defaults): at least MIN_BUYERS (2) DISTINCT reporting owners
-// (SEC CIK; joint filers = one) with Form 4 code P purchases whose trade dates
-// fall in one rolling WINDOW_DAYS (30) calendar-day window, with a combined
-// reliable purchase value STRICTLY greater than MIN_VALUE_USD ($250,000) across
-// all buyers. Purchases without a reliable USD value (price anomaly, missing
-// price, unverified currency) still count as buyers but add nothing to the sum.
-// The window's latest trade date must be within MAX_SIGNAL_LAG_DAYS (30) calendar
-// days of the publication date (stale late filings do not create signals).
+// Signal rule — every threshold is the USER's choice (DEFAULTS are only the form's
+// starting values, never global rules): at least minBuyers DISTINCT reporting owners
+// (SEC CIK; joint filers = one) with Form 4 code P purchases whose TRADE dates fall in
+// one rolling windowDays calendar-day window, with a combined reliable purchase value
+// of AT LEAST minValueUsd across all buyers. Purchases without a reliable USD value
+// (price anomaly, missing price, unverified currency) still count as buyers but add
+// nothing to the sum. Trade dates are used ONLY to group purchases; the signal is
+// dated at the SEC acceptance that first satisfied the rule.
+// Late filings count by default. Two OPTIONAL filters, both off unless the user sets them:
+//   maxFilingDelayDays  per purchase: calendar days from its trade date to the SEC
+//                       acceptance that made it public; later-filed purchases are ignored.
+//   maxSignalLagDays    per cluster: the window's latest trade date must be within this
+//                       many calendar days of the publication date.
 //
 // Overlap rule: once an issuer signals, that cluster stays open while purchases
 // continue — every purchase with a trade date within WINDOW_DAYS after the
@@ -41,7 +46,8 @@ export const DEFAULTS = Object.freeze({
   minBuyers: 2,
   minValueUsd: 250_000,
   windowDays: 30,
-  maxSignalLagDays: 30,
+  maxSignalLagDays: null,   // optional cluster staleness filter — off by default
+  maxFilingDelayDays: null, // optional per-purchase filing-delay filter — off by default
   roles: [],
   openMarketOnly: false,
   minTransactionUsd: null,
@@ -84,6 +90,25 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const stampOf = (s) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? String(s).replace(/\s*ET$/, "") : null);
 const round2 = (n) => Math.round(n * 100) / 100;
 
+// Calendar days from a purchase's trade date to the SEC acceptance that made it public.
+export function filingDelayDays(r, knownAt) {
+  if (!DATE_RE.test(r.transactionDate || "") || !knownAt) return null;
+  return Math.max(0, dayNum(knownAt.slice(0, 10)) - dayNum(r.transactionDate));
+}
+
+// One purchase as shown in a signal snapshot / later-purchase list (display data only).
+function purchaseRecord(p) {
+  const r = p.r;
+  return {
+    rowId: r.id, person: p.person, name: r.owners?.[0]?.name || r.insiderName || "Unknown", roles: p.roles || rowBacktestRoles(r),
+    transactionDate: r.transactionDate, shares: r.shares ?? null, price: r.price ?? null,
+    valueUsd: p.usd == null ? null : round2(p.usd), valueExcludedReason: p.usd == null ? p.unreliable || "missing_price" : null,
+    accessionNo: r.accessionNo || null, url: r.filingUrl || null, publicAt: `${p.x.knownAt} ET`,
+    filingDelayDays: p.delayDays ?? filingDelayDays(r, p.x.knownAt), late: !!r.filingDelay?.late,
+    purchaseContext: r.purchaseContext || null,
+  };
+}
+
 // Earliest public acceptance of an economic row (all its reports).
 export function knownAtOf(row, acceptedAtByAccession) {
   let best = null;
@@ -111,7 +136,9 @@ export function normalizeSignalConfig(c = {}) {
     const n = Number(v);
     return Number.isInteger(n) && n >= lo && n <= hi ? { ok: true, n } : { error: `${name} must be an integer from ${lo} to ${hi}` };
   };
-  for (const [k, lo, hi] of [["minBuyers", 1, 50], ["windowDays", 1, 365], ["maxSignalLagDays", 0, 3650]]) {
+  // Bounds are input sanity only (no strategy limit): any positive buyer count, any window
+  // up to 10 years. The two delay filters accept null / "" = off.
+  for (const [k, lo, hi] of [["minBuyers", 1, 100_000], ["windowDays", 1, 3650], ["maxSignalLagDays", 0, 3650], ["maxFilingDelayDays", 0, 3650]]) {
     const r = int(c[k], lo, hi, k); if (r.error) return r; if (r.n !== undefined) out[k] = r.n;
   }
   // The strategy threshold is in U.S. dollars. A request still carrying the old ILS
@@ -165,7 +192,8 @@ export function identityRowAt(r, T, reportOwners, acceptedAtByAccession) {
 // confirmed duplicate reports (identityRowAt). → { signals, stats }
 export function detectSignals({ rows, acceptedAtByAccession = new Map(), config = DEFAULTS, range = {}, reportOwners = null }) {
   const cfg = { ...DEFAULTS, ...config };
-  const stats = { rowsWithoutAcceptance: 0, purchasesConsidered: 0, purchasesUnreliableValue: 0, staleClusters: 0, issuers: 0 };
+  const stats = { rowsWithoutAcceptance: 0, purchasesConsidered: 0, purchasesUnreliableValue: 0, staleClusters: 0, issuers: 0, purchasesOverFilingDelay: 0 };
+  const overDelay = new Set(); // row ids excluded by the optional filing-delay filter (counted once)
 
   // 1. Point-in-time metadata per row; group by issuer.
   const byIssuer = new Map();
@@ -199,13 +227,18 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
       for (const x of known) {
         const r = x.r;
         if (r.code !== "P" || r.transactionDate > tDate) continue;
+        const delayDays = filingDelayDays(r, x.knownAt);
+        if (cfg.maxFilingDelayDays != null && delayDays > cfg.maxFilingDelayDays) {
+          if (!overDelay.has(r.id)) { overDelay.add(r.id); stats.purchasesOverFilingDelay++; }
+          continue;
+        }
         if (cfg.openMarketOnly && r.purchaseContext !== "open_market") continue;
         const roles = rowBacktestRoles(r);
         if (cfg.roles.length && !roles.some((g) => cfg.roles.includes(g))) continue;
         const rel = reliableUsd(r, peersByKey.get(peerKey(r)) || []);
         if (cfg.minTransactionUsd != null && !(rel.usd != null && rel.usd >= cfg.minTransactionUsd)) continue;
         purchases.push({
-          x, r, roles, person: identities.personOf(r), usd: rel.usd, unreliable: rel.reason,
+          x, r, roles, person: identities.personOf(r), usd: rel.usd, unreliable: rel.reason, delayDays,
         });
       }
       purchases.sort((a, b) => a.r.transactionDate.localeCompare(b.r.transactionDate));
@@ -220,7 +253,7 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
         if (cluster.signal) cluster.signal.clusterTo = isoDay(cluster.lastNum);
       }
       const floorNum = cluster ? cluster.lastNum + cfg.windowDays - 1 : -Infinity; // new purchases must be AFTER this
-      const lagFloor = dayNum(tDate) - cfg.maxSignalLagDays;
+      const lagFloor = cfg.maxSignalLagDays == null ? -Infinity : dayNum(tDate) - cfg.maxSignalLagDays;
 
       // Maximal window ending at each purchase date, newest first.
       let found = null, sawStale = false;
@@ -232,7 +265,7 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
         const members = purchases.filter((p) => { const d = dayNum(p.r.transactionDate); return d >= start && d <= end; });
         const people = new Set(members.map((p) => p.person).filter(Boolean));
         const usd = members.reduce((s, p) => s + (p.usd ?? 0), 0);
-        if (people.size >= cfg.minBuyers && usd > cfg.minValueUsd) found = { members, start, end, people, usd };
+        if (people.size >= cfg.minBuyers && usd >= cfg.minValueUsd) found = { members, start, end, people, usd };
       }
       if (!found) { if (sawStale) stats.staleClusters++; continue; }
 
@@ -254,6 +287,7 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
       }
       signals.push({
         id: `${cik}:${T}`,
+        clusterId: `${cik}:${isoDay(firstNum)}`, // deterministic: issuer + first trade date of the cluster
         issuerCik: String(cik).padStart(10, "0"),
         ticker: latestKnown.ticker || m[m.length - 1].r.ticker || null,
         issuerName: latestKnown.issuerName || null,
@@ -274,6 +308,8 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
         filings: [...new Map(m.flatMap((p) => (p.r.reportedBy?.length ? p.r.reportedBy : [p.r]).map((rep) => [rep.accessionNo, {
           accessionNo: rep.accessionNo, url: rep.filingUrl || null, acceptedAt: acceptedAtByAccession.get(rep.accessionNo) || null,
         }]))).values()],
+        // Frozen snapshot of every qualifying purchase exactly as public at T (never updated later).
+        snapshot: { asOf: `${T} ET`, purchases: m.map((p) => purchaseRecord(p)) },
       });
       cluster.signal = signals[signals.length - 1];
     }
@@ -295,12 +331,13 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
         for (const x of finalRows) {
           const r = x.r;
           if (r.code !== "P" || r.transactionDate < sg.windowFrom || r.transactionDate > sg.clusterTo) continue;
+          if (cfg.maxFilingDelayDays != null && filingDelayDays(r, x.knownAt) > cfg.maxFilingDelayDays) continue;
           if (cfg.openMarketOnly && r.purchaseContext !== "open_market") continue;
           const roles = rowBacktestRoles(r);
           if (cfg.roles.length && !roles.some((g) => cfg.roles.includes(g))) continue;
           const rel = reliableUsd(r, peers.get(peerKey(r)) || []);
           if (cfg.minTransactionUsd != null && !(rel.usd != null && rel.usd >= cfg.minTransactionUsd)) continue;
-          ps.push({ x, r, person: ids.personOf(r), usd: rel.usd });
+          ps.push({ x, r, person: ids.personOf(r), usd: rel.usd, unreliable: rel.reason, roles, delayDays: filingDelayDays(r, x.knownAt) });
         }
         const known = (p) => p.x.knownAt <= T && p.r.transactionDate <= sg.windowTo;
         const people = new Set(ps.map((p) => p.person).filter(Boolean));
@@ -318,6 +355,10 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
           valueAddedUsd: round2(added.reduce((a, p) => a + (p.usd ?? 0), 0)),
           addedBuyers: addedPeople.slice(0, 12).map(nameOf),
           lastReportedAt: ps.length ? `${ps.map((p) => p.x.knownAt).sort().at(-1)} ET` : null,
+          // Purchases NOT in the signal snapshot (public later, or traded after windowTo):
+          // subsequent events of the company timeline — never used for the signal or returns.
+          laterPurchases: [...added].sort((a, b) => a.x.knownAt.localeCompare(b.x.knownAt) || a.r.transactionDate.localeCompare(b.r.transactionDate))
+            .slice(0, 100).map((p) => purchaseRecord(p)),
         };
       }
     }

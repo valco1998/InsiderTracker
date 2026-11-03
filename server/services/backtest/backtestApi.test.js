@@ -61,7 +61,7 @@ test("no price provider → price_data_required: real signals and planned entrie
     const st = await (await fetch(`${base}/status?from=2026-01-01&to=2026-06-30`)).json();
     assert.equal(st.prices.available, false);
     assert.equal(st.defaults.minValueUsd, 250_000);
-    assert.ok(st.methodology.entry && st.methodology.overlap);
+    assert.ok(st.methodology.strategyEntry && st.methodology.overlap);
     assert.ok(st.form4.range.businessDays > 100);
     assert.equal(st.form4.range.complete, false, "only live data, nothing backfilled");
     const bad = await post(`${base}/run`, { from: "bad" });

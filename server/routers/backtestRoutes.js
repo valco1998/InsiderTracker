@@ -11,6 +11,10 @@
 //   GET  /run/:id/publication-now
 //                           PRIMARY METRIC per signal: SEC publication → now
 //                           (Alpaca SIP trade at/after publication, any session + first regular-session trade → latest price; Tiingo fallback)
+//                           + strategy { config, summary, reliability } and rows[id].strategy:
+//                           the run's user strategy (acceptance + latency → N-session exit, SPY)
+//   GET  /run/:id/event-study/:signalId
+//                           later SEC publications of that company, each from its own acceptance
 //   GET  /coverage?from&to   historical SEC Form 4 coverage by month
 //   GET  /run/:id/ipo-context  INFORMATIONAL: possible IPO allocations per signal (SEC filings only)
 //   GET  /run/:id/track/:signalId/current
@@ -152,10 +156,33 @@ export function createBacktestRouter({ service = createBacktestService({ live: l
       const restrict = (m) => ({ status: m?.status === "ok" ? "price_data_restricted" : m?.status || "unavailable" });
       res.json({ generatedAt: r.generatedAt, market: r.market, restrictedNote: RESTRICTED_NOTE, rows: Object.fromEntries(Object.entries(r.rows).map(([k, v]) => [k, {
         symbol: v.symbol, publishedAt: v.publishedAt, elapsedMs: v.elapsedMs, status: restrict(v).status, primary: restrict(v.primary), regular: restrict(v.regular),
-      }])) });
+        // Strategy timing is SEC-derived (no market data) and stays visible; prices/returns do not.
+        strategy: v.strategy ? { ...restrict(v.strategy), secAcceptedAt: v.strategy.secAcceptedAt, availableAt: v.strategy.availableAt, horizonSessions: v.strategy.horizonSessions } : undefined,
+      }])), strategy: r.strategy ? { config: r.strategy.config, summary: null } : undefined });
     } catch (err) {
       log.error(`[BACKTEST_PUBLICATION_NOW_FAILED] job=${j.id} error=${String(err?.message || err).slice(0, 200)}`);
       res.status(500).json({ error: "Could not compute SEC publication → now" });
+    }
+  });
+
+  // EVENT STUDY: SEC publications for the signal's company that came AFTER the signal,
+  // each measured from its own acceptance (run's execution rules). Separate from the
+  // signal's returns. Licence: non-local viewers get the SEC events without prices.
+  router.get("/run/:id/event-study/:signalId", async (req, res) => {
+    const j = jobs.get(String(req.params.id));
+    if (!j) return res.status(404).json({ error: "Unknown or expired backtest job" });
+    if (j.state !== "done") return res.status(409).json({ error: "The backtest run has not finished" });
+    const t0 = now();
+    try {
+      const r = await service.eventStudy({ result: j.result, signalId: String(req.params.signalId) });
+      if (!r) return res.status(404).json({ error: "Unknown signal in this run" });
+      res.set("Cache-Control", "no-store");
+      log.log(`[BACKTEST_EVENT_STUDY] job=${j.id} signal=${String(req.params.signalId).slice(0, 40)} events=${r.eventsShown} durationMs=${now() - t0}`);
+      if (pricesVisible(req, j.result.prices?.licence)) return res.json(r);
+      res.json({ ...r, restrictedNote: RESTRICTED_NOTE, summary: null, events: r.events.map((e) => ({ ...e, strategy: { status: e.strategy?.status === "ok" ? "price_data_restricted" : e.strategy?.status, horizonSessions: e.strategy?.horizonSessions } })) });
+    } catch (err) {
+      log.error(`[BACKTEST_EVENT_STUDY_FAILED] job=${j.id} error=${String(err?.message || err).slice(0, 200)}`);
+      res.status(500).json({ error: "Could not compute the event study" });
     }
   });
 

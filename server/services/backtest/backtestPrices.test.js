@@ -213,3 +213,29 @@ test("one invalid symbol never blanks a whole batch: it is excluded (unsupported
   assert.equal(c.AXIA3, null, "unsupported: no data, not an empty series");
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("getEntryAt (user strategy): latency start, reuse of the acceptance-based entry without a request, own cache otherwise", async () => {
+  const { dir, file } = tmp();
+  const a = fakeAlpaca([
+    { t: "2026-10-22T20:56:40.000000000Z", p: 26.1, s: 100, c: ["@", "T"] },   // 15 s after acceptance (after hours)
+    { t: "2026-10-22T20:58:00.000000000Z", p: 26.4, s: 100, c: ["@", "T"] },   // 95 s after acceptance
+    { t: "2026-10-23T13:30:00.979126792Z", p: 27.54, s: 14045, c: ["@", "O", "X"] },
+  ]);
+  const svc = createBacktestPriceService({ alpacaFactory: () => a, entriesFile: file, now: () => NOW, log: quiet });
+  await svc.getEntries("RAPP", "2026-10-22 16:56:25 ET"); // acceptance-based entries: 26.1 (any session), 27.54 (regular)
+  const before = a.calls.length;
+  // Regular rule: the next open is after acceptance + 60 s → the stored regular entry IS the answer.
+  const reg = await svc.getEntryAt("RAPP", "2026-10-22 16:56:25 ET", "2026-10-23T13:30:00.000Z", { regularOnly: true });
+  assert.deepEqual([reg.status, reg.price, reg.reused, a.calls.length], ["ok", 27.54, true, before], "no Alpaca request");
+  // Extended rule + 60 s latency: the 15-s trade is NOT executable → new search from T+60 s.
+  const ext = await svc.getEntryAt("RAPP", "2026-10-22 16:56:25 ET", "2026-10-22T20:57:25.000Z", { regularOnly: false });
+  assert.deepEqual([ext.status, ext.price, ext.reused], ["ok", 26.4, undefined]);
+  assert.equal(a.calls.at(-1)[2], "2026-10-22T20:57:25.000Z", "search starts at acceptance + latency");
+  const n = a.calls.length;
+  assert.equal((await svc.getEntryAt("RAPP", "2026-10-22 16:56:25 ET", "2026-10-22T20:57:25.000Z")).price, 26.4);
+  assert.equal(a.calls.length, n, "cached");
+  // cachedOnly never touches the network.
+  assert.equal((await svc.getEntryAt("ZZZ", null, "2026-10-22T20:57:25.000Z", { cachedOnly: true })).status, "lookup_queued");
+  assert.equal(a.calls.length, n);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

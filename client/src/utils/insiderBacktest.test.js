@@ -1,7 +1,7 @@
 // node --test src/utils/insiderBacktest.test.js   (runs under Node, not the browser)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultForm, toRunRequest, pct, returnHistogram, dataStatus } from "./insiderBacktest.js";
+import { defaultForm, toRunRequest, pct, returnHistogram, dataStatus, formFromParams, missingBreakdown, comparableRuns, upsertComparison } from "./insiderBacktest.js";
 
 const NOW = Date.parse("2026-11-02T15:00:00Z");
 
@@ -145,4 +145,34 @@ test("horizon summary counts only matured signals; months group signals and pric
   const m = signalsByMonth([{ id: "a", publishedDate: "2026-03-05" }, { id: "d", publishedDate: "2026-03-09" }, { id: "x", publishedDate: "2026-04-01" }], rows);
   assert.deepEqual(m, { "2026-03": { signals: 2, priced: 1 }, "2026-04": { signals: 1, priced: 0 } });
   assert.equal(shortOf("lookup_queued"), "Loading price…");
+});
+
+test("user strategy fields: any buyer count, optional delay filters off by default, horizon / latency / session sent as chosen", () => {
+  const d = defaultForm(NOW);
+  const { body } = toRunRequest(d);
+  assert.equal(body.maxFilingDelayDays, undefined, "filing-delay filter off by default");
+  assert.equal(body.maxSignalLagDays, undefined, "signal-lag filter off by default");
+  assert.deepEqual([body.horizonSessions, body.executionLatencySeconds, body.entrySession], [20, 60, "regular"]);
+  const custom = toRunRequest({ ...d, minBuyers: "100", windowDays: "730", horizonSessions: "3", executionLatencySeconds: "0", entrySession: "extended", maxFilingDelayDays: "10" }).body;
+  assert.deepEqual([custom.minBuyers, custom.windowDays, custom.horizonSessions, custom.executionLatencySeconds, custom.entrySession, custom.maxFilingDelayDays], [100, 730, 3, 0, "extended", 10]);
+  for (const bad of [{ horizonSessions: "0" }, { horizonSessions: "1.5" }, { executionLatencySeconds: "-5" }, { entrySession: "night" }, { maxFilingDelayDays: "2.5" }]) {
+    assert.ok(toRunRequest({ ...d, ...bad }).error, JSON.stringify(bad));
+  }
+});
+
+test("saved params → form is the exact inverse of form → request", () => {
+  const f = { ...defaultForm(NOW), minBuyers: "3", minValueUsd: "100000", windowDays: "14", maxFilingDelayDays: "5", horizonSessions: "10", entrySession: "extended", roles: ["CEO"], priorDeclinePct: "20", minMarketCapM: "50", commissionBps: "5" };
+  const { body } = toRunRequest(f);
+  assert.deepEqual(toRunRequest(formFromParams(body, NOW)).body, body);
+});
+
+test("data-quality buckets and same-range comparison", () => {
+  assert.deepEqual(missingBreakdown({ immature: 3, no_bar: 2, awaiting_first_trade: 1, awaiting_regular_session_trade: 7, no_ticker: 1, no_entry: 4, lookup_queued: 2, awaiting_sip: 1 }),
+    { missingEntry: 12, missingExit: 2, immature: 3, excluded: 1, loading: 3 });
+  const a = { jobId: "a", from: "2026-05-01", to: "2026-10-31" }, b = { jobId: "b", from: "2026-05-01", to: "2026-10-31" }, c = { jobId: "c", from: "2026-01-01", to: "2026-10-31" };
+  const list = upsertComparison(upsertComparison(upsertComparison([], a), b), c);
+  const { same, other } = comparableRuns(list, { from: "2026-05-01", to: "2026-10-31" });
+  assert.deepEqual(same.map((x) => x.jobId).sort(), ["a", "b"]);
+  assert.deepEqual(other.map((x) => x.jobId), ["c"]);
+  assert.equal(upsertComparison(list, { ...a, label: "x" }).length, 3, "same job replaced, not duplicated");
 });

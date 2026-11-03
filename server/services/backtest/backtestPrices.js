@@ -34,6 +34,7 @@ export const SIP_DELAY_MS = 16 * MIN; // Basic: no SIP data newer than 15 min (+
 const RECHECK_AWAIT_MS = 5 * MIN;
 const RECHECK_ERROR_MS = 15 * MIN;
 const MAX_TRADE_PAGES = 10;
+const isoToEtStamp = (iso) => { const p = etParts(iso); return `${p.date} ${p.time} ET`; };
 
 export function createBacktestPriceService({
   alpacaFactory = () => { const c = alpacaCredentials(); return c ? createAlpacaClient({ ...c, perMinute: Number(process.env.ALPACA_REQUESTS_PER_MINUTE) || 150 }) : null; },
@@ -133,7 +134,18 @@ export function createBacktestPriceService({
   // Over budget → "lookup_queued" (not stored; looked up on a later call).
   // cachedOnly: never touches the network — kinds that need a lookup come back as
   // "lookup_queued" (the caller hands them to the background pricing queue).
-  async function getEntries(symbol, publishedAtET, { budget = null, cachedOnly = false } = {}) {
+  // Concurrent network lookups for the same signal share one computation (the background
+  // queue and a queued strategy lookup can ask for the same acceptance-based entries).
+  const entriesInflight = new Map();
+  function getEntries(symbol, publishedAtET, opts = {}) {
+    if (opts.cachedOnly) return getEntriesOnce(symbol, publishedAtET, opts);
+    const k = `${String(symbol || "").toUpperCase()}|${publishedAtET}`;
+    if (entriesInflight.has(k)) return entriesInflight.get(k);
+    const p = getEntriesOnce(symbol, publishedAtET, opts).finally(() => entriesInflight.delete(k));
+    entriesInflight.set(k, p);
+    return p;
+  }
+  async function getEntriesOnce(symbol, publishedAtET, { budget = null, cachedOnly = false } = {}) {
     const sym = String(symbol || "").toUpperCase();
     const publishedIso = etToUtcIso(publishedAtET);
     if (!publishedIso) return { publishedIso: null, primary: { status: "invalid_publication_time" }, regular: { status: "invalid_publication_time" } };
@@ -158,6 +170,41 @@ export function createBacktestPriceService({
     }
     if (changed) { store[key] = rec; saveEntries(); }
     return { publishedIso, primary: queued.primary || rec.primary, regular: queued.regular || rec.regular };
+  }
+
+  // Entry for a user strategy: first eligible trade at/after `startIso` (acceptance +
+  // execution latency, moved to the next regular open for regularOnly). Cached under
+  // "SYMBOL|at|startIso|kind". REUSE RULE (no request): when the entry already found from
+  // the bare SEC acceptance (getEntries, same kind) is at/after startIso, it is by
+  // definition also the first eligible trade at/after startIso — returned as is.
+  // publishedAtET may be null (benchmark lookups: no acceptance-based record to reuse).
+  // opts.prior: the acceptance-based entry the CALLER already read in this pass — the reuse
+  // decision then uses that same snapshot (a page poll stays consistent even while the
+  // background queue completes lookups). Omitted → read from the cache.
+  async function getEntryAt(symbol, publishedAtET, startIso, { regularOnly = false, budget = null, cachedOnly = false, prior: given } = {}) {
+    const sym = String(symbol || "").toUpperCase();
+    if (!sym || !startIso || Number.isNaN(Date.parse(startIso))) return { status: "invalid_start_time" };
+    const kind = regularOnly ? "regular" : "primary";
+    const store = loadEntries();
+    if (publishedAtET) {
+      const pubIso = etToUtcIso(publishedAtET);
+      const prior = given !== undefined ? given : pubIso ? store[`${sym}|${pubIso}`]?.[kind] : null;
+      if (prior?.status === "ok" && Date.parse(prior.time) >= Date.parse(startIso)) return { ...prior, reused: true };
+    }
+    const key = `${sym}|at|${startIso}|${kind}`;
+    const rec = store[key];
+    if (!due(rec)) return rec;
+    if (cachedOnly) return rec || { status: "lookup_queued" };
+    if (budget && budget.left <= 0) return rec || { status: "lookup_queued" };
+    if (budget) budget.left--;
+    let r = await alpacaEntry(sym, startIso, { regularOnly });
+    // Tiingo fallback only for regular-session entries (it has no extended hours) and only
+    // when Alpaca cannot answer; its minute-bar start is searched from startIso itself.
+    if (r == null) r = regularOnly && tiingo?.getPublicationStart ? await tiingoEntry(sym, isoToEtStamp(startIso)) : { status: "unavailable", provider: "none" };
+    const out = { ...r, checkedAt: new Date(now()).toISOString() };
+    store[key] = out;
+    saveEntries();
+    return out;
   }
 
   // ---- Daily SIP closes (split-adjusted, today's share terms) for fixed horizons ----
@@ -320,7 +367,7 @@ export function createBacktestPriceService({
     while (pActive < pricingConcurrency && pq.size) {
       const [k, v] = pq.entries().next().value;
       pq.delete(k); pInflight.add(k); pActive++;
-      getEntries(v.symbol, v.publishedAtET)
+      (v.run ? v.run() : getEntries(v.symbol, v.publishedAtET))
         .then(() => { pStats.done++; })
         .catch((err) => { pStats.failed++; log.warn(`[BACKTEST_PRICING] key=${k} error=${String(err?.message || err).slice(0, 120)}`); })
         .finally(() => { pActive--; pInflight.delete(k); if (!pq.size && !pActive) flushEntries(); pumpQueue(); });
@@ -333,10 +380,20 @@ export function createBacktestPriceService({
     pumpQueue();
     return true;
   }
+  // Background lookup for a strategy entry (getEntryAt), deduplicated by its cache key.
+  function enqueueEntryAt(symbol, publishedAtET, startIso, { regularOnly = false } = {}) {
+    const k = `${String(symbol || "").toUpperCase()}|at|${startIso}|${regularOnly ? "regular" : "primary"}`;
+    if (pq.has(k) || pInflight.has(k)) return false;
+    // The acceptance-based entries first (shared with their own queue item when in flight):
+    // when they are already at/after startIso they are reused, with no extra request.
+    pq.set(k, { run: async () => { if (publishedAtET) await getEntries(symbol, publishedAtET); return getEntryAt(symbol, publishedAtET, startIso, { regularOnly }); } });
+    pumpQueue();
+    return true;
+  }
   const pricingStats = () => ({ queued: pq.size, inFlight: pActive, done: pStats.done, failed: pStats.failed });
 
   return {
-    getEntries, getLatest, getSplitFactor, getDailyCloses, enqueueEntries, pricingStats, flushEntries,
+    getEntries, getEntryAt, getLatest, getSplitFactor, getDailyCloses, enqueueEntries, enqueueEntryAt, pricingStats, flushEntries,
     stats: () => ({ alpaca: alpaca ? alpaca.stats() : null, alpacaDisabled, latestCached: latestCache.size, tiingo: tiingo?.stats?.() || null }),
   };
 }

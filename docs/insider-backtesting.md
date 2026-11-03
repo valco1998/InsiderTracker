@@ -7,6 +7,74 @@ were followed by stock returns. It uses real data only. Without a licensed price
 source it shows the real signals in a **"Price data required"** state and computes no
 performance numbers.
 
+## User-defined strategies (2026-11-03) — read this first
+
+There is no fixed trading strategy. Every parameter is the user's choice; the form's
+starting values (2 buyers, $250,000, 30 days, 20 sessions, 60 s) are examples only.
+
+| Parameter | Field | Notes |
+|---|---|---|
+| Date range | `from`, `to` | Publication dates (SEC acceptance, ET) |
+| Min distinct buyers | `minBuyers` | 1 – 100,000. SEC CIK; joint filers / confirmed duplicate reports = 1 |
+| Min combined value (USD) | `minValueUsd` | **At least** (≥) — sum of all qualifying purchases of all buyers |
+| Rolling window | `windowDays` | 1 – 3,650 calendar days of **trade dates** (grouping only) |
+| Max filing delay | `maxFilingDelayDays` | **Optional, off by default.** Per purchase: trade date → SEC acceptance (calendar days) |
+| Max signal lag | `maxSignalLagDays` | **Optional, off by default** (was 30 by default before 2026-11-03) |
+| Roles | `roles` | `[]` = all roles |
+| Horizon | `horizonSessions` | 1 – 756 NYSE **trading sessions** (not calendar days) |
+| Execution latency | `executionLatencySeconds` | 0 – 86,400 s added to the SEC acceptance (default 60) |
+| Entry session | `entrySession` | `regular` (default) or `extended` |
+| Costs | `commissionBps`, `slippageBps` | Per side; net = exit×(1−c) ÷ (entry×(1+c)) − 1 |
+
+**Aggregation.** Within an issuer and window: each distinct insider counts once; every
+purchase transaction is counted and its USD value summed (10 purchases by one insider = 1
+buyer, 10 purchases, the combined value). Late filings count unless the optional
+filing-delay filter is set.
+
+**Point in time (no lookahead).** At every SEC acceptance time T the engine rebuilds only
+what was public at T (amendments from their own acceptance, identities and price checks
+from filings public then). A signal is recorded the FIRST time the conditions hold and is
+dated T. Its `snapshot.purchases` are frozen; later filings never change it. Additional
+purchases of the same cluster (also by existing buyers) extend the cluster but never
+create a duplicate signal; they are listed in `hindsight.laterPurchases` (labelled
+hindsight). Ids are deterministic: signal `cik:T`, cluster `cik:firstTradeDate`.
+
+**Timestamps kept distinct (per signal row, `rows[id].strategy`):** insider trade dates
+(`windowFrom/windowTo`, grouping only) → `secAcceptedAt` → `availableAt` = acceptance +
+latency (also `detectedAt`; SEC acceptance is not assumed to equal public availability) →
+`entrySearchStart` (next regular open for the regular rule) → `entry.time` (first
+eligible Alpaca SIP trade ≥ start) → `exit.time` (official close of the N-th session
+after the entry date; holidays, early closes and DST per `sessionCalendar.js`).
+The insider's purchase date is never an entry date.
+
+**Returns.** Gross and net (after costs), SPY over the same entry/exit (SPY bought at its
+first eligible trade at/after the stock entry, sold at the same exit close), excess = net −
+SPY. Split-adjusted; dividends not included. Missing data is a status, never 0 %:
+`immature`, `no_bar` (missing exit), missing entry (`no_entry`, `awaiting_*`),
+`no_ticker`. The summary counts each reason; `reliability` is `not_reliable` whenever SEC
+coverage is incomplete, fewer than 30 signals are complete, > 20 % lack prices, most
+horizons are immature, or SPY is missing for some.
+
+**Reuse / caching.** A strategy entry reuses the acceptance-based entry already cached
+when that one is at/after the strategy start (no request). Results are cached per exact
+run configuration + data version, so a changed parameter is always recomputed.
+
+**Endpoints.** `GET /run/:id/publication-now` → `strategy { config, summary, reliability }`
+and `rows[id].strategy`; `GET /run/:id/event-study/:signalId` → later SEC publications of
+that company, each measured from its own acceptance with the same rules (separate from the
+signal); `GET|POST|PUT|DELETE /api/insider/strategies` (signed-in users; params
+validated like a run; collection `backteststrategies`, index `{userId:1, updatedAt:-1}`
+is NOT created automatically — autoIndex is off).
+
+**Company timeline.** Every code-P purchase is an event with insider, roles, trade date,
+SEC acceptance, shares and USD value, `signalRole` (`signal_snapshot` /
+`subsequent_publication` / …) and `publicationSession` (first session that opened at/after
+the acceptance — where the chart plots it). Without daily CSV files the chart uses Alpaca
+split-adjusted SIP daily closes (closes only; no intraday reaction is drawn).
+
+**Comparison.** The page keeps up to 6 recent runs per browser tab and compares only those
+with the same date range, with sample sizes, SEC coverage and an overfitting warning.
+
 ## Architecture
 
 | Concern | Module |

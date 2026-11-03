@@ -33,6 +33,7 @@ import authRoutes from "./routers/authRoutes.js";
 import pushRoutes from "./routers/pushRoutes.js";
 import insiderWatchRoutes from "./routers/insiderWatchRoutes.js";
 import insiderAlertRoutes from "./routers/insiderAlertRoutes.js";
+import backtestStrategyRoutes from "./routers/backtestStrategyRoutes.js";
 import protectRoute from "./middelware/protectRoute.js";
 import { startInsiderAlerts, getAlertEngineStats } from "./services/insiderAlertRuntime.js";
 
@@ -116,6 +117,8 @@ app.use("/api/auth", requireAccounts, authRoutes);
 app.use("/api/push", requireAccounts, pushRoutes);
 app.use("/api/insider/watches", requireAccounts, protectRoute, insiderWatchRoutes);
 app.use("/api/insider/alerts", requireAccounts, protectRoute, insiderAlertRoutes);
+// Saved Backtesting strategies (account feature; running a backtest stays public).
+app.use("/api/insider/strategies", requireAccounts, protectRoute, backtestStrategyRoutes);
 
 app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 

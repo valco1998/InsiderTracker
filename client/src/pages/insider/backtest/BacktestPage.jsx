@@ -4,31 +4,45 @@
 // U.S.-dollar threshold, and returns only when a licensed price provider is configured.
 // No placeholder or demo performance is ever rendered — without price data the
 // page shows the signals with "Price data required".
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import useBacktest from "../../../hooks/useBacktest";
 import TrackPanel from "./TrackPanel";
 import { Disclaimer, EmptyState, ErrorNote, PageHeader, Panel, Skeleton } from "../components/Common";
 import { compactUsd, count, day, usd } from "../../../utils/insiderFormat";
-import { ROLE_OPTIONS, HORIZON_KEYS, defaultForm, toRunRequest, pct, plainPct, dataStatus, pubStatusText, pubStatusShort, publicationSummary, SESSION_LABEL, PROVIDER_LABEL, ENTRY_BASIS_LABEL, METRIC_HELP, publishedParts, etParts, freshness, buyersText, IPO_LABEL, IPO_HELP, HINDSIGHT_HELP, hindsightDelta } from "../../../utils/insiderBacktest";
+import { ROLE_OPTIONS, HORIZON_KEYS, defaultForm, toRunRequest, pct, plainPct, dataStatus, pubStatusText, pubStatusShort, publicationSummary, SESSION_LABEL, PROVIDER_LABEL, ENTRY_BASIS_LABEL, METRIC_HELP, publishedParts, etParts, freshness, buyersText, IPO_LABEL, IPO_HELP, HINDSIGHT_HELP, hindsightDelta, HORIZON_PRESETS, LATENCY_PRESETS, ENTRY_SESSION_LABEL, formFromParams, comparisonEntry, upsertComparison } from "../../../utils/insiderBacktest";
+import { StrategyResults, StrategyComparison } from "./StrategyResults";
+import SavedStrategies from "./SavedStrategies";
 import InfoTip from "./InfoTip";
 import ScrollableTable from "./ScrollableTable";
 import { HorizonPanel, CoveragePanel } from "./HistoricalPanels";
 import usePublicationNow, { pricingPending } from "../../../hooks/usePublicationNow";
 import useIpoContext from "../../../hooks/useIpoContext";
 
-// v2: the threshold is in U.S. dollars. Forms saved under v1 (ILS threshold) are never read.
-const STORE_KEY = "it.backtestForm.v2";
+// v3: user strategy fields (horizon, latency, entry session; delay filters off by default).
+// Older forms (v1 ILS threshold, v2 with a default 30-day lag filter) are never read.
+const STORE_KEY = "it.backtestForm.v3";
+const COMPARE_KEY = "it.backtestCompare.v1";
 const HLABEL = { "7d": "7D", "30d": "30D", "90d": "90D", "180d": "180D" };
 const chipOn = { color: "var(--it-text)", borderColor: "var(--it-accent)", background: "var(--it-accent-soft)" };
 
 function useForm() {
   const [f, setF] = useState(() => {
-    try { sessionStorage.removeItem("it.backtestForm.v1"); } catch { /* storage unavailable */ } // old ILS-threshold form
+    try { sessionStorage.removeItem("it.backtestForm.v1"); sessionStorage.removeItem("it.backtestForm.v2"); } catch { /* storage unavailable */ } // older forms
     try { const v = JSON.parse(sessionStorage.getItem(STORE_KEY) || "null"); return v ? { ...defaultForm(), ...v } : defaultForm(); } catch { return defaultForm(); }
   });
   useEffect(() => { try { sessionStorage.setItem(STORE_KEY, JSON.stringify(f)); } catch { /* storage unavailable */ } }, [f]);
-  return [f, (p) => setF((x) => ({ ...x, ...p })), () => setF(defaultForm())];
+  return [f, (p) => setF((x) => ({ ...x, ...p })), () => setF(defaultForm()), (params) => setF(formFromParams(params))];
+}
+
+// Runs kept for side-by-side comparison (this browser tab only).
+function useComparisons() {
+  const [list, setList] = useState(() => { try { return JSON.parse(sessionStorage.getItem(COMPARE_KEY) || "[]"); } catch { return []; } });
+  useEffect(() => { try { sessionStorage.setItem(COMPARE_KEY, JSON.stringify(list)); } catch { /* storage unavailable */ } }, [list]);
+  const add = useCallback((e) => setList((l) => upsertComparison(l, e)), []);
+  const remove = useCallback((id) => setList((l) => l.filter((x) => x.jobId !== id)), []);
+  const clear = useCallback(() => setList([]), []);
+  return { list, add, remove, clear };
 }
 
 function Field({ label, hint, children }) {
@@ -50,17 +64,20 @@ function StrategySummary({ f }) {
   const pills = [
     ["Period", `${f.from ? day(f.from) : "—"} – ${f.to ? day(f.to) : "—"}`],
     ["Buyers", `≥ ${f.minBuyers || "—"}`],
-    ["Combined", `> ${usdText(f.minValueUsd)}`],
+    ["Combined", `≥ ${usdText(f.minValueUsd)}`],
     ["Window", `${f.windowDays || "—"} days`],
-    ["Max lag", `${f.maxSignalLagDays || "—"} days`],
-    ["Roles", f.roles.length ? f.roles.join(", ") : "Any"],
+    ["Horizon", `${f.horizonSessions || "—"} trading sessions`],
+    ["Entry", `acceptance + ${f.executionLatencySeconds || 0} s · ${f.entrySession === "extended" ? "extended hours" : "regular hours"}`],
+    ["Roles", f.roles.length ? f.roles.join(", ") : "All"],
   ];
+  if (f.maxFilingDelayDays !== "") pills.push(["Filed within", `${f.maxFilingDelayDays} days`]);
+  if (f.maxSignalLagDays !== "") pills.push(["Max lag", `${f.maxSignalLagDays} days`]);
   if (f.openMarketOnly) pills.push(["Purchases", "Open-market only"]);
   if (f.minTransactionUsd) pills.push(["Min purchase", usdText(f.minTransactionUsd)]);
   return pills.map(([k, v]) => <span key={k} className="bt-pill">{k} <strong className="it-num">{v}</strong></span>);
 }
 
-function StrategyPanel({ f, set, reset, prices, running, onRun, clientError, hasResult }) {
+function StrategyPanel({ f, set, reset, load, prices, running, onRun, clientError, hasResult, request }) {
   const capOk = prices?.available && prices?.capabilities?.marketCap;
   const [open, setOpen] = useState(!hasResult);
   useEffect(() => { if (hasResult) setOpen(false); }, [hasResult]);
@@ -68,7 +85,7 @@ function StrategyPanel({ f, set, reset, prices, running, onRun, clientError, has
     <section className="it-panel" aria-label="Strategy">
       <div className="flex flex-wrap items-start gap-4 px-5 py-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2"><h2 className="it-panel-title">Strategy</h2><span className="text-[12.5px] it-dim2">Cluster buying · Form 4 code P · trade-date window</span></div>
+          <div className="flex items-baseline gap-2"><h2 className="it-panel-title">Strategy</h2><span className="text-[12.5px] it-dim2">Your strategy · Form 4 code P · returns start only after SEC publication</span></div>
           <div className="mt-2.5 flex flex-wrap gap-1.5"><StrategySummary f={f} /></div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -82,9 +99,9 @@ function StrategyPanel({ f, set, reset, prices, running, onRun, clientError, has
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Signals from"><input type="date" className="it-input it-num w-full" value={f.from} max={f.to} onChange={(e) => set({ from: e.target.value })} /></Field>
           <Field label="to"><input type="date" className="it-input it-num w-full" value={f.to} min={f.from} onChange={(e) => set({ to: e.target.value })} /></Field>
-          <Field label="Min distinct buyers" hint="SEC CIK; joint filers = 1"><NumInput value={f.minBuyers} onChange={(v) => set({ minBuyers: v })} aria-label="Minimum distinct buyers" /></Field>
-          <Field label="Combined value > $ (USD)" hint="All buyers together, Form 4 U.S.-dollar values"><NumInput value={f.minValueUsd} onChange={(v) => set({ minValueUsd: v })} aria-label="Minimum combined purchase value in U.S. dollars" /></Field>
-          <Field label="Window (calendar days)" hint="Trade dates, 1-day resolution · strategy default 30">
+          <Field label="Min distinct buyers" hint="Any whole number · SEC CIK; joint filers = 1"><NumInput value={f.minBuyers} onChange={(v) => set({ minBuyers: v.replace(/\./g, "") })} aria-label="Minimum distinct buyers" /></Field>
+          <Field label="Min combined value $ (USD)" hint="At least this much — all purchases of all buyers in the window"><NumInput value={f.minValueUsd} onChange={(v) => set({ minValueUsd: v })} aria-label="Minimum combined purchase value in U.S. dollars" /></Field>
+          <Field label="Rolling window (calendar days)" hint="Groups purchases by trade date only — never an entry date">
             <NumInput value={f.windowDays} onChange={(v) => set({ windowDays: v })} aria-label="Rolling window in calendar days" />
             <span className="flex flex-wrap gap-1" role="group" aria-label="Window presets">
               {[1, 2, 3, 7, 30].map((d) => (
@@ -93,10 +110,36 @@ function StrategyPanel({ f, set, reset, prices, running, onRun, clientError, has
               ))}
             </span>
           </Field>
-          <Field label="Max lag (days)" hint="Latest trade → publication"><NumInput value={f.maxSignalLagDays} onChange={(v) => set({ maxSignalLagDays: v })} aria-label="Maximum signal lag in days" /></Field>
+          <Field label="Return horizon (trading sessions)" hint="NYSE sessions after the entry day — not calendar days">
+            <NumInput value={f.horizonSessions} onChange={(v) => set({ horizonSessions: v.replace(/\./g, "") })} aria-label="Return horizon in trading sessions" />
+            <span className="flex flex-wrap gap-1" role="group" aria-label="Horizon presets">
+              {HORIZON_PRESETS.map((d) => (
+                <button type="button" key={d} className="it-chip" aria-pressed={String(f.horizonSessions) === String(d)} onClick={() => set({ horizonSessions: String(d) })}
+                  style={String(f.horizonSessions) === String(d) ? chipOn : undefined}>{d}</button>
+              ))}
+            </span>
+          </Field>
+          <Field label="Execution latency (seconds)" hint="After SEC acceptance — dissemination, detection, order routing">
+            <NumInput value={f.executionLatencySeconds} onChange={(v) => set({ executionLatencySeconds: v.replace(/\./g, "") })} aria-label="Execution latency in seconds" />
+            <span className="flex flex-wrap gap-1" role="group" aria-label="Latency presets">
+              {LATENCY_PRESETS.map((d) => (
+                <button type="button" key={d} className="it-chip" aria-pressed={String(f.executionLatencySeconds) === String(d)} onClick={() => set({ executionLatencySeconds: String(d) })}
+                  style={String(f.executionLatencySeconds) === String(d) ? chipOn : undefined}>{d < 60 ? `${d}s` : `${d / 60}m`}</button>
+              ))}
+            </span>
+          </Field>
+          <Field label="Entry session" hint="Regular: first regular-hours trade. Extended: pre-market and after-hours prints allowed">
+            <select className="it-input w-full" value={f.entrySession} onChange={(e) => set({ entrySession: e.target.value })} aria-label="Entry session rule">
+              {Object.entries(ENTRY_SESSION_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </Field>
+          <Field label="Max filing delay (days) — optional" hint="Off when empty: late filings count. Trade date → SEC acceptance, per purchase">
+            <NumInput value={f.maxFilingDelayDays} onChange={(v) => set({ maxFilingDelayDays: v.replace(/\./g, "") })} placeholder="off" aria-label="Maximum filing delay in days (optional)" />
+          </Field>
           <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <span className="it-label">Insider roles {f.roles.length ? `(${f.roles.length})` : "(any)"}</span>
+            <span className="it-label">Insider roles {f.roles.length ? `(${f.roles.length})` : "(all)"}</span>
             <div className="flex flex-wrap gap-1.5">
+              <button type="button" className="it-chip" aria-pressed={!f.roles.length} style={!f.roles.length ? chipOn : undefined} onClick={() => set({ roles: [] })}>All roles</button>
               {ROLE_OPTIONS.map((r) => (
                 <button type="button" key={r} className="it-chip" aria-pressed={f.roles.includes(r)} style={f.roles.includes(r) ? chipOn : undefined}
                   onClick={() => set({ roles: f.roles.includes(r) ? f.roles.filter((x) => x !== r) : [...f.roles, r] })}>{r}</button>
@@ -112,6 +155,7 @@ function StrategyPanel({ f, set, reset, prices, running, onRun, clientError, has
           <summary className="cursor-pointer px-4 py-2.5 text-[13px] font-medium it-dim">Advanced · optional filters & costs</summary>
           <div className="grid grid-cols-1 gap-4 px-4 pb-4 pt-1 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Min purchase (USD)" hint="Per transaction"><NumInput value={f.minTransactionUsd} onChange={(v) => set({ minTransactionUsd: v })} placeholder="any" /></Field>
+            <Field label="Max signal lag (days) — optional" hint="Off when empty. Latest trade in the window → publication"><NumInput value={f.maxSignalLagDays} onChange={(v) => set({ maxSignalLagDays: v.replace(/\./g, "") })} placeholder="off" aria-label="Maximum signal lag in days (optional)" /></Field>
             <Field label="Prior decline ≥ %" hint="Over lookback, known at disclosure"><NumInput value={f.priorDeclinePct} onChange={(v) => set({ priorDeclinePct: v })} placeholder="off" disabled={!prices?.available} /></Field>
             <Field label="Lookback (sessions)"><NumInput value={f.priorLookbackSessions} onChange={(v) => set({ priorLookbackSessions: v })} disabled={!prices?.available} /></Field>
             <Field label="Market cap min ($M)"><NumInput value={f.minMarketCapM} onChange={(v) => set({ minMarketCapM: v })} placeholder="off" disabled={!capOk} /></Field>
@@ -123,7 +167,7 @@ function StrategyPanel({ f, set, reset, prices, running, onRun, clientError, has
                 <option value="exclude">Exclude</option><option value="last_close">Last available close</option>
               </select>
             </Field>
-            <Field label="Equity curve horizon">
+            <Field label="Equity curve horizon (legacy daily files)">
               <select className="it-input w-full" value={f.equityHorizon} onChange={(e) => set({ equityHorizon: e.target.value })}>
                 {HORIZON_KEYS.map((h) => <option key={h} value={h}>{HLABEL[h]}</option>)}
               </select>
@@ -133,10 +177,11 @@ function StrategyPanel({ f, set, reset, prices, running, onRun, clientError, has
         </details>
         <div className="flex items-center gap-2">
           <button type="submit" className="it-btn it-btn-primary" disabled={running || !!clientError}>{running ? "Running…" : "Run backtest"}</button>
-          <button type="button" className="it-btn it-btn-ghost" onClick={reset} disabled={running}>Reset to defaults</button>
+          <button type="button" className="it-btn it-btn-ghost" onClick={reset} disabled={running}>Reset to starting values</button>
         </div>
       </form>
       )}
+      <SavedStrategies currentRequest={request} onLoad={(params) => { load(params); setOpen(true); }} />
     </section>
   );
 }
@@ -458,7 +503,7 @@ function PricingProgress({ data }) {
   );
 }
 
-function Results({ result, jobId }) {
+function Results({ result, jobId, comparisons }) {
   const [trackId, setTrackId] = useState(null);
   const openTrack = (id) => { setTrackId(id); setTimeout(() => document.getElementById("bt-track")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
   const pub = usePublicationNow(jobId);
@@ -468,6 +513,13 @@ function Results({ result, jobId }) {
   const sum = publicationSummary(rows);
   const reg = publicationSummary(rows, "regular");
   const cov = result.coverage;
+  const strategy = pub.data?.strategy;
+  const settled = !!strategy?.summary && !pricingPending(pub.data);
+  const addComparison = comparisons.add;
+  const pubData = pub.data;
+  // Keep this run for comparison once its prices have settled (re-recorded if they change).
+  const snapKey = settled ? JSON.stringify([strategy.summary, strategy.reliability]) : null;
+  useEffect(() => { if (snapKey) addComparison(comparisonEntry({ jobId, result, pub: pubData })); }, [snapKey, addComparison, jobId, result]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="bt-results flex flex-col gap-5">
       {(pub.data?.restrictedNote || !cov.complete) && (
@@ -477,9 +529,12 @@ function Results({ result, jobId }) {
         </div>
       )}
       <DataStatus result={result} rows={rows} pub={pub.data} />
+      <StrategyResults result={result} rows={rows || {}} strategy={strategy} onTrack={openTrack} />
+      <StrategyComparison list={comparisons.list} range={{ from: result.config.from, to: result.config.to }} currentJobId={jobId} onRemove={comparisons.remove} onClear={comparisons.clear} />
+      <h3 className="it-label mt-1">Since signal → latest price · a separate view without a fixed horizon</h3>
 
       <div className="it-panel">
-        <div className="it-panel-head"><h2 className="it-panel-title">Performance overview</h2><span className="text-[12.5px] it-dim2">Return Since Signal = first eligible trade after SEC publication → latest price</span></div>
+        <div className="it-panel-head"><h2 className="it-panel-title">Since signal → now</h2><span className="text-[12.5px] it-dim2">Return Since Signal = first eligible trade after SEC publication → latest price</span></div>
         <PricingProgress data={pub.data} />
         <div className="it-kpis grid grid-cols-2 sm:grid-cols-5">
           <Kpi label="Signals" value={count(result.signals.length)} sub={`${day(result.config.from)} – ${day(result.config.to)}`} />
@@ -521,7 +576,8 @@ function Methodology({ m }) {
 }
 
 export default function BacktestPage() {
-  const [f, set, reset] = useForm();
+  const [f, set, reset, load] = useForm();
+  const comparisons = useComparisons();
   const req = useMemo(() => toRunRequest(f), [f]);
   const range = useMemo(() => (req.body ? { from: req.body.from, to: req.body.to } : null), [req.body]);
   const { status, reloadStatus, run, start } = useBacktest(range);
@@ -532,9 +588,9 @@ export default function BacktestPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title="Backtesting"
-        description="Did past clusters of insider purchases precede returns? Every signal is reconstructed from what was public at its SEC publication time."
+        description="Define your own insider-buying strategy and test it on real SEC Form 4 filings. Every signal is reconstructed from what was public at its SEC publication time; returns start only after that publication."
         badge={<span className="it-badge it-badge-warn">Historical simulation — not live signals</span>} />
-      <StrategyPanel f={f} set={set} reset={reset} prices={status.data?.prices} running={running} onRun={() => req.body && start(req.body)} clientError={req.error} hasResult={!!run.result} />
+      <StrategyPanel f={f} set={set} reset={reset} load={load} request={req.body || null} prices={status.data?.prices} running={running} onRun={() => req.body && start(req.body)} clientError={req.error} hasResult={!!run.result} />
       <div className="flex min-w-0 flex-col gap-5">
           {running && (
             <div className="it-panel flex flex-col gap-2 px-4 py-3" role="status" aria-live="polite">
@@ -545,7 +601,7 @@ export default function BacktestPage() {
             </div>
           )}
           {run.state === "error" && <ErrorNote>{run.error}</ErrorNote>}
-          {run.result ? <Results key={run.jobId} result={run.result} jobId={run.jobId} /> : !running && (
+          {run.result ? <Results key={run.jobId} result={run.result} jobId={run.jobId} comparisons={comparisons} /> : !running && (
             <div className="it-panel"><EmptyState title="Configure the strategy and run the backtest.">Results are computed on the server from stored SEC filings. Nothing is shown until a run finishes.</EmptyState></div>
           )}
           <DataPanel status={status} f={f} />

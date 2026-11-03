@@ -89,3 +89,22 @@ export function signalMarkers(clusters = [], series = []) {
   }
   return out;
 }
+
+// SEC PUBLICATION markers: one point per (publication session, kind) — plotted at the close
+// of the first session that opened at/after the SEC acceptance (server: publicationSession),
+// so a publication is never drawn before it was public. kind: "signal" (purchases in the
+// frozen signal snapshot) or "later" (SEC publications after the signal). Daily closes only.
+export function publicationPoints(events = []) {
+  const groups = new Map();
+  for (const e of events) {
+    if (!Number.isFinite(e.pctAtPublication) || !e.publicationPriceDate) continue;
+    const kind = e.signalRole === "signal_snapshot" ? "signal" : e.signalRole === "subsequent_publication" ? "later" : null;
+    if (!kind) continue;
+    const k = `${e.publicationPriceDate}|${kind}`;
+    const g = groups.get(k) || groups.set(k, { x: e.publicationPriceDate, y: e.pctAtPublication, kind, purchases: 0, insiders: [], publishedAt: [] }).get(k);
+    g.purchases++;
+    if (!g.insiders.includes(e.insider)) g.insiders.push(e.insider);
+    if (!g.publishedAt.includes(e.publishedAt)) g.publishedAt.push(e.publishedAt);
+  }
+  return [...groups.values()].sort((a, b) => a.x.localeCompare(b.x));
+}

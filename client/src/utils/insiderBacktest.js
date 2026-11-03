@@ -7,10 +7,13 @@ export const HORIZON_KEYS = ["7d", "30d", "90d", "180d"];
 
 const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
 
+// Starting values only — every one is the user's choice (none is a fixed strategy rule).
+// The filing-delay and signal-lag filters are OFF (empty) by default: late filings count.
 export function defaultForm(nowMs = Date.now()) {
   return {
     from: iso(nowMs - 3 * 365 * 86_400_000), to: iso(nowMs),
-    minBuyers: "2", minValueUsd: "250000", windowDays: "30", maxSignalLagDays: "30",
+    minBuyers: "2", minValueUsd: "250000", windowDays: "30", maxSignalLagDays: "", maxFilingDelayDays: "",
+    horizonSessions: "20", executionLatencySeconds: "60", entrySession: "regular",
     roles: [], openMarketOnly: false, minTransactionUsd: "",
     priorDeclinePct: "", priorLookbackSessions: "63",
     minMarketCapM: "", maxMarketCapM: "",
@@ -25,11 +28,16 @@ const n = (v) => (v === "" || v == null ? null : Number(v));
 // → { body } or { error } (client-side check; the server validates again).
 export function toRunRequest(f) {
   if (!DATE_RE.test(f.from) || !DATE_RE.test(f.to) || f.from > f.to) return { error: "Choose a valid date range (start on or before end)." };
-  const ints = [["minBuyers", 1, 50, "Minimum buyers"], ["windowDays", 1, 365, "Window"], ["maxSignalLagDays", 0, 3650, "Maximum signal lag"]];
-  for (const [k, lo, hi, label] of ints) {
+  // Same bounds as the server (input sanity only). Optional fields: empty = off.
+  const ints = [["minBuyers", 1, 100_000, "Minimum buyers"], ["windowDays", 1, 3650, "Window"], ["horizonSessions", 1, 756, "Return horizon (trading sessions)"],
+    ["executionLatencySeconds", 0, 86_400, "Execution latency (seconds)"],
+    ["maxSignalLagDays", 0, 3650, "Maximum signal lag", true], ["maxFilingDelayDays", 0, 3650, "Maximum filing delay", true]];
+  for (const [k, lo, hi, label, optional] of ints) {
     const v = n(f[k]);
+    if (optional && v == null) continue;
     if (!Number.isInteger(v) || v < lo || v > hi) return { error: `${label} must be a whole number from ${lo} to ${hi}.` };
   }
+  if (!["regular", "extended"].includes(f.entrySession)) return { error: "Choose an entry session rule." };
   const usd = n(f.minValueUsd);
   if (!(usd >= 0)) return { error: "Minimum combined value (USD) must be 0 or more." };
   const decline = n(f.priorDeclinePct);
@@ -38,12 +46,15 @@ export function toRunRequest(f) {
   if ((lo != null && !(lo >= 0)) || (hi != null && !(hi >= 0)) || (lo != null && hi != null && lo > hi)) return { error: "Check the market-cap range." };
   const body = {
     from: f.from, to: f.to,
-    minBuyers: n(f.minBuyers), minValueUsd: usd, windowDays: n(f.windowDays), maxSignalLagDays: n(f.maxSignalLagDays),
+    minBuyers: n(f.minBuyers), minValueUsd: usd, windowDays: n(f.windowDays),
+    horizonSessions: n(f.horizonSessions), executionLatencySeconds: n(f.executionLatencySeconds), entrySession: f.entrySession,
     roles: f.roles, openMarketOnly: !!f.openMarketOnly,
     commissionBps: n(f.commissionBps) ?? 0, slippageBps: n(f.slippageBps) ?? 0,
     delistingPolicy: f.delistingPolicy, equityHorizon: f.equityHorizon,
   };
   if (n(f.minTransactionUsd) != null) body.minTransactionUsd = n(f.minTransactionUsd);
+  if (n(f.maxSignalLagDays) != null) body.maxSignalLagDays = n(f.maxSignalLagDays);
+  if (n(f.maxFilingDelayDays) != null) body.maxFilingDelayDays = n(f.maxFilingDelayDays);
   if (decline != null) { body.minPriorDecline = decline / 100; body.priorLookbackSessions = n(f.priorLookbackSessions) ?? 63; }
   if (lo != null) body.minMarketCap = lo * 1e6;
   if (hi != null) body.maxMarketCap = hi * 1e6;
@@ -280,3 +291,110 @@ export function hindsightDelta(s) {
   const grew = h.buyers !== s.uniqueBuyers || h.purchases !== s.purchases || Math.abs((h.valueUsd || 0) - (s.valueUsd || 0)) >= 0.5;
   return grew ? h : null;
 }
+
+// ---------- User strategy (actionable returns over the selected horizon) ----------
+export const HORIZON_PRESETS = [1, 3, 5, 10, 20, 60];
+export const LATENCY_PRESETS = [0, 60, 300, 900];
+export const ENTRY_SESSION_LABEL = { regular: "Regular hours only", extended: "Extended hours allowed" };
+
+// Saved strategy params (API units, as sent by toRunRequest) → form (human units). Exact
+// inverse of toRunRequest: a field missing from params keeps the form's empty / default value.
+export function formFromParams(p = {}, nowMs = Date.now()) {
+  const d = defaultForm(nowMs);
+  const s = (v) => (v == null ? "" : String(v));
+  return {
+    ...d,
+    from: p.from || d.from, to: p.to || d.to,
+    minBuyers: s(p.minBuyers ?? d.minBuyers), minValueUsd: s(p.minValueUsd ?? d.minValueUsd), windowDays: s(p.windowDays ?? d.windowDays),
+    maxSignalLagDays: s(p.maxSignalLagDays), maxFilingDelayDays: s(p.maxFilingDelayDays),
+    horizonSessions: s(p.horizonSessions ?? d.horizonSessions), executionLatencySeconds: s(p.executionLatencySeconds ?? d.executionLatencySeconds),
+    entrySession: p.entrySession || d.entrySession,
+    roles: Array.isArray(p.roles) ? p.roles.filter((r) => ROLE_OPTIONS.includes(r)) : [],
+    openMarketOnly: p.openMarketOnly === true, minTransactionUsd: s(p.minTransactionUsd),
+    priorDeclinePct: p.minPriorDecline != null ? s(Math.round(p.minPriorDecline * 10000) / 100) : "",
+    priorLookbackSessions: s(p.priorLookbackSessions ?? d.priorLookbackSessions),
+    minMarketCapM: p.minMarketCap != null ? s(p.minMarketCap / 1e6) : "", maxMarketCapM: p.maxMarketCap != null ? s(p.maxMarketCap / 1e6) : "",
+    commissionBps: s(p.commissionBps ?? d.commissionBps), slippageBps: s(p.slippageBps ?? d.slippageBps),
+    delistingPolicy: p.delistingPolicy || d.delistingPolicy, equityHorizon: p.equityHorizon || d.equityHorizon,
+  };
+}
+
+export const STRATEGY_STATUS_TEXT = {
+  ok: "Complete",
+  immature: "Horizon not complete yet: the exit session has not closed (not counted as 0 %)",
+  no_bar: "Missing exit price: no daily bar for the exit session (halt, delisting or symbol change); not estimated",
+  bars_unavailable: "Daily prices could not be loaded; retried automatically",
+  no_entry: "Missing entry price: no eligible trade after publication",
+  no_ticker: "No ticker on the Form 4, so it cannot be priced",
+  lookup_queued: "Loading the entry price in the background",
+  price_data_restricted: "Internal use only (licence)",
+};
+export const strategyStatusText = (s) => STRATEGY_STATUS_TEXT[s] || PUB_STATUS_TEXT[s] || "Price data unavailable";
+export function strategyStatusShort(s) {
+  if (s === "immature") return "Not mature";
+  if (s === "no_bar") return "No exit price";
+  if (s === "no_entry" || s === "awaiting_first_trade" || s === "no_eligible_trade_in_scan") return "No entry price";
+  if (s === "no_ticker") return "No ticker";
+  return pubStatusShort(s);
+}
+// Groups the server's missing-reason counts into the data-quality buckets shown to users.
+export function missingBreakdown(missing = {}) {
+  const out = { missingEntry: 0, missingExit: 0, immature: 0, excluded: 0, loading: 0 };
+  for (const [k, v] of Object.entries(missing || {})) {
+    if (k === "immature") out.immature += v;
+    else if (k === "no_bar" || k === "bars_unavailable") out.missingExit += v;
+    // Only states that resolve by themselves count as loading. "awaiting_first_trade" /
+    // "awaiting_regular_session_trade" mean no eligible trade was found: a missing entry price.
+    else if (k === "lookup_queued" || k === "awaiting_sip" || k === "awaiting_regular_session" || k === "rate_limited" || k === "quota") out.loading += v;
+    else if (k === "no_ticker" || k === "invalid_publication_time" || k === "unknown_ticker" || k === "unsupported_symbol") out.excluded += v;
+    else out.missingEntry += v;
+  }
+  return out;
+}
+
+export const RELIABILITY_TEXT = {
+  sec_coverage_incomplete: "SEC Form 4 history is incomplete for this period; signals from missing days are absent",
+  small_sample: "Fewer than 30 completed signals",
+  many_missing_prices: "More than 20 % of signals have no entry or exit price",
+  most_horizons_immature: "Most signals have not reached the selected horizon yet",
+  benchmark_incomplete: "SPY comparison missing for some signals",
+};
+
+// Timeline event relation to the frozen signal snapshot (server: tracking.js).
+export const EVENT_ROLE_LABEL = {
+  signal_snapshot: "In signal",
+  subsequent_publication: "Later SEC publication",
+  in_window_not_in_signal: "Not in signal (filtered, or public after the window)",
+  outside_signal_clusters: "Outside signal clusters",
+};
+
+// ---------- Strategy comparison (client-side; same historical date range only) ----------
+// A comparable snapshot of one finished run: configuration + its server-computed summary.
+export function comparisonEntry({ jobId, result, pub, label }) {
+  const c = result?.config || {};
+  const sc = pub?.strategy?.config || {};
+  return {
+    jobId, label: label || null, at: Date.now(),
+    from: c.from, to: c.to,
+    config: {
+      minBuyers: c.minBuyers, minValueUsd: c.minValueUsd, windowDays: c.windowDays, maxFilingDelayDays: c.maxFilingDelayDays ?? null, maxSignalLagDays: c.maxSignalLagDays ?? null,
+      roles: c.roles || [], openMarketOnly: !!c.openMarketOnly, horizonSessions: sc.horizonSessions ?? c.horizonSessions,
+      executionLatencySeconds: sc.executionLatencySeconds ?? c.executionLatencySeconds, entrySession: sc.entrySession ?? c.entrySession,
+      costPerSideBps: sc.costPerSideBps ?? ((c.commissionBps || 0) + (c.slippageBps || 0)),
+    },
+    signals: result?.signals?.length ?? 0,
+    summary: pub?.strategy?.summary || null,
+    reliability: pub?.strategy?.reliability || null,
+    secCoverage: result?.coverage ? { ratio: result.coverage.ratio, complete: !!result.coverage.complete, coveredDays: result.coverage.coveredDays, businessDays: result.coverage.businessDays } : null,
+  };
+}
+// Adds or replaces (same job); keeps the newest `max`.
+export function upsertComparison(list = [], entry, max = 6) {
+  return [entry, ...list.filter((x) => x.jobId !== entry.jobId)].slice(0, max);
+}
+// Comparable only on the SAME date range; the others are listed as not comparable.
+export function comparableRuns(list = [], range) {
+  const same = list.filter((x) => range && x.from === range.from && x.to === range.to);
+  return { same, other: list.filter((x) => !same.includes(x)) };
+}
+export const OVERFITTING_WARNING = "Comparing many settings on the same historical data and keeping the best one overfits: the winner usually looks better than it will perform. Treat differences as hypotheses, prefer simple settings, and confirm on a period you did not use for choosing.";
