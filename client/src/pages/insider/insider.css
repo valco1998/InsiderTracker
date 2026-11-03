@@ -390,3 +390,16 @@ select.it-input { padding-right: 28px; }
 
 /* Backtesting: hindsight figures (not known at signal time) — muted, italic, dashed underline */
 .bt-hindsight { font-style: italic; color: var(--it-text-3); text-decoration: underline dotted var(--it-line-strong); text-underline-offset: 3px; cursor: help; }
+
+/* Google sign-in button spinner */
+.it-gsi-spinner { width: 16px; height: 16px; border-radius: 999px; border: 2px solid var(--it-line-strong); border-top-color: var(--it-accent); animation: it-spin 0.8s linear infinite; }
+@keyframes it-spin { to { transform: rotate(360deg); } }
+
+/* Legacy Tailwind white-text utilities used by reused components (account drawer) follow the theme. */
+.it-root .text-white { color: var(--it-text); }
+.it-root .text-white\/90, .it-root .text-white\/85, .it-root .text-white\/80 { color: var(--it-text); }
+.it-root .text-white\/75, .it-root .text-white\/70, .it-root .text-white\/65, .it-root .text-white\/60 { color: var(--it-text-2); }
+.it-root .text-white\/55, .it-root .text-white\/50, .it-root .text-white\/45, .it-root .text-white\/40, .it-root .text-white\/35, .it-root .text-white\/30 { color: var(--it-text-3); }
+.it-root .hover\:text-white:hover { color: var(--it-text); }
+.it-root .text-rose-300 { color: var(--it-sell); }
+.it-root .text-emerald-300 { color: var(--it-buy); }

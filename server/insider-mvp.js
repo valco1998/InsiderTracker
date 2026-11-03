@@ -110,6 +110,7 @@ app.use("/api/insider", insiderRoutes);
 
 // Account features — 503 until MongoDB isolation + JWT secret are verified.
 app.use("/api/auth/login", rateLimit({ windowMs: 60_000, max: 10, key: "auth.login" }));
+app.use("/api/auth/session", rateLimit({ windowMs: 60_000, max: 30, key: "auth.session" }));
 app.use("/api/auth/signup", rateLimit({ windowMs: 60 * 60_000, max: 5, key: "auth.signup" }));
 app.use("/api/auth", requireAccounts, authRoutes);
 app.use("/api/push", requireAccounts, pushRoutes);

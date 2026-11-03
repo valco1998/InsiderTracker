@@ -19,6 +19,10 @@ const UserSchema = new mongoose.Schema(
     steamProfileUrl:  { type: String, default: "" },
     // Steam trade URL (user-provided, not a credential)
     tradeUrl:         { type: String, default: "" },
+    // Google sign-in (Firebase Authentication) — stable identity
+    firebaseUid:  { type: String, unique: true, sparse: true },
+    authProvider: { type: String, default: "" },
+    lastLoginAt:  { type: Date },
     // User notification preferences
     tradeMatchAlertsEnabled: { type: Boolean, default: true },
   },

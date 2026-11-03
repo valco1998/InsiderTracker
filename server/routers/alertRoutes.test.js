@@ -26,6 +26,13 @@ const REGULAR = { _id: new mongoose.Types.ObjectId(), email: "regular@example.te
 const ADMIN   = { _id: new mongoose.Types.ObjectId(), email: "operator@example.test" };
 const USERS   = new Map([[String(REGULAR._id), REGULAR], [String(ADMIN._id), ADMIN]]);
 User.findById = (id) => ({ select: async () => USERS.get(String(id)) || null });
+User.findOne = (q) => ({ select: async () => USERS.get(String(q?.firebaseUid)) || null });
+// Google sign-in (Firebase ID token) for tests: the stub verifier accepts tokens whose
+// payload uid is a known test user; protectRoute looks the user up by firebaseUid.
+const { setFirebaseVerifierForTests } = await import("../services/firebaseAuth.js");
+setFirebaseVerifierForTests(async (t) => ({ uid: JSON.parse(Buffer.from(t.split(".")[1], "base64url").toString()).uid, firebase: { sign_in_provider: "google.com" } }));
+const googleTokenFor = (id) => `h.${Buffer.from(JSON.stringify({ iss: "https://securetoken.google.com/test", uid: String(id) })).toString("base64url")}.sig`;
+
 
 let server;
 let base;
@@ -52,7 +59,7 @@ beforeEach(() => {
 });
 
 function tokenFor(user) {
-  return jwt.sign({ sub: String(user._id) }, process.env.JWT_SECRET, { expiresIn: "5m" });
+  return googleTokenFor(user._id);
 }
 
 async function call(method, path, user) {

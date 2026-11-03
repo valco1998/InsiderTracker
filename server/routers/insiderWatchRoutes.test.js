@@ -26,8 +26,14 @@ const lookupCik = async (c) => { if (lookupMode === "down") throw new CompanyLoo
 
 const ALICE = new mongoose.Types.ObjectId();
 const BOB = new mongoose.Types.ObjectId();
-const tokenFor = (id) => jwt.sign({ sub: String(id) }, process.env.JWT_SECRET);
 User.findById = (id) => ({ select: async () => ([String(ALICE), String(BOB)].includes(String(id)) ? { _id: id, username: "u" } : null) });
+User.findOne = (q) => ({ select: async () => ([String(ALICE), String(BOB)].includes(String(q?.firebaseUid)) ? { _id: q.firebaseUid, username: "u" } : null) });
+// Google sign-in (Firebase ID token) for tests: the stub verifier accepts tokens whose
+// payload uid is a known test user; protectRoute looks the user up by firebaseUid.
+const { setFirebaseVerifierForTests } = await import("../services/firebaseAuth.js");
+setFirebaseVerifierForTests(async (t) => ({ uid: JSON.parse(Buffer.from(t.split(".")[1], "base64url").toString()).uid, firebase: { sign_in_provider: "google.com" } }));
+const googleTokenFor = (id) => `h.${Buffer.from(JSON.stringify({ iss: "https://securetoken.google.com/test", uid: String(id) })).toString("base64url")}.sig`;
+const tokenFor = (id) => googleTokenFor(id);
 
 // In-memory InsiderWatch store.
 let rows = [];

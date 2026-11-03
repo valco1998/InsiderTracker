@@ -10,7 +10,6 @@ import useAuth from "./hooks/useAuth.js";
 // Heavy pages — code-split so the initial bundle only contains the shell.
 // Each page chunk is downloaded on first navigation, not on first load.
 const Market       = lazy(() => import("./pages/market/Market.jsx"));
-const Login        = lazy(() => import("./pages/login/Login.jsx"));
 const Home         = lazy(() => import("./pages/home/home.jsx"));
 const Watchlist    = lazy(() => import("./pages/components/watch/Watchlist.jsx"));
 const Alerts       = lazy(() => import("./pages/alerts/Alerts.jsx"));
@@ -87,7 +86,8 @@ export default function App() {
           {/* Public */}
           <Route path="/" element={<SmartHome />} />
           <Route path="/privacy" element={<Privacy />} />
-          <Route path="/login" element={<Login />} />
+          {/* Google-only sign-in (email/password retired) */}
+          <Route path="/login" element={<Navigate to="/insider/sign-in" replace />} />
           <Route path="/signup" element={<Navigate to="/login" replace />} />
           <Route path="/steam/callback" element={<SteamCallback />} />
           <Route path="/insider/*" element={<InsiderDashboard />} />

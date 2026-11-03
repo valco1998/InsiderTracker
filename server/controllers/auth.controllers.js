@@ -146,6 +146,17 @@ export async function login(req, res) {
   }
 }
 
+// Email/password registration and login are retired — Google sign-in only.
+export function passwordAuthRetired(_req, res) {
+  return res.status(410).json({ ok: false, error: "Email and password sign-in is no longer available. Continue with Google.", code: "auth/password-retired" });
+}
+
+// POST /api/auth/session — called by the client right after Google sign-in.
+// protectRoute has verified the Firebase ID token and created/linked the profile.
+export async function session(req, res) {
+  return res.json({ ok: true, user: req.user, provider: req.auth?.provider || null });
+}
+
 export async function me(req, res) {
   return res.json({ ok: true, user: req.user });
 }

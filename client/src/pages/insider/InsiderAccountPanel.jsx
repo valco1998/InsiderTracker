@@ -2,8 +2,7 @@
 // Reuses the existing auth hooks/context and usePushNotifications unchanged.
 import { useState } from "react";
 import useAuth from "../../hooks/useAuth";
-import useLogin from "../../hooks/useLogin";
-import useSignup from "../../hooks/useSignup";
+import GoogleSignIn from "./auth/GoogleSignIn";
 import usePushNotifications from "../../hooks/usePushNotifications";
 
 const panel = { background: "var(--bg-panel)", border: "1px solid var(--border)" };
@@ -16,50 +15,12 @@ const TYPE_LABEL = { both: "Purchases & sales", purchase: "Purchases only", sale
 const day = (iso) => (iso ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" }) : "—");
 
 function SignIn() {
-  const { loginWithToken } = useAuth();
-  const { login, loading: loggingIn, error: loginError } = useLogin();
-  const { signup, loading: signingUp, error: signupError } = useSignup();
-  const [mode, setMode] = useState("login");
-  const [f, setF] = useState({ identifier: "", username: "", email: "", password: "", confirmPassword: "" });
-  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (mode === "login") {
-      try {
-        const data = await login({ identifier: f.identifier, password: f.password });
-        if (data?.token) loginWithToken(data.token, data.user);
-      } catch { /* error shown by hook */ }
-    } else {
-      const data = await signup({ username: f.username, email: f.email, password: f.password, confirmPassword: f.confirmPassword });
-      if (data?.token) loginWithToken(data.token, data.user);
-    }
-  };
-  const busy = loggingIn || signingUp;
-  const error = mode === "login" ? loginError : signupError;
-
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2.5 rounded-xl p-4" style={panel}>
-      <div className="text-sm font-semibold text-white">{mode === "login" ? "Sign in to follow companies" : "Create an account"}</div>
-      <div className="text-xs text-white/50">Get a push notification when insiders at companies you follow report a purchase or sale on Form 4.</div>
-      {mode === "login" ? (
-        <input className={input} style={inputStyle} placeholder="Email or username" autoComplete="username" value={f.identifier} onChange={set("identifier")} />
-      ) : (
-        <>
-          <input className={input} style={inputStyle} placeholder="Username" autoComplete="username" value={f.username} onChange={set("username")} />
-          <input className={input} style={inputStyle} placeholder="Email" type="email" autoComplete="email" value={f.email} onChange={set("email")} />
-        </>
-      )}
-      <input className={input} style={inputStyle} placeholder="Password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={f.password} onChange={set("password")} />
-      {mode === "signup" && <input className={input} style={inputStyle} placeholder="Confirm password" type="password" autoComplete="new-password" value={f.confirmPassword} onChange={set("confirmPassword")} />}
-      {error && <div className="text-xs text-rose-300">{error}</div>}
-      <div className="flex items-center justify-between gap-2">
-        <button type="submit" disabled={busy} className={btn} style={primary}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</button>
-        <button type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")} className="text-xs text-white/55 hover:text-white">
-          {mode === "login" ? "New here? Create an account" : "Have an account? Sign in"}
-        </button>
-      </div>
-    </form>
+    <div className="flex flex-col gap-3 rounded-xl p-4" style={panel}>
+      <div className="text-[15px] font-semibold" style={{ color: "var(--it-text)" }}>Sign in to follow companies</div>
+      <div className="text-[13px] leading-relaxed" style={{ color: "var(--it-text-2)" }}>Get a push notification when insiders at companies you follow report a purchase or sale on Form 4.</div>
+      <GoogleSignIn compact />
+    </div>
   );
 }
 

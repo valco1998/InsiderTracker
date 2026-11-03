@@ -11,6 +11,7 @@ import AccountDrawer from "./components/AccountDrawer";
 import { OverviewView, TransactionsView, CompaniesView, AnalyticsView } from "./views/Views";
 import CompanyView from "./views/CompanyView";
 import BacktestPage from "./backtest/BacktestPage";
+import SignInPage from "./auth/SignInPage";
 import useAuth from "../../hooks/useAuth";
 import { useTheme } from "./theme";
 import "./insider.css";
@@ -136,6 +137,7 @@ export default function InsiderDashboard() {
             <Route path="company/:ticker" element={<CompanyRoute />} />
             <Route path="analytics" element={<AnalyticsView />} />
             <Route path="backtesting" element={<BacktestPage />} />
+            <Route path="sign-in" element={<SignInPage />} />
             <Route path="*" element={<Navigate to="/insider" replace />} />
           </Routes>
           <footer className="mt-6 border-t pt-5 pb-4 text-[12px] leading-relaxed it-dim2" style={{ borderColor: "var(--it-line)" }}>
