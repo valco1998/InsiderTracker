@@ -12,7 +12,7 @@ export const IDENTITY_DOC = { _id: "identity", app: "insider-tracker" };
 // Collections Insider Tracker itself creates.
 export const OWN_COLLECTIONS = new Set([
   "users", "devicetokens", "alertlogs", "notificationevents",
-  "insiderwatches", "insideralertclaims", IDENTITY_COLLECTION,
+  "insiderwatches", "insideralertclaims", "backteststrategies", IDENTITY_COLLECTION,
 ]);
 
 // Collections that exist only in SkinTel — their presence proves the wrong database.

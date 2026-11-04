@@ -82,7 +82,10 @@ test("Alpaca is reached only through the Backtesting price service; the browser 
   assert.deepEqual(importers("services/backtest/backtestPrices.js"), ["services/backtest/backtestEngine.js"]);
   const files = walk(SERVER).filter((f) => !/\.test\.(m?js)$/.test(f));
   assert.deepEqual(files.filter((f) => fs.readFileSync(f, "utf8").includes("data.alpaca.markets")).map(rel), ["services/stockData/alpacaClient.js"]);
-  assert.deepEqual(files.filter((f) => /alpacaClient\.js["']/.test(fs.readFileSync(f, "utf8"))).map(rel), ["services/backtest/backtestPrices.js"]);
+  // Besides the price service, only the OFFLINE research CLI library may use the client (daily
+  // OHLC bars for research). The server's runtime import graph never loads it (checked above and
+  // by "server must not load CLI scripts").
+  assert.deepEqual(files.filter((f) => /alpacaClient\.js["']/.test(fs.readFileSync(f, "utf8"))).map(rel).sort(), ["scripts/research/lib.mjs", "services/backtest/backtestPrices.js"]);
   const clientHits = walk(CLIENT_SRC).filter((f) => /alpaca\.markets|APCA-API|VITE_ALPACA|ALPACA_API/i.test(fs.readFileSync(f, "utf8"))).map((f) => path.relative(CLIENT_SRC, f));
   assert.deepEqual(clientHits, [], "the browser app never contacts Alpaca or handles its keys");
 });

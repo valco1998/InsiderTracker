@@ -1,0 +1,239 @@
+<div class="wrap">
+  <header>
+    <div class="eyebrow">InsiderTracker research · deep study 2 · specialists + independent audit · 2026-11-04</div>
+    <h1>Insider Strategy Search</h1>
+    <p class="lede">A second, deeper search for one tradable strategy in SEC Form 4 insider buying and price behaviour. Three specialists worked in parallel, the candidate rules were frozen with a hash, and an independent auditor tried to break the result.</p>
+    <nav class="toc" aria-label="Contents"><a href="#verdict">Verdict</a><a href="#did">What was done</a><a href="#tracks">Strategy results</a><a href="#gap">Where the edge is</a><a href="#controls">Insider vs momentum</a><a href="#ah">After-hours</a><a href="#frozen">Frozen rules</a><a href="#behavior">Insider behaviour</a><a href="#cases">Cases</a><a href="#audit">Audit</a><a href="#correction">Deep-1 correction</a><a href="#next">Next</a><a href="#files">Files</a></nav>
+  </header>
+
+  <section id="verdict">
+    <div class="verdict-box">
+      <b class="big">No strategy survived. Nothing is worth real capital or a paper-trading slot yet.</b>
+      <p style="margin:0">The insider information is real but priced into the <b>first trades after publication</b>, before the next regular open, where a follower using daily data enters. After the open, insider stocks beat matched look-alike stocks by only about 0.2–0.3% over 0–1 sessions. The average round-trip cost is about 0.7%. The best candidate, CEO/CFO personal open-market buys of $250k or more held for 3 sessions, came from a handful of companies and lost money in the seen holdout.</p>
+    </div>
+  </section>
+
+  <section id="did">
+    <h2>What was done</h2>
+    <div class="kv panel">
+      <div><b>9,324</b><span>priced purchase filings (Dec 2025 – Nov 2026)</span></div>
+      <div><b>7,729</b><span>used for development (before Sep 2026)</span></div>
+      <div><b>1,836</b><span>companies in development outcomes</span></div>
+      <div><b>4,912</b><span>true open-market filings (new classifier)</span></div>
+      <div><b>829</b><span>pre-registered deep-2 tests and simulations</span></div>
+      <div><b>0</b><span>positive, net-of-cost rules surviving correction</span></div>
+    </div>
+    <div class="scroll" style="margin-top:12px"><table>
+      <tr><th>Role</th><th class="n">Tests</th><th>Main question</th><th>Outcome</th></tr>
+      <tr><td>Insider-behaviour specialist</td><td class="n">51</td><td class="w">What is a real open-market buy? Do conviction, sales context and company history matter?</td><td class="w">No edge after the open. Conviction and independent buyers predict the <b>gap</b> (replicated).</td></tr>
+      <tr><td>Chart and momentum specialist</td><td class="n">155</td><td class="w">Is it insider information or ordinary momentum and reversal? Do gaps or chart shapes help?</td><td class="w">The information is in the gap. Chart effects are generic reversal, and gap fades are generic.</td></tr>
+      <tr><td>Execution specialist</td><td class="n">623</td><td class="w">What is capturable after realistic costs, delays, capacity and portfolio limits?</td><td class="w">Costs equal or exceed the gross drift. After-hours capture is small and thin.</td></tr>
+      <tr><td>Quant lead (main session)</td><td class="n">3 frozen</td><td class="w">Combine candidates and freeze rules before the holdout</td><td class="w">Only near-misses were available to freeze.</td></tr>
+      <tr><td>Independent auditor</td><td class="n">—</td><td class="w">Look-ahead, multiple testing, recomputation, one holdout run</td><td class="w">All three frozen rules failed. Found a look-ahead flaw in deep 1.</td></tr>
+    </table></div>
+    <p class="note">
+      <b>Protocol.</b>
+      <span>Discovery = published before 2026-06-15. Confirmation = 2026-06-15 to 2026-08-31, with exits embargoed.</span>
+      <span>September–November was locked in code until the rules were frozen (sha256 4b1ac11d…1a0f). It had already been seen in aggregate by deep 1, so it is a <i>seen</i> holdout.</span>
+      <span>Every test was registered with its family size before its result was computed: 0 violations.</span>
+      <span>Returns are net of liquidity-tier costs and relative to SPY.</span>
+    </p>
+  </section>
+
+  <section id="tracks">
+    <h2>Strategy results by track</h2>
+    <p>Net excess vs SPY per trade, discovery / confirmation. Fills use official open and close auction prices or recorded after-hours trades only. Nothing is simulated from candle highs and lows.</p>
+    <h3>Track B: buy at the next open, sell at a close 2–5 sessions later</h3>
+    <div class="scroll"><table>
+      <tr><th>Trigger</th><th class="n">2 sessions</th><th class="n">3</th><th class="n">4</th><th class="n">5</th><th class="n">Round trip</th><th class="n">Break-even cost ×</th></tr>
+      <tr><td>All purchase filings</td><td class="n">−0.14 / <span class="down">−1.27%</span></td><td class="n">−0.12 / <span class="down">−1.07%</span></td><td class="n">+0.02 / <span class="down">−1.27%</span></td><td class="n">−0.12 / <span class="down">−1.30%</span></td><td class="n">71 bps</td><td class="n">0.8–1.0</td></tr>
+      <tr><td>Open market stated</td><td class="n">−0.08 / −0.66%</td><td class="n">+0.10 / −0.57%</td><td class="n">+0.12 / −0.56%</td><td class="n">−0.13 / −0.70%</td><td class="n">69 bps</td><td class="n">0.8–1.2</td></tr>
+      <tr><td>True open market (new classifier)</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">−0.10 / <span class="down">−0.87%</span></td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><td>CEO/CFO personal open market ≥ $250k</td><td class="n">+0.65 / +1.43%</td><td class="n">+1.11 / +1.76%</td><td class="n">+1.46 / +0.82%</td><td class="n">+1.39 / +0.80%</td><td class="n">25 bps</td><td class="n">3.6–6.9</td></tr>
+      <tr><td>Filing value ≥ $1M</td><td class="n">+0.26 / −0.26%</td><td class="n">+0.14 / −0.23%</td><td class="n">+0.62 / −0.60%</td><td class="n">+0.43 / −0.15%</td><td class="n">46 bps</td><td class="n">1.3–2.4</td></tr>
+      <tr><td>≥ 2 buyers in 30 days</td><td class="n">−0.16 / −1.01%</td><td class="n">−0.16 / −1.12%</td><td class="n">−0.26 / −0.75%</td><td class="n">−0.50 / −1.12%</td><td class="n">68 bps</td><td class="n">0.3–0.8</td></tr>
+    </table></div>
+    <p class="note">The CEO/CFO row is the only one positive in both periods. It is not significant (q 0.30), and the next sections show why it fails. Red values are significantly negative.</p>
+    <h3>Track A: same session and overnight</h3>
+    <div class="scroll"><table>
+      <tr><th>Variant</th><th class="n">Events</th><th class="n">Discovery</th><th class="n">Confirmation</th><th>Executable?</th></tr>
+      <tr><td>Official open → official close, entry day (all purchases)</td><td class="n">7,729</td><td class="n down">−0.46% (t −4.6)</td><td class="n down">−0.84% (t −5.8)</td><td class="w">Yes, and it loses</td></tr>
+      <tr><td>Same, CEO/CFO ≥ $250k</td><td class="n">139</td><td class="n">+0.67% (q 0.29)</td><td class="n">+0.20%</td><td class="w">Yes, not significant</td></tr>
+      <tr><td>First after-hours trade (≈2 min) → next open, 25 bps per side</td><td class="n">358 with a fill</td><td class="n">+0.36% (q 0.17)</td><td class="n">+0.18%</td><td class="w">Barely: median buyable ≈ $2.4k per filing, and spreads are unknown</td></tr>
+      <tr><td>Same at 50 bps per side</td><td class="n">358</td><td class="n">−0.14%</td><td class="n">−0.32%</td><td class="w">No</td></tr>
+      <tr><td>Regular-session entry after an intraday filing; stops and targets</td><td class="n">1,981</td><td class="n muted" colspan="2">Not measurable: needs minute data</td><td class="w">Unknown</td></tr>
+      <tr><td>Premarket entry for overnight filings</td><td class="n">≈1,490</td><td class="n muted" colspan="2">Not measurable: needs premarket trades</td><td class="w">Unknown</td></tr>
+    </table></div>
+    <h3>Portfolio view (20 slots, one position per company)</h3>
+    <div class="scroll"><table>
+      <tr><th>Strategy</th><th class="n">Discovery total</th><th class="n">Max drawdown</th><th class="n">Confirmation total</th><th class="n">Max drawdown</th><th class="n">SPY, same days</th></tr>
+      <tr><td>CEO/CFO ≥ $250k, hold 5</td><td class="n">+9.0%</td><td class="n">−4.6%</td><td class="n">−0.3%</td><td class="n">−2.4%</td><td class="n">+8.4% / +2.0%</td></tr>
+      <tr><td>All purchases, hold 5</td><td class="n">+9.7%</td><td class="n">−15.5%</td><td class="n down">−20.2%</td><td class="n">worst month −15.8%</td><td class="n">—</td></tr>
+      <tr><td>All purchases, open → close</td><td class="n down">−45%</td><td class="n">—</td><td class="n down">−40%</td><td class="n">—</td><td class="n">—</td></tr>
+    </table></div>
+    <p class="note">Short history (about 6 + 2.5 months). Treat these as illustrations only. The best portfolio barely matched holding SPY.</p>
+  </section>
+
+  <section id="gap">
+    <h2>Where the edge actually is: before the open</h2>
+    <div class="panel"><div class="scroll"><svg id="gapSvg" role="img" aria-label="Opening gap vs matched controls by group"></svg></div><div class="tip" hidden></div></div>
+    <p class="note">Extra opening gap of insider-bought stocks over matched look-alike stocks (same month, liquidity, prior 5/20-day move, drawdown, volatility), discovery period. Every group has t ≥ 3.8. A next-open follower pays this gap; it doesn't earn it.</p>
+    <ul>
+      <li><b>Bigger position increases gap more:</b> top vs bottom tercile +1.61% (t 6.2) in discovery and +1.59% (t 4.0) in confirmation.</li>
+      <li><b>Different people buying gaps more than one insider repeating:</b> +1.72% vs +0.86% in discovery, and replicated (+1.07%, t 2.6).</li>
+      <li>Neither predicts returns after the open. They are only useful to someone who can buy before the open.</li>
+    </ul>
+  </section>
+
+  <section id="controls">
+    <h2>Insider information vs ordinary momentum</h2>
+    <div class="panel"><div class="scroll"><svg id="mcSvg" role="img" aria-label="Insider minus matched control return by session after the open"></svg></div><div class="legend"><span><i style="background:var(--s1)"></i>Insider minus matched control (mean)</span><span><i style="background:var(--s3)"></i>Issuer median of means</span><span><i class="line" style="background:var(--ink-3)"></i>Average round-trip cost (0.72%)</span></div><div class="tip" hidden></div></div>
+    <p class="note">All discovery events (n ≈ 5,000–5,300), entry at the official open, 10 matched controls each. Days 0–1 are positive in every control design (t ≥ 2.1) and survive global multiple-testing correction. From day 2 the mean is tail-driven and the median turns negative. Everything is below the cost line.</p>
+    <ul>
+      <li><b>Chart patterns are generic.</b> Winners had fallen into the filing and losers had run up or broken out, but matched controls show the same reversal (5-day return spread −1.44%, t −3.9).</li>
+      <li><b>Big gaps fade, and that is generic too.</b> The top-decile gap surprise lost −1.8% on day 0. Ordinary stocks with the same gap faded more; insider gaps fade <i>less</i>.</li>
+      <li><b>A strong filing with no gap does not drift up later</b> (no underreaction).</li>
+      <li><b>Size doesn't matter after the open.</b> Tiny buys were among the biggest winners, and both $14M+ buys lost (TORO −24.5%, PAR −24%).</li>
+    </ul>
+  </section>
+
+  <section id="ah">
+    <h2>After-hours: how fast does the edge disappear?</h2>
+    <div class="panel"><div class="scroll"><svg id="ahSvg" role="img" aria-label="Share of the overnight move priced and remaining capture by detection latency"></svg></div><div class="legend"><span><i style="background:var(--s1)"></i>Gross capture, fill → next open (hover for the share already priced: 67% at 1 minute, ≈78% from 5 minutes)</span><span><i class="line" style="background:var(--ink-3)"></i>Round-trip cost at 0.25% per side</span></div><div class="tip" hidden></div></div>
+    <p class="note">After-close filings in the cached trade sample, discovery (n 196 common events). The close → next-open move averaged +3.04%. The auditor's caveat: this is a ratio of means; per event, a median of 52–69% is already priced, and 15–20% of first prints overshoot the next open.</p>
+    <p>After-hours entries look slightly better at the 1-minute speed, but only net of an assumed 0.25% spread that was never observed. They are negative at 0.5%. They also allow only a few thousand dollars per filing.</p>
+  </section>
+
+  <section id="frozen">
+    <h2>Frozen rules and the seen holdout</h2>
+    <p>No rule passed discovery. The three best near-misses were frozen with a hash, and the auditor ran them once on September–November using criteria fixed before the run.</p>
+    <div class="panel"><div class="scroll"><svg id="frozenSvg" role="img" aria-label="Frozen rule mean net excess by period"></svg></div><div class="legend"><span><i style="background:var(--s1)"></i>Discovery</span><span><i style="background:var(--s3)"></i>Confirmation</span><span><i style="background:var(--s2)"></i>Seen holdout</span></div><div class="tip" hidden></div></div>
+    <div class="scroll"><table>
+      <tr><th>Rule</th><th>Buy</th><th>Sell</th><th class="n">Discovery</th><th class="n">Confirmation</th><th class="n">Seen holdout</th><th class="n">Holdout ex-top-5 companies</th><th>Verdict</th></tr>
+      <tr><td>F1</td><td class="w">CEO/CFO personal open-market ≥ $250k; next official open (≥ acceptance + 60 s, before the 09:28 auction cut-off)</td><td>Close of session 3</td><td class="n">+1.04% (n 104, t 1.60)</td><td class="n">+1.76% (n 29, t 1.17)</td><td class="n down">−0.38% (n 28)</td><td class="n down">−2.87%</td><td><span class="badge rejected">Refuted</span></td></tr>
+      <tr><td>F2</td><td class="w">Same</td><td>Close of session 5</td><td class="n">+1.29% (n 101)</td><td class="n">+0.80% (n 28)</td><td class="n down">−2.32% (n 26)</td><td class="n down">−4.99%</td><td><span class="badge rejected">Refuted</span></td></tr>
+      <tr><td>F3</td><td class="w">Same trigger, after-close filings; first after-hours trade ≥ 60 s</td><td>Next open</td><td class="n">+0.01% (n 45)*</td><td class="n">+0.49% (n 13)*</td><td class="n">+0.17% (n 10); −0.34% at 50 bps</td><td class="n down">−0.84%</td><td><span class="badge rejected">Refuted</span></td></tr>
+    </table></div>
+    <p class="note">
+      <span>* F3 as frozen includes a size filter that the auditor found uses trades after the fill (look-ahead); it was never a real near-miss.</span>
+      <span>Pooled out-of-sample F1 (confirmation + holdout): n 57, +0.71%, median −0.55%, p 0.46; without one stock (BGDE, +32%) it is +0.14%.</span>
+      <span>In discovery, five companies (BETR, ZBIO, PS, LUMN, NOW) supplied 86% of F1's summed return.</span>
+      <span>Disclosure: F1/F2's trigger equals deep-1 hypothesis H22, whose September–November result had already been computed before the freeze. The "holdout" was therefore not blind for these rules.</span>
+    </p>
+  </section>
+
+  <section id="behavior">
+    <h2>Insider behaviour: what was tested and rejected</h2>
+    <div class="scroll"><table>
+      <tr><th>Idea</th><th>Result (net, 1–5 sessions after the open)</th></tr>
+      <tr><td>True open-market buys only (new classifier, 91% accurate on a hand-checked sample)</td><td class="w">No better than other purchases (+0.08%, p 0.92). Confirmation −0.87% (p 0.011).</td></tr>
+      <tr><td>% increase in the insider's position; ≥ 10/25/50%; CEO/CFO ≥ 10%</td><td class="w">No effect after the open (all p &gt; 0.49). Predicts the gap instead.</td></tr>
+      <tr><td>First-ever position</td><td class="w">−1.33% vs adds (p 0.06; looks like token buys).</td></tr>
+      <tr><td>Buy ≥ 2× the insider's usual size</td><td class="w">No effect.</td></tr>
+      <tr><td>Other insiders selling in the prior 90 days; the buyer's own recent sales; net buy/sell balance</td><td class="w">No reliable effect.</td></tr>
+      <tr><td>First buy after a selling streak</td><td class="w">+0.85% (n 70, p 0.42), median ≈ 0.</td></tr>
+      <tr><td>How the stock reacted to the company's previous insider filing</td><td class="w">No predictive value (p 0.63).</td></tr>
+      <tr><td>3rd-or-later filing in a burst</td><td class="w">−1.61% vs the first (p 0.023, q 0.26). Repeated buying at the same company tends to lose.</td></tr>
+      <tr><td>Offering, placement and DRIP/ESPP purchases</td><td class="w">Median −2.5%, 33% positive (mean not significant).</td></tr>
+      <tr><td>Fell-into-the-filing open-market buys (5-day drop ≤ −3.5%), hold 5</td><td class="w">+1.32% mean but +0.03% median; top 5 companies = 61%; 0.00% if entered one day later. Rejected.</td></tr>
+    </table></div>
+  </section>
+
+  <section id="cases">
+    <h2>Company case studies</h2>
+    <div class="scroll"><table>
+      <tr><th>Company</th><th>What happened</th><th>Lesson</th></tr>
+      <tr><td class="mono">RZLT, LB, WW</td><td class="w">A crash, then several different officers bought within days. The open priced only a small or moderate gap, and the stocks rebounded (RZLT +47% in 5 sessions after a −84% crash).</td><td class="w">The best winners: independent clusters after capitulation. Too rare to test.</td></tr>
+      <tr><td class="mono">SSP</td><td class="w">32 related family filings. Each gapped +5–7%, then the stock fell −19.5% over 5 sessions; 0% of entries were positive.</td><td class="w">Serial or control buying is priced at the open and then fades.</td></tr>
+      <tr><td class="mono">TORO</td><td class="w">A $14.3M CEO buy after a +77% run on 137× volume; gapped +15.5%, then −24.5%.</td><td class="w">Large size plus a run-up and a huge gap is a fade.</td></tr>
+      <tr><td class="mono">ANVS, GPUS, STEX</td><td class="w">A repeat director (every gap faded); "support" buying (−16%); a $3M first position (−34% over 20 sessions).</td><td class="w">Buying to defend the price is not information.</td></tr>
+      <tr><td class="mono">NMM</td><td class="w">The CEO bought about $250k every 3–5 days: gap +0.8%, 5 sessions −0.6%.</td><td class="w">Routine buying carries little news.</td></tr>
+      <tr><td class="mono">MNTS, EDSA, SPCE</td><td class="w">+169% to +181% micro-cap squeezes after tiny buys ($10k–$99k).</td><td class="w">The tails driving many "positive" means are noise.</td></tr>
+      <tr><td class="mono">BGDE</td><td class="w">One +32% event made F1's whole confirmation result.</td><td class="w">Why company-concentration checks matter.</td></tr>
+    </table></div>
+    <p class="note">Event-level files: <code>behavior/case-studies.json</code>, <code>chart/structure-events.csv</code>, <code>audit/holdout-events.csv</code>.</p>
+  </section>
+
+  <section id="audit">
+    <h2>Independent audit findings</h2>
+    <ul>
+      <li><b>No look-ahead in any deep-2 feature or outcome.</b> The embargo held: 137,343 checks, 0 violations. The new purchase classifier is point-in-time.</li>
+      <li><b>Multiple testing.</b> 716 deep-2 discovery tests, 172 with q &lt; 0.10, and <b>none is a positive net-of-cost long rule</b>. The positive survivors are gaps and residuals; the significant long rules all lose.</li>
+      <li><b>Recomputation.</b> Recomputed independently with the auditor's own code; F1/F2 match exactly.</li>
+      <li><b>Look-ahead found in F3's size filter</b>, which used trades after the fill.</li>
+      <li><b>Matched controls.</b> Excluding days before later filings makes them slightly conservative. The conclusions hold.</li>
+      <li><b>Verdicts:</b> behaviour CONFIRMED; chart CONFIRMED; execution "no candidate" CONFIRMED; "two-thirds priced" WEAKENED; the CEO/CFO near-miss REFUTED.</li>
+    </ul>
+  </section>
+
+  <section id="correction">
+    <div class="verdict-box">
+      <b class="big">Correction to the previous (deep 1) report</b>
+      <p style="margin:0">Deep 1 compared the insider's reported (raw) price with split-adjusted price history. For 557 events whose stock <b>later</b> did a reverse split, "price vs prior close" therefore encoded the future split. The deep-1 findings "<i>purchases far below the prior close underperform</i>" and the "+7.1% best training rule" in its decay table are contaminated, as are hypotheses H23, H24 and H26 and the price-level quintiles. Deep 1's main conclusions (no next-open edge, the opening gap, the late-filing warning) do not use these fields. The deep-1 page should be read with this in mind; I can correct and republish it if you want.</p>
+    </div>
+  </section>
+
+  <section id="next">
+    <h2>What would actually move this forward</h2>
+    <ol>
+      <li><b>Quotes plus extended-hours and premarket trades</b> for the 3,739 after-close and about 1,500 overnight or premarket filings. The opening gap (+1.5–3% over look-alikes, t 11–14) is the only robust signal, and it can only be reached before the open. The after-hours result flips sign between 0.25% and 0.5% cost, so real spreads decide it. <i>This needs your approval</i> (Alpaca Basic, no extra cost, but a new historical download).</li>
+      <li><b>Minute bars</b> for the 1,981 filings published during market hours, for same-session entries.</li>
+      <li><b>Older history (5–10 years).</b> One year gives only about 15 CEO/CFO ≥ $250k events a month, so detecting a +0.5% effect needs about 1,000 events (≈5 years forward).</li>
+      <li><b>Zero-cost forward logging</b> (no trades): for each new CEO/CFO personal open-market filing, record publication time, platform alert time, and the first quotes and trades. This also measures InsiderTracker's real detection delay, which decides whether after-hours entry is even possible.</li>
+    </ol>
+    <h3>Product implications (not implemented)</h3>
+    <ul>
+      <li>Show users the <b>gap already priced in</b> at the first tradable moment.</li>
+      <li>Label offering, plan and fund purchases using the new classifier.</li>
+      <li>Flag serial or repeated buying at the same company.</li>
+    </ul>
+  </section>
+
+  <section id="files">
+    <h2>Reproduce and inspect</h2>
+    <ul class="note">
+      <li><code>scripts/research/deep2/</code>: <code>STAGE0.md</code> (audit and plan), <code>BRIEF.md</code> (rules), <code>lib2.mjs</code> (cache-only loaders, leak guard, registry, company statistics).</li>
+      <li><code>deep2/behavior/</code>, <code>deep2/chart/</code>, <code>deep2/execution/</code> (including <code>execLib.mjs</code>, a reusable execution framework) and <code>deep2/audit/</code> hold the scripts. Matching outputs are in <code>.cache/research/deep2/&lt;area&gt;/</code>, each with <code>findings.md</code>, event-level CSVs and JSON.</li>
+      <li>Registry: <code>.cache/research/deep2/registry.jsonl</code> and <code>registry-results.jsonl</code>. Frozen rules: <code>frozen-rules.json</code> and <code>frozen.log</code>.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const pct = (v, d = 2) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}%`;
+function tipOf(svg) { const box = svg.closest(".panel"); return { el: box.querySelector(".tip"), box }; }
+function show(t, e, html) { t.el.innerHTML = html; t.el.hidden = false; const r = t.box.getBoundingClientRect(); let x = e.clientX - r.left + 14; if (x + t.el.offsetWidth > r.width - 8) x = e.clientX - r.left - t.el.offsetWidth - 14; t.el.style.left = Math.max(8, x) + "px"; t.el.style.top = (e.clientY - r.top + 12) + "px"; }
+// Grouped vertical bars. groups: [{label, vals:[...], tips:[...]}], series:[{name,col}], ref: optional horizontal line value
+function bars(id, groups, series, { lo, hi, step, ref = null, refLabel = "", fmt = (v) => pct(v), H = 300 } = {}) {
+  const svg = document.getElementById(id), t = tipOf(svg), W = 860, L = 56, R = 16, T = 16, B = 42;
+  const y = (v) => T + (hi - v) / (hi - lo) * (H - T - B), gw = (W - L - R) / groups.length, bw = Math.min(34, (gw - 16) / series.length);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W);
+  let g = "";
+  for (let v = lo; v <= hi + 1e-9; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--ink-3)">${fmt(+v.toFixed(4))}</text>`;
+  g += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--ink-3)"/>`;
+  if (ref != null) g += `<line x1="${L}" x2="${W - R}" y1="${y(ref)}" y2="${y(ref)}" stroke="var(--ink-3)" stroke-dasharray="5 4"/><text x="${W - R - 4}" y="${y(ref) - 5}" text-anchor="end" font-size="10.5" fill="var(--ink-2)">${refLabel}</text>`;
+  groups.forEach((gr, k) => {
+    const x0 = L + k * gw + (gw - bw * series.length - 2 * (series.length - 1)) / 2;
+    gr.vals.forEach((v, j) => { if (v == null) return; const x = x0 + j * (bw + 2), top = Math.min(y(v), y(0)), h = Math.max(2, Math.abs(y(v) - y(0)));
+      g += `<rect class="hit" data-k="${k}" data-j="${j}" x="${x}" y="${top}" width="${bw}" height="${h}" rx="3" fill="${series[j].col}"/>`; });
+    g += `<text x="${L + k * gw + gw / 2}" y="${H - B + 16}" text-anchor="middle" font-size="11" fill="var(--ink-2)" font-family="var(--body)">${gr.label}</text>`;
+  });
+  svg.innerHTML = g;
+  svg.querySelectorAll(".hit").forEach((el) => { const gr = groups[+el.dataset.k], j = +el.dataset.j; el.addEventListener("mousemove", (e) => show(t, e, `<b>${gr.label}</b><br>${series[j].name}: <b>${fmt(gr.vals[j])}</b>${gr.tips?.[j] ? "<br>" + gr.tips[j] : ""}`)); el.addEventListener("mouseleave", () => (t.el.hidden = true)); });
+}
+bars("gapSvg", [
+  { label: "All", vals: [1.49], tips: ["n 5,312, t 11.7"] }, { label: "CEO/CFO", vals: [2.10], tips: ["n 1,292, t 9.3"] }, { label: "Open market", vals: [2.18], tips: ["n 1,541, t 14.1"] },
+  { label: "≥ $250k", vals: [2.59], tips: ["n 1,328, t 11.6"] }, { label: "After ≥30% drop", vals: [3.06], tips: ["n 1,344, t 8.2"] }, { label: "Near 60-day low", vals: [1.53], tips: ["n 1,104, t 3.8"] },
+], [{ name: "Extra gap vs matched controls", col: "var(--s1)" }], { lo: 0, hi: 3.5, step: 0.5, fmt: (v) => pct(v, 1) });
+bars("mcSvg", [
+  { label: "Day 0", vals: [0.27, 0.14], tips: ["t 2.62, q 0.04", ""] }, { label: "1", vals: [0.37, 0.24], tips: ["t 2.53", ""] }, { label: "2", vals: [0.53, 0.15], tips: ["t 2.38", ""] },
+  { label: "3", vals: [0.59, 0.08], tips: ["t 2.21", ""] }, { label: "4", vals: [0.72, 0.05], tips: ["t 2.10", ""] }, { label: "5", vals: [0.65, -0.06], tips: ["t 1.85", ""] },
+], [{ name: "Insider − control, mean", col: "var(--s1)" }, { name: "Issuer median of means", col: "var(--s3)" }], { lo: -0.2, hi: 0.8, step: 0.2, ref: 0.72, refLabel: "round-trip cost 0.72%" });
+bars("ahSvg", [
+  { label: "1 min (fill ≈2 min)", vals: [0.98], tips: ["67% of the +3.04% overnight move already in the fill"] }, { label: "5 min (≈9 min)", vals: [0.66], tips: ["78% already priced"] },
+  { label: "15 min (≈20 min)", vals: [0.68], tips: ["78% already priced"] }, { label: "30 min (≈37 min)", vals: [0.73], tips: ["76% already priced"] },
+], [{ name: "Gross capture, fill → next open", col: "var(--s1)" }], { lo: 0, hi: 1.2, step: 0.2, ref: 0.5, refLabel: "round trip at 25 bps per side" });
+bars("frozenSvg", [
+  { label: "F1 · hold 3", vals: [1.04, 1.76, -0.38], tips: ["n 104", "n 29", "n 28"] }, { label: "F2 · hold 5", vals: [1.29, 0.80, -2.32], tips: ["n 101", "n 28", "n 26"] }, { label: "F3 · AH → open (25 bps)", vals: [0.01, 0.49, 0.17], tips: ["n 45", "n 13", "n 10"] },
+], [{ name: "Discovery", col: "var(--s1)" }, { name: "Confirmation", col: "var(--s3)" }, { name: "Seen holdout", col: "var(--s2)" }], { lo: -2.5, hi: 2, step: 0.5, fmt: (v) => pct(v, 1) });
+</script>

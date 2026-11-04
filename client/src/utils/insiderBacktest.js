@@ -364,6 +364,7 @@ export const RELIABILITY_TEXT = {
 export const EVENT_ROLE_LABEL = {
   signal_snapshot: "In signal",
   subsequent_publication: "Later SEC publication",
+  amendment_of_signal_purchase: "Form 4/A — corrects a signal purchase (not a new purchase)",
   in_window_not_in_signal: "Not in signal (filtered, or public after the window)",
   outside_signal_clusters: "Outside signal clusters",
 };

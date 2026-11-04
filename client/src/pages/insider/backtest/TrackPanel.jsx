@@ -50,6 +50,7 @@ function Events({ events, priced }) {
                 <td className="text-[11.5px] it-dim" title={e.publicationSession ? `Plotted at the ${day(e.publicationSession)} session (first session after SEC publication)` : undefined}>
                   <span style={e.signalRole === "signal_snapshot" ? { color: "var(--it-text)", fontWeight: 600 } : undefined}>{EVENT_ROLE_LABEL[e.signalRole] || (e.cluster != null ? `Cluster ${e.cluster + 1}` : "later purchase")}</span>
                   {e.signalCluster != null && e.signalCluster > 0 ? <span className="it-dim2"> · signal {e.signalCluster + 1}</span> : null}
+                  {e.amendedBy ? <div className="text-[10.5px]" style={{ color: "var(--it-warn)" }} title="The signal used this filing as it was public then; a later Form 4/A replaced it">amended later by Form 4/A{e.amendedBy.at ? ` (${acceptedShort(e.amendedBy.at)})` : ""}</div> : null}
                 </td>
                 {priced && <td className="num it-num font-medium" style={{ color: tone(e.pctAtEvent) }}>{pct(e.pctAtEvent)}{PRICE_BASIS_TEXT[e.priceBasis] ? <div className="text-[10px] font-normal it-dim2">{PRICE_BASIS_TEXT[e.priceBasis]}</div> : null}</td>}
               </tr>

@@ -1,0 +1,463 @@
+<title>Insider Buying Deep Study</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,650&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: research memo, one 960px column; verdict and ranked findings first, evidence after; charts/tables scroll in their own boxes. */
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #18202e; --ink-2: #4a5568; --ink-3: #718096; --rule: #dde2ea; --grid: #e9edf2;
+  --accent: #2f56c4; --up: #1d7f55; --down: #b4322f; --warn: #a0640a; --warn-bg: #fff6e5; --warn-line: #e7c27a; --ok-bg: #eaf6ef; --ok-line: #9fd2b4;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --base: #8a919c;
+  --display: "Source Serif 4", Georgia, serif; --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f141c; --panel: #161d28; --ink: #e6ebf2; --ink-2: #b3bfcf; --ink-3: #8592a6; --rule: #2a3445; --grid: #222b39;
+  --accent: #7d9cf0; --up: #4cc38a; --down: #f0716b; --warn: #f0a63a; --warn-bg: #2a2214; --warn-line: #7a5a1f; --ok-bg: #12261c; --ok-line: #2f6b4b;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --base: #8d95a3; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f141c; --panel: #161d28; --ink: #e6ebf2; --ink-2: #b3bfcf; --ink-3: #8592a6; --rule: #2a3445; --grid: #222b39;
+  --accent: #7d9cf0; --up: #4cc38a; --down: #f0716b; --warn: #f0a63a; --warn-bg: #2a2214; --warn-line: #7a5a1f; --ok-bg: #12261c; --ok-line: #2f6b4b;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --base: #8d95a3; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 15px/1.6 var(--body); }
+.wrap { max-width: 960px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 36px; }
+h1 { font: 650 clamp(28px, 4vw, 40px)/1.12 var(--display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h2 { font: 650 23px/1.25 var(--display); margin: 0 0 10px; text-wrap: balance; }
+h3 { font: 600 13px/1.3 var(--body); margin: 20px 0 8px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); }
+p { margin: 0 0 10px; max-width: 74ch; }
+ul, ol { margin: 0 0 10px; padding-left: 22px; } li { margin: 3px 0; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.lede { font-size: 16.5px; color: var(--ink-2); max-width: 70ch; }
+section { min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; min-width: 0; position: relative; }
+.verdict-box { border-radius: 10px; padding: 16px 18px; background: var(--warn-bg); border: 1px solid var(--warn-line); }
+.verdict-box b.big { display: block; font: 650 19px/1.35 var(--display); margin-bottom: 6px; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+.kv div { border-top: 2px solid var(--rule); padding-top: 8px; min-width: 0; }
+.kv b { display: block; font: 500 21px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+.kv span { font-size: 12.5px; color: var(--ink-3); }
+.tag { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: .05em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; border: 1px solid currentColor; margin-right: 6px; vertical-align: 1px; white-space: nowrap; }
+.tag.fact { color: var(--accent); } .tag.hyp { color: var(--warn); } .tag.conc { color: var(--up); } .tag.neg { color: var(--down); }
+.findings { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.findings li { padding: 12px 14px; border-left: 3px solid var(--rule); background: var(--panel); border-radius: 0 8px 8px 0; margin: 0; }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 9px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; white-space: nowrap; }
+th { font: 600 11.5px/1.3 var(--body); color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td.w { white-space: normal; min-width: 220px; }
+.up { color: var(--up); } .down { color: var(--down); } .muted { color: var(--ink-3); }
+.note { font-size: 12.5px; color: var(--ink-3); max-width: 84ch; }
+.badge { display: inline-block; font: 600 11px/1 var(--mono); padding: 4px 6px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
+.badge.robust { color: var(--up); } .badge.promising { color: var(--accent); } .badge.warning { color: var(--warn); } .badge.failed, .badge.rejected { color: var(--down); }
+details.disc { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; margin-bottom: 12px; }
+details.disc > summary { cursor: pointer; padding: 14px 16px; list-style: none; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+details.disc > summary::-webkit-details-marker { display: none; }
+details.disc > summary .rank { font: 650 22px/1 var(--display); color: var(--ink-3); min-width: 28px; }
+details.disc > summary .title { font-weight: 600; flex: 1 1 360px; min-width: 0; }
+details.disc .body { padding: 0 16px 14px; }
+dl.q { display: grid; grid-template-columns: minmax(150px, 230px) 1fr; gap: 6px 14px; margin: 0; font-size: 13.5px; }
+dl.q dt { color: var(--ink-3); } dl.q dd { margin: 0; min-width: 0; }
+@media (max-width: 560px) { dl.q { grid-template-columns: 1fr; } dl.q dt { margin-top: 6px; } }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+.legend i { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; margin-right: 5px; border-radius: 2px; }
+.legend i.line { height: 3px; vertical-align: 3px; }
+svg text { font-family: var(--mono); }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.45; color: var(--ink); box-shadow: 0 6px 18px rgba(0,0,0,.14); max-width: 320px; z-index: 5; }
+.tip b { font-family: var(--mono); font-weight: 500; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">InsiderTracker research · SEC Form 4 purchases × price behaviour · point-in-time</div>
+    <h1>Insider Buying Deep Study</h1>
+    <p class="lede">Do insider purchases, combined with the stock's chart, contain repeatable and realistically tradable patterns? Every SEC purchase filing in the project was tested against later price moves, using only information public at the time.</p>
+    <p class="note" id="asof"></p>
+    <nav class="toc" aria-label="Contents"><a href="#verdict">Verdict</a><a href="#ranked">Ranked discoveries</a><a href="#data">Data</a><a href="#method">Method</a><a href="#funnel">Discovery funnel</a><a href="#behavior">Insider behaviour</a><a href="#chart">Price behaviour</a><a href="#gap">Opening gap</a><a href="#ah">After-hours test</a><a href="#baseline">Backtest baseline</a><a href="#decay">Decay</a><a href="#late">Late filings</a><a href="#cases">Case studies</a><a href="#limits">Limitations</a><a href="#next">Next steps</a><a href="#repro">Reproduce</a></nav>
+  </header>
+
+  <section id="verdict">
+    <div class="verdict-box">
+      <b class="big">No insider-buying pattern was a robust, tradable edge for buying at the next regular-hours open.</b>
+      <p style="margin:0">Of <span data-k="tests"></span> registered tests, none survived the pre-committed train → validation → test protocol once the market regime was controlled for. The data does show one very robust effect: <b>insider purchase filings move the stock, but almost all of that move happens before the next open</b>. The only place it can be captured is in the minutes after an after-hours publication. That is the most valuable direction for further work, and it is still exploratory.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Executive summary</h2>
+    <ul class="findings">
+      <li><span class="tag fact">Fact</span><b>The market prices insider purchases immediately.</b> At the first open after publication, stocks gap up versus SPY by a median <span data-k="gapAll"></span> (positive in <span data-k="gapAllPos"></span> of events, t = <span data-k="gapAllT"></span>). The same stocks on ordinary days show <span data-k="gapPlacebo"></span>. The median gap was positive in every one of 12 months and in all three test periods.</li>
+      <li><span class="tag fact">Fact</span><b>After the open, the edge is gone.</b> Buying at that open did not beat SPY or other insider purchases in any validated pattern, at any horizon from 1 to 60 sessions.</li>
+      <li><span class="tag hyp">Exploratory</span><b>Speed is the only lever found.</b> For CEO/CFO personal open-market buys ≥ $250k published after the close, a buyer at the first after-hours trade (median <span data-k="ahMin"></span> min after acceptance) captured <span data-k="ahCap"></span> to the next open (t = <span data-k="ahCapT"></span>). That falls to <span data-k="ahNet25"></span> at 25 bps per side and about zero at 50 bps.</li>
+      <li><span class="tag neg">Warning</span><b>Late filings underperform.</b> Purchases reported more than 4 days after the trade trailed other insider buys by <span data-k="lateTr"></span> / <span data-k="lateVa"></span> / <span data-k="lateTe"></span> (train / validation / test, 20 sessions). The test p-value of <span data-k="lateTeP"></span> misses the pre-set 0.05 bar.</li>
+      <li><span class="tag conc">Rejected</span><b>Every pre-registered behavioural hypothesis failed.</b> That includes clusters, CEO-after-others, escalating sizes, small-then-huge (RAPP-like), averaging down, buying after crashes, near lows, consolidation and breakouts. None was significant even in training after correction.</li>
+      <li><span class="tag conc">Context</span><b>The whole universe of insider-bought stocks trailed SPY more over time</b> (20 sessions: <span data-k="baseTr"></span> → <span data-k="baseVa"></span> → <span data-k="baseTe"></span>). Judged only against SPY, any negative pattern looks "validated". This study therefore judges patterns against other insider purchases made in the same month.</li>
+    </ul>
+  </section>
+
+  <section id="ranked">
+    <h2>Ranked discoveries</h2>
+    <p class="note">Ranked by strength of evidence and practical tradability, not by headline return. Click a row for the twelve questions.</p>
+    <div id="disc"></div>
+    <h3>Rejected hypotheses (pre-registered, failed in training after correction)</h3>
+    <div class="scroll"><table id="rejected"></table></div>
+  </section>
+
+  <section id="data">
+    <h2>Data inventory and quality</h2>
+    <div class="kv panel" id="kvData"></div>
+    <div class="scroll" style="margin-top:12px"><table id="auditTable"></table></div>
+    <p class="note" id="auditNote"></p>
+  </section>
+
+  <section id="method">
+    <h2>Method and pre-committed protocol</h2>
+    <ul>
+      <li><b>Event</b>: one Form 4 filing with code-P purchases, evaluated at T = its SEC acceptance. Only filings accepted by T count. Duplicate reports are grouped point-in-time (a report filed later never changes an earlier view). Repeat purchases by one insider stay separate transactions but count as one buyer.</li>
+      <li><b>Features</b> (<span data-k="nfeat"></span> numeric + boolean): insider sequence (role order, repeat buys, size and price trends, buyers in window, price dispersion, buying surge, filing delay) and chart state from closes strictly before the entry session (returns, drawdown, distance from lows and highs, moving averages, volatility and contraction, volume spikes, gaps, relative strength, consolidation, breakout, move since the insider's trade, market trend).</li>
+      <li><b>Entry</b>: <span data-k="entry"></span>. <b>Exits</b>: close after 1, 2, 3, 5, 10, 20, 40, 60 sessions. <b>Costs</b>: <span data-k="costs"></span>. <b>Benchmarks</b>: SPY (tradable view) and the month's average insider purchase (regime-controlled view).</li>
+      <li><b>Splits</b> by publication date: train before <span data-k="val"></span>, validation until <span data-k="test"></span>, test after. An event counts in train or validation only if its exit falls before the next period starts (embargo).</li>
+      <li><b>Promotion</b>: <span data-k="promo"></span>. All tests are corrected together (Benjamini–Hochberg). Standard errors are clustered by company, because several filings from one company aren't independent.</li>
+      <li><b>Discovery families</b>: 30 pre-registered hypotheses, quintiles of every feature, tertile × tertile interactions of the 12 most informative features, a depth-3 regression tree and a ridge score (all fitted on train only).</li>
+    </ul>
+  </section>
+
+  <section id="funnel">
+    <h2>Discovery funnel</h2>
+    <div class="panel"><svg id="funnelChart" role="img" aria-label="Number of tests surviving each stage"></svg><div class="tip" hidden></div></div>
+    <div class="scroll"><table id="famTable"></table></div>
+  </section>
+
+  <section id="behavior">
+    <h2>Insider behaviour, company by company</h2>
+    <div class="kv panel" id="kvCompanies"></div>
+    <p class="note">Companies with at least 3 purchase filings, by sequence type seen at least once. A company can show several types.</p>
+    <h3>Pre-registered behaviour and chart hypotheses (20 sessions)</h3>
+    <div class="scroll"><table id="hypTable"></table></div>
+    <p class="note">"vs other insider buys" = net excess over SPY minus the average for all insider purchases entered the same month. Decisions used the training column only. Validation and test are shown for transparency (exploratory).</p>
+  </section>
+
+  <section id="chart">
+    <h2>Price behaviour around insider purchases</h2>
+    <div class="panel"><div class="scroll"><svg id="evChart" role="img" aria-label="Median cumulative return versus SPY from 20 sessions before to 60 sessions after the last close before entry"></svg></div><div class="legend" id="evLegend"></div><div class="tip" hidden></div></div>
+    <p class="note">Median cumulative excess versus SPY, indexed to the last close before entry (day 0). Values left of 0 are prices before publication relative to that close (positive = the stock was higher then, i.e. it had fallen into the purchase). Day +1 includes the opening gap, which a follower buying at the open does not get.</p>
+    <h3>Between the insider's trade and publication</h3>
+    <div class="scroll"><table id="driftTable"></table></div>
+  </section>
+
+  <section id="gap">
+    <h2>The one robust effect: the post-publication opening gap</h2>
+    <div class="panel"><div class="scroll"><svg id="gapChart" role="img" aria-label="Median opening gap versus SPY after publication, by group, with placebo"></svg></div><div class="legend"><span><i style="background:var(--s1)"></i>Gap at the first open after publication</span><span><i style="background:var(--base)"></i>Same stocks, ordinary day (placebo)</span></div><div class="tip" hidden></div></div>
+    <div class="scroll"><table id="gapTable"></table></div>
+    <h3>By publication time (all purchases)</h3>
+    <div class="scroll"><table id="gapTimeTable"></table></div>
+    <p class="note">Filings published during regular hours show almost no gap: the reaction happens the same afternoon, before the next open. That is why next-open entries miss it.</p>
+  </section>
+
+  <section id="ah">
+    <h2>Can the reaction be captured? After-hours test</h2>
+    <p>Filings published 16:00–19:55 ET were sampled. Entry is the first representative after-hours trade at least 60 s after acceptance (Alpaca SIP trades; odd lots and report-only prints excluded). Prices are on one basis (raw, split-corrected).</p>
+    <div class="panel"><div class="scroll"><svg id="ahChart" role="img" aria-label="Median after-hours capture to the next open and to the first close, by group"></svg></div><div class="legend"><span><i style="background:var(--s1)"></i>After-hours entry → next open</span><span><i style="background:var(--s3)"></i>After-hours entry → next close</span><span><i style="background:var(--s2)"></i>Next-open entry → next close (same events)</span><span><i class="line" style="background:var(--ink-3)"></i>Round-trip cost at 25 / 50 bps per side</span></div><div class="tip" hidden></div></div>
+    <div class="scroll"><table id="ahTable"></table></div>
+    <h3>By period and after costs (CEO/CFO personal open-market ≥ $250k)</h3>
+    <div class="scroll"><table id="ahCost"></table></div>
+  </section>
+
+  <section id="baseline">
+    <h2>Backtest baseline: all insider purchases, every horizon</h2>
+    <div class="scroll"><table id="baseTable"></table></div>
+    <p class="note">Net of costs, minus SPY over the same dates. Embargoed sample sizes in brackets. "Pending" coverage: <span data-k="pending"></span>.</p>
+  </section>
+
+  <section id="decay">
+    <h2>Why "best historical" results mislead: decay out of sample</h2>
+    <div class="scroll"><table id="decayTable"></table></div>
+    <p class="note">The strongest training results by t-statistic, both directions, re-measured on later periods. This is the selection-bias effect the protocol is built to catch.</p>
+  </section>
+
+  <section id="late">
+    <h2>Warning signal: late filings</h2>
+    <div class="scroll"><table id="lateTable"></table></div>
+    <p class="note">Late = filing published more than 4 calendar days after the trade (top training quintile). The Form 4 deadline is 2 business days.</p>
+  </section>
+
+  <section id="cases">
+    <h2>Case studies</h2>
+    <h3>RAPP (reference case, not proof)</h3>
+    <div class="scroll"><table id="rappTable"></table></div>
+    <p class="note">The $20.36M Sofinnova purchase was an allocation in RAPP's discounted offering, not a personal open-market buy. Only <span data-k="rappLikeN"></span> RAPP-like events (several buyers, then a ≥10× indirect purchase at a ≥5% discount) exist in the data, too few to test.</p>
+    <h3>After-hours entries, CEO/CFO personal buys: best and worst next-day outcomes</h3>
+    <div class="scroll"><table id="ahCases"></table></div>
+    <h3>Late filings: best and worst 20-session outcomes</h3>
+    <div class="scroll"><table id="lateCases"></table></div>
+  </section>
+
+  <section id="limits">
+    <h2>Limitations and biases</h2>
+    <ul>
+      <li><b>Short history</b>: about 11 months (<span data-k="secRange"></span>), one market regime, with the backfill still incomplete (<span data-k="secCov"></span> of SEC business days). The test period is ~2 months; 40- and 60-session horizons are mostly pending there.</li>
+      <li><b>Not available</b>: <span data-k="notAvail"></span>.</li>
+      <li><b>Survivorship</b>: <span data-k="noPrice"></span> filings without usable prices are excluded (renamed, delisted or OTC symbols), which probably flatters results.</li>
+      <li><b>Daily bars for most entries</b>; trade-level data only in the after-hours sample. Extended-hours spreads were not measured (no quotes method in the shared data client), so costs there are scenarios.</li>
+      <li><b>Exploratory after-hours design</b>: it was chosen after seeing the full-data gap, so it needs fresh out-of-sample confirmation.</li>
+      <li><b>Data quality</b>: <span data-k="extreme"></span> extreme daily moves (&gt;75%) across <span data-k="extremeSym"></span> symbols; <span data-k="suspect"></span> look like bad prints (reversed the next day). They're kept, and results use medians, winsorized means and clustered errors.</li>
+    </ul>
+  </section>
+
+  <section id="next">
+    <h2>Recommendations</h2>
+    <h3>Most valuable next experiment</h3>
+    <ol>
+      <li><b>A forward test of immediate after-hours entry</b> on CEO/CFO personal open-market buys ≥ $250k: paper-trade from today with real detection latency and real bid/ask quotes, with the rule frozen now. It needs about 6 months and ~100 events to confirm or reject.</li>
+      <li><b>Measure the platform's detection latency</b> against SEC acceptance. The edge, if any, sits in the first 1–5 minutes.</li>
+      <li><b>Extend history backwards</b> (the running backfill) to test the late-filing warning and the opening gap across several regimes.</li>
+    </ol>
+    <h3>Possible Strategy Builder features (not implemented)</h3>
+    <ol>
+      <li>Show the <b>opening-gap context</b> on every signal: the move from the last close to the first tradable price, so users see what was already priced in.</li>
+      <li>A <b>"late filing" flag</b> (filed &gt; 4 days after the trade) as a caution, and an offering-price flag.</li>
+      <li><b>Extended-hours entry modelling</b> with spread and liquidity, separate from regular-hours results.</li>
+      <li>Always show the <b>"all insider purchases this month" baseline</b> and the out-of-sample split next to any strategy result.</li>
+    </ol>
+  </section>
+
+  <section id="repro">
+    <h2>Reproduce</h2>
+    <ul class="note">
+      <li><code>node scripts/research/deep/deepResearch.mjs</code>: stages A–G with checkpoints (<code>--force=D</code> re-runs from a stage).</li>
+      <li><code>node scripts/research/deep/followups.mjs</code>: opening-gap checks and placebo. <code>node scripts/research/deep/afterHoursStudy.mjs</code>: after-hours test (trades cached).</li>
+      <li><code>node scripts/research/deep/buildReport.mjs</code>: this page. Every test is listed in <code>.cache/research/deep/registry.jsonl</code> and <code>registry-results.jsonl</code> (including failures).</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+const pct = (v, d = 1) => (v == null || !Number.isFinite(v) ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toFixed(d)}%`);
+const pctU = (v, d = 0) => (v == null ? "—" : `${(v * 100).toFixed(d)}%`);
+const cls = (v) => (v == null || Math.abs(v) < 0.0005 ? "" : v > 0 ? "up" : "down");
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const num = (v) => (v == null ? "—" : Number(v).toLocaleString("en-US"));
+const fmtP = (p) => (p == null ? "—" : p < 0.001 ? "<0.001" : p.toFixed(3));
+const set = (k, v) => document.querySelectorAll(`[data-k="${k}"]`).forEach((e) => { e.textContent = v; });
+const tbl = (id, head, rows) => { document.getElementById(id).innerHTML = `<tr>${head.map((h) => `<th class="${h[1] || ""}">${h[0]}</th>`).join("")}</tr>` + rows.join(""); };
+const A = D.audit, P = D.protocol, F = D.funnel, GF = D.gapFollowups, AH = D.afterHours;
+const ceoKey = "CEO/CFO personal open-market ≥ $250k";
+const ahC = AH.strata[ceoKey];
+
+// ---------- inline numbers ----------
+document.getElementById("asof").textContent = `Built ${D.generatedAt.slice(0, 10)} from saved stage outputs. SEC filings ${A.sec.from} – ${A.sec.to}; prices through ${A.completeThrough} (Alpaca SIP, split-adjusted daily bars; SIP trades for the after-hours test).`;
+set("tests", num(F.tests));
+set("gapAll", pct(GF["All purchases"].event.median, 2)); set("gapAllPos", pctU(GF["All purchases"].event.positive)); set("gapAllT", GF["All purchases"].event.t.toFixed(1)); set("gapPlacebo", pct(GF["All purchases"].placebo.median, 2));
+set("ahMin", ahC.minutesToFirstTrade.median.toFixed(1)); set("ahCap", pct(ahC.captureToOpen.median, 2)); set("ahCapT", ahC.captureToOpen.t.toFixed(1)); set("ahNet25", pct(ahC.netOfCosts["25bps"].captureToOpenMedian, 2));
+const lt = D.late.horizons[20];
+set("lateTr", pct(lt.train.meanAbn)); set("lateVa", pct(lt.validation.meanAbn)); set("lateTe", pct(lt.test.meanAbn)); set("lateTeP", fmtP(lt.test.pAbn));
+set("baseTr", pct(D.baseline[20].train.meanExcess)); set("baseVa", pct(D.baseline[20].validation.meanExcess)); set("baseTe", pct(D.baseline[20].test.meanExcess));
+set("nfeat", 59); set("entry", P.entry); set("costs", P.costs); set("val", P.VAL_START); set("test", P.TEST_START); set("promo", P.promotion);
+set("secRange", `${A.sec.from} – ${A.sec.to}`); set("secCov", pctU(A.sec.coverage.ratio)); set("notAvail", A.notAvailable.join("; "));
+set("noPrice", num(D.events.total - D.events.priced)); set("extreme", num(A.prices.extremeMoves)); set("extremeSym", num(A.prices.extremeSymbols)); set("suspect", num(A.prices.suspectSymbols.length));
+set("rappLikeN", D.rappLike.length);
+set("pending", Object.entries(D.coverage).map(([h, c]) => `${h}d ${num(c.pending)}`).join(", "));
+
+// ---------- chart helpers ----------
+function tipFor(svg) { const box = svg.closest(".panel"); return { el: box.querySelector(".tip"), box }; }
+function showTip(t, e, html) { t.el.innerHTML = html; t.el.hidden = false; const r = t.box.getBoundingClientRect(), w = t.el.offsetWidth; let x = e.clientX - r.left + 14; if (x + w > r.width - 8) x = e.clientX - r.left - w - 14; t.el.style.left = `${Math.max(8, x)}px`; t.el.style.top = `${e.clientY - r.top + 12}px`; }
+const hideTip = (t) => { t.el.hidden = true; };
+function range(vals, pad) { const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals); const span = hi - lo, step = span > 0.3 ? 0.1 : span > 0.12 ? 0.05 : span > 0.05 ? 0.02 : span > 0.02 ? 0.01 : 0.005; return [Math.floor((lo - pad) / step) * step, Math.ceil((hi + pad) / step) * step, step]; }
+function hbars({ id, rows, series, W = 880, L = 300, R = 70, fmt = (v) => pct(v, 2), refs = [] }) {
+  // rows: [{label, vals: [..], tip}], series: [{name, col}] — grouped horizontal bars from zero.
+  const svg = document.getElementById(id), t = tipFor(svg), bh = 14, gap = 4, gh = series.length * (bh + gap) + 12, TOP = 24;
+  const Hh = TOP + rows.length * gh + 24;
+  const vals = rows.flatMap((r) => r.vals).filter((v) => v != null).concat(refs.map((r) => r.v));
+  const [lo, hi, step] = range(vals, 0.002);
+  const x = (v) => L + (v - lo) / (hi - lo) * (W - L - R);
+  svg.setAttribute("viewBox", `0 0 ${W} ${Hh}`); svg.setAttribute("width", W);
+  let g = "";
+  for (let v = lo; v <= hi + 1e-9; v += step) g += `<line x1="${x(v)}" x2="${x(v)}" y1="${TOP - 6}" y2="${Hh - 20}" stroke="var(--grid)"/><text x="${x(v)}" y="${TOP - 10}" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">${pct(v, step < 0.01 ? 1 : 0)}</text>`;
+  g += `<line x1="${x(0)}" x2="${x(0)}" y1="${TOP - 6}" y2="${Hh - 20}" stroke="var(--ink-3)"/>`;
+  refs.forEach((r) => { g += `<line x1="${x(r.v)}" x2="${x(r.v)}" y1="${TOP - 6}" y2="${Hh - 20}" stroke="var(--ink-3)" stroke-dasharray="4 3"/><text x="${x(r.v) + 3}" y="${Hh - 6}" font-size="10" fill="var(--ink-3)">${esc(r.label)}</text>`; });
+  rows.forEach((r, k) => {
+    const y0 = TOP + k * gh;
+    g += `<rect class="hit" data-k="${k}" x="0" y="${y0}" width="${W}" height="${gh}" fill="transparent"/>`;
+    g += `<text x="${L - 10}" y="${y0 + gh / 2 + 2}" text-anchor="end" font-size="11.5" fill="var(--ink)" font-family="var(--body)" pointer-events="none">${esc(r.label.length > 42 ? r.label.slice(0, 41) + "…" : r.label)}</text>`;
+    series.forEach((s, j) => { const v = r.vals[j]; if (v == null) return; const yy = y0 + 6 + j * (bh + gap), x0 = Math.min(x(0), x(v)), w = Math.max(2, Math.abs(x(v) - x(0)));
+      g += `<rect x="${x0}" y="${yy}" width="${w}" height="${bh}" rx="4" fill="${s.col}" pointer-events="none"/><text x="${v >= 0 ? x0 + w + 4 : x0 - 4}" y="${yy + bh - 3}" text-anchor="${v >= 0 ? "start" : "end"}" font-size="10.5" fill="var(--ink-2)" pointer-events="none">${fmt(v)}</text>`; });
+  });
+  svg.innerHTML = g;
+  svg.querySelectorAll(".hit").forEach((el) => { const r = rows[+el.dataset.k]; el.addEventListener("mousemove", (e) => showTip(t, e, r.tip || `<b>${esc(r.label)}</b><br>${series.map((s, j) => `${esc(s.name)}: <b>${fmt(r.vals[j])}</b>`).join("<br>")}`)); el.addEventListener("mouseleave", () => hideTip(t)); });
+}
+
+// ---------- ranked discoveries ----------
+const gA = GF["All purchases"], gC = GF[ceoKey];
+const DISC = [
+  { badge: "robust", label: "Robust phenomenon", title: "Insider purchase filings are repriced immediately: the stock gaps up at the first open after publication",
+    q: [["What is the pattern?", `Return from the last close before entry to the first regular open, minus SPY's gap.`],
+      ["Insider trigger", `Any Form 4 code-P purchase filing. Stronger for open-market (${pct(GF["Open market (stated)"].event.median, 2)}), CEO/CFO personal ≥ $250k (${pct(gC.event.median, 2)}) and after ≥30% drawdowns (${pct(GF["After ≥30% drawdown"].event.median, 2)}).`],
+      ["Chart conditions", "None required; larger after drawdowns. Near zero when published during regular hours (the move happens the same afternoon)."],
+      ["Frequency", `${num(gA.event.n)} events; ${pctU(gA.event.positive)} positive.`],
+      ["Independent companies", `Essentially every company in the sample; clustered t = ${gA.event.t.toFixed(1)}.`],
+      ["Historical performance", `Median gap ${pct(gA.event.median, 2)}, winsorized mean ${pct(gA.event.wmean, 2)}; placebo on ordinary days ${pct(gA.placebo.median, 2)} (t = ${gA.placebo.t.toFixed(1)}).`],
+      ["After costs", "Not capturable at the open: it is the price you pay, not a return you earn."],
+      ["vs SPY", "Measured relative to SPY's own gap."],
+      ["Out of sample", `Train ${pct(gA.bySplit.train.median, 2)}, validation ${pct(gA.bySplit.validation.median, 2)}, test ${pct(gA.bySplit.test.median, 2)}; positive in 12/12 months.`],
+      ["Failure conditions", "Intraday publications (reaction before the next open); the effect is smaller in the most liquid stocks."],
+      ["Overfitting risk", "Low. It's a single, simple measurement, not selected from many variants, and confirmed by a placebo."],
+      ["Usable for alerts?", "As context: show users the gap already priced in. As a trade only via immediate extended-hours execution (next item)."]] },
+  { badge: "promising", label: "Promising · exploratory", title: "Immediate after-hours entry on CEO/CFO personal open-market purchases ≥ $250k",
+    q: [["What is the pattern?", "Buy at the first representative after-hours trade ≥ 60 s after an after-close publication; hold to the next open or close."],
+      ["Insider trigger", "CEO or CFO, direct (personal) ownership, filing states open market, filing value ≥ $250k."],
+      ["Chart conditions", "None (none tested added value)."],
+      ["Frequency", `${ahC.sampled} after-close filings in the history (${ahC.captureToOpen.n} with after-hours trades); a few per week.`],
+      ["Independent companies", "Most events are from different companies (see the case table)."],
+      ["Historical performance", `To next open: median ${pct(ahC.captureToOpen.median, 2)}, mean ${pct(ahC.captureToOpen.mean, 2)}, ${pctU(ahC.captureToOpen.positive)} positive, t = ${ahC.captureToOpen.t}. To next close: median ${pct(ahC.ahEntry.d1.median, 2)} (t = ${ahC.ahEntry.d1.t}).`],
+      ["After costs", `Median to open: ${pct(ahC.netOfCosts["10bps"].captureToOpenMedian, 2)} at 10 bps, ${pct(ahC.netOfCosts["25bps"].captureToOpenMedian, 2)} at 25 bps, ${pct(ahC.netOfCosts["50bps"].captureToOpenMedian, 2)} at 50 bps per side.`],
+      ["vs SPY", "Already measured relative to SPY over the same window."],
+      ["Out of sample", `Positive in all three periods (train n ${ahC.bySplit.train.n}, validation n ${ahC.bySplit.validation.n}, test n ${ahC.bySplit.test.n}), but the entry rule was designed after seeing the full-data gap, so it is not independently validated.`],
+      ["Failure conditions", "Slow detection (half the reaction happens in the first 1–2 minutes: the first print is already up a median " + pct(ahC.ahFirstVsClose.median, 2) + "), wide extended-hours spreads, thin names."],
+      ["Overfitting risk", "Medium: one group chosen from a pre-registered hypothesis, entry rule chosen post hoc, small n."],
+      ["Usable for alerts?", "Only if alerts arrive within ~1 minute of SEC acceptance and the user can trade after hours. Forward-test first."]] },
+  { badge: "warning", label: "Warning · near-validated", title: "Late filings (more than 4 days after the trade) underperform other insider purchases",
+    q: [["What is the pattern?", "Filing published more than 4 calendar days after the transaction date."],
+      ["Insider trigger", "Any role; stronger for 10% owners and thin stocks."],
+      ["Chart conditions", "None."],
+      ["Frequency", `About 1 in 6 filings (train n ${lt.train.n}).`],
+      ["Independent companies", `${lt.train.issuers} in train; holds with one event per company per 30 days.`],
+      ["Historical performance", `vs other insider buys: ${pct(lt.train.meanAbn)} / ${pct(lt.validation.meanAbn)} / ${pct(lt.test.meanAbn)}; vs SPY ${pct(lt.train.meanExcess)} / ${pct(lt.validation.meanExcess)} / ${pct(lt.test.meanExcess)}.`],
+      ["After costs", "Already net of costs; it worsens as costs rise (shown below)."],
+      ["vs SPY", `Bootstrap 95% CI vs SPY excludes zero in all periods: test ${pct(D.late.bootstrapCI.test?.[0])} to ${pct(D.late.bootstrapCI.test?.[1])}.`],
+      ["Out of sample", `Passed train (q < 0.10) and validation (p = ${fmtP(lt.validation.pAbn)}); test p = ${fmtP(lt.test.pAbn)} misses the 0.05 bar.`],
+      ["Failure conditions", "Very liquid stocks (mixed); small groups are noisy."],
+      ["Overfitting risk", "Low to medium: simple, matches known Form 4 research, but one quintile among many tests."],
+      ["Usable for alerts?", "Yes, as a caution flag rather than a trade signal."]] },
+  { badge: "failed", label: "Failed in test", title: "Purchases far below the prior close (offering or placement price) underperform",
+    q: [["What is the pattern?", "Reported price ≥ 15% below the previous close (training tree split), typically offering or placement allocations, as in RAPP."],
+      ["Insider trigger", "Mostly funds and 10% owners."], ["Chart conditions", "Usually after a drop."],
+      ["Frequency", "≈ 1–2% of filings."], ["Independent companies", "~70 in train."],
+      ["Historical performance", (() => { const r = D.promoted.find((x) => x.family === "tree"); return r ? `vs other insider buys: train ${pct(r.train.meanAbn)}, validation ${pct(r.validation.meanAbn)}, test ${pct(r.test.meanAbn)} (n ${r.test.n}).` : "—"; })()],
+      ["After costs", "Net figures."], ["vs SPY", "Negative in all periods vs SPY, but so is the universe."],
+      ["Out of sample", "Reversed in the test period: not supported."],
+      ["Failure conditions", "Post-offering rebounds (RAPP-type) can dominate short windows."],
+      ["Overfitting risk", "High (tree split)."], ["Usable for alerts?", "As an information label (offering purchase), not as a signal."]] },
+  { badge: "rejected", label: "Rejected", title: "All 30 pre-registered behavioural and chart hypotheses",
+    q: [["What is the pattern?", "Clusters, CEO after others, directors after CEO/CFO, escalating or de-escalating sizes, small-then-huge, averaging down or up, after crashes, near lows, recoveries, buying surges, similar prices, consolidation, breakouts, 10b5-1, first buys, unusual pre-filing volume and more."],
+      ["Result", "None had a training-period q below 0.10 (except 10b5-1 at 10 sessions, which reversed in validation)."],
+      ["What it means", "In this data, insider behaviour and chart shape do not predict returns from the next open beyond the market's immediate reaction."],
+      ["Overfitting risk", "This is the honest null: no selective reporting."]] },
+];
+document.getElementById("disc").innerHTML = DISC.map((d, i) => `<details class="disc"${i < 3 ? " open" : ""}><summary><span class="rank">${i + 1}</span><span class="title">${esc(d.title)}</span><span class="badge ${d.badge}">${esc(d.label)}</span></summary><div class="body"><dl class="q">${d.q.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div></details>`).join("");
+tbl("rejected", [["Hypothesis"], ["Train n", "n"], ["vs other buys", "n"], ["vs SPY", "n"], ["q (FDR)", "n"]],
+  D.hypotheses.filter((h) => !h.passTrain).map((h) => `<tr><td class="w">${esc(h.name)}</td><td class="n">${num(h.train.n)}</td><td class="n ${cls(h.train.meanAbn)}">${pct(h.train.meanAbn)}</td><td class="n ${cls(h.train.meanExcess)}">${pct(h.train.meanExcess)}</td><td class="n">${h.train.qAbn == null ? "—" : h.train.qAbn.toFixed(2)}</td></tr>`));
+
+// ---------- data ----------
+document.getElementById("kvData").innerHTML = [
+  [num(A.sec.purchases.filings), "Form 4 filings with purchases"], [num(A.sec.purchases.rows), "purchase transactions (rows)"], [num(D.events.priced), `events with prices (of ${num(D.events.total)})`],
+  [pctU(A.sec.coverage.ratio), `SEC business days held (${A.sec.coverage.coveredDays}/${A.sec.coverage.businessDays})`], [num(A.prices.symbols), "symbols with daily bars"], [num(D.companies.total), "companies"],
+].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("");
+const pu = A.sec.purchases;
+tbl("auditTable", [["Check"], ["Result", "w"]], [
+  ["SEC period", `${A.sec.from} – ${A.sec.to}, ${A.sec.heldDays} days held`],
+  ["Form types (all rows)", Object.entries(A.sec.byForm).map(([k, v]) => `${k}: ${num(v)}`).join(" · ")],
+  ["Amendments (purchase rows)", Object.entries(pu.amendmentStatus).map(([k, v]) => `${k}: ${num(v)}`).join(" · ")],
+  ["Duplicate reports", Object.entries(pu.economicDedupe).map(([k, v]) => `${k}: ${num(v)}`).join(" · ") + " (confirmed groups counted once; needs_review kept and flagged)"],
+  ["Price checks", Object.entries(pu.priceChecks).map(([k, v]) => `${k}: ${num(v)}`).join(" · ")],
+  ["Venue stated in filing", Object.entries(pu.venue).map(([k, v]) => `${k}: ${num(v)}`).join(" · ")],
+  ["Late filings (> 2 business days)", num(pu.late)], ["No ticker on Form 4", num(pu.noTicker)],
+  ["Extreme daily moves (> 75%)", `${num(A.prices.extremeMoves)} on ${num(A.prices.extremeSymbols)} symbols; ${A.prices.suspectSymbols.length} reversed next day (possible bad prints): ${A.prices.suspectSymbols.slice(0, 12).join(", ")}…`],
+].map(([a, b]) => `<tr><td>${esc(a)}</td><td class="w">${esc(b)}</td></tr>`));
+document.getElementById("auditNote").textContent = `Not available: ${A.notAvailable.join("; ")}.`;
+
+// ---------- funnel ----------
+hbars({ id: "funnelChart", rows: [["Registered tests", F.tests], ["Passed training (FDR q < 0.10, vs other insider buys)", F.passTrain], ["Also passed validation", F.passValidation], ["Also supported in the held-out test", F.supported]].map(([l, v]) => ({ label: l, vals: [v] })),
+  series: [{ name: "Tests", col: "var(--s1)" }], fmt: (v) => num(v), L: 340 });
+tbl("famTable", [["Family"], ["Tests", "n"], ["Passed training", "n"]], Object.entries(F.famCounts).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${num(v)}</td><td class="n">${num(F.famPass[k] || 0)}</td></tr>`));
+
+// ---------- behaviour ----------
+const ac = D.companies.archetypeCounts;
+const AL = { repeatSingleInsider: "One insider buying repeatedly", cluster3: "≥3 insiders within 30 days", ceoAfterOthers: "CEO buying after others", escalation: "Increasing sizes", deescalation: "Decreasing sizes", averagingDown: "Same insider at lower prices", buyingUp: "Same insider at higher prices", bigAfterSmall: "≥10× after smaller buys", offering: "Offering / placement buys" };
+document.getElementById("kvCompanies").innerHTML = [[num(D.companies.total), "companies with purchases"], [num(D.companies.withAtLeast3Filings), "with ≥ 3 purchase filings"], ...Object.entries(ac).map(([k, v]) => [num(v), AL[k] || k])].map(([b, s]) => `<div><b>${b}</b><span>${esc(s)}</span></div>`).join("");
+const HA = Object.fromEntries(D.hypothesesAllSplits.map((h) => [h.name, h.h20]));
+tbl("hypTable", [["Hypothesis"], ["Train n", "n"], ["Train vs other buys", "n"], ["Train vs SPY", "n"], ["q", "n"], ["Validation vs other (n)", "n"], ["Test vs other (n)", "n"]],
+  D.hypotheses.map((h) => { const a = HA[h.name]; return `<tr><td class="w">${esc(h.name)}</td><td class="n">${num(h.train.n)}</td><td class="n ${cls(h.train.meanAbn)}">${pct(h.train.meanAbn)}</td><td class="n ${cls(h.train.meanExcess)}">${pct(h.train.meanExcess)}</td><td class="n">${h.train.qAbn == null ? "—" : h.train.qAbn.toFixed(2)}</td><td class="n muted">${pct(a?.validation.meanAbn)} (${a?.validation.n ?? 0})</td><td class="n muted">${pct(a?.test.meanAbn)} (${a?.test.n ?? 0})</td></tr>`; }));
+
+// ---------- event study ----------
+(function ev() {
+  const svg = document.getElementById("evChart"), t = tipFor(svg);
+  const S = [["All purchases", "var(--base)", "5 4"], ["Open market (stated)", "var(--s1)", ""], ["Offering price (≥5% below prior close)", "var(--s2)", ""], ["CEO/CFO personal open-market ≥ $250k", "var(--s3)", ""]].map(([k, col, dash]) => ({ k, col, dash, c: D.eventStudy[k].curve }));
+  const W = 880, Hh = 340, L = 54, R = 200, TOP = 14, B = 34;
+  const days = S[0].c.map((p) => p.day);
+  const [lo, hi, step] = range(S.flatMap((s) => s.c.map((p) => p.median)).filter((v) => v != null), 0.005);
+  const x = (d) => L + (d - days[0]) / (days.at(-1) - days[0]) * (W - L - R), y = (v) => TOP + (hi - v) / (hi - lo) * (Hh - TOP - B);
+  svg.setAttribute("viewBox", `0 0 ${W} ${Hh}`); svg.setAttribute("width", W);
+  let g = "";
+  for (let v = lo; v <= hi + 1e-9; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--ink-3)">${pct(v, 0)}</text>`;
+  [-20, -10, 0, 10, 20, 40, 60].forEach((d) => { g += `<text x="${x(d)}" y="${Hh - B + 16}" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">${d === 0 ? "0" : d > 0 ? `+${d}` : d}</text>`; });
+  g += `<line x1="${x(0)}" x2="${x(0)}" y1="${TOP}" y2="${Hh - B}" stroke="var(--ink-3)"/><text x="${x(0) + 4}" y="${TOP + 10}" font-size="10" fill="var(--ink-3)">last close before entry</text>`;
+  g += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--ink-3)"/>`;
+  g += `<line id="evx" x1="0" x2="0" y1="${TOP}" y2="${Hh - B}" stroke="var(--ink-3)" stroke-dasharray="2 3" visibility="hidden"/>`;
+  const ends = [];
+  S.forEach((s) => { const pts = s.c.filter((p) => p.median != null).map((p) => [x(p.day), y(p.median)]); g += `<polyline fill="none" stroke="${s.col}" stroke-width="2" stroke-dasharray="${s.dash}" points="${pts.map((q) => q.join(",")).join(" ")}"/>`; ends.push({ y: pts.at(-1)[1], s }); });
+  ends.sort((a, b) => a.y - b.y); let py = -1e9; ends.forEach((e) => { const yy = Math.max(e.y, py + 14); py = yy; g += `<text x="${W - R + 8}" y="${yy + 4}" font-size="10.5" fill="var(--ink-2)">${esc(e.s.k.length > 30 ? e.s.k.slice(0, 29) + "…" : e.s.k)}</text>`; });
+  g += `<rect id="evhit" x="${L}" y="${TOP}" width="${W - L - R}" height="${Hh - TOP - B}" fill="transparent"/>`;
+  svg.innerHTML = g;
+  const hit = svg.querySelector("#evhit"), vx = svg.querySelector("#evx");
+  hit.addEventListener("mousemove", (e) => { const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * (W / r.width); const d = Math.round(days[0] + (sx - L) / (W - L - R) * (days.at(-1) - days[0])); const k = days.indexOf(d); if (k < 0) return;
+    vx.setAttribute("x1", x(d)); vx.setAttribute("x2", x(d)); vx.setAttribute("visibility", "visible");
+    showTip(t, e, `<div style="font-weight:600">Day ${d > 0 ? "+" : ""}${d}</div>` + S.map((s) => `<span style="display:inline-block;width:10px;height:3px;background:${s.col};vertical-align:3px;margin-right:6px"></span>${esc(s.k)}: <b>${pct(s.c[k].median, 2)}</b> <span class="muted">(n ${num(s.c[k].n)})</span>`).join("<br>")); });
+  hit.addEventListener("mouseleave", () => { vx.setAttribute("visibility", "hidden"); hideTip(t); });
+  document.getElementById("evLegend").innerHTML = S.map((s) => `<span><i class="line" style="background:${s.col}"></i>${esc(s.k)}</span>`).join("");
+})();
+tbl("driftTable", [["Group"], ["Events", "n"], ["Median sessions trade → entry", "n"], ["Mean excess trade → last close", "n"], ["Median", "n"]],
+  Object.entries(D.drift).map(([g, d]) => `<tr><td>${esc(g)}</td><td class="n">${num(d.n)}</td><td class="n">${d.sessions ?? "—"}</td><td class="n ${cls(d.mean)}">${pct(d.mean, 2)}</td><td class="n">${pct(d.median, 2)}</td></tr>`));
+
+// ---------- gap ----------
+const GK = Object.keys(GF);
+hbars({ id: "gapChart", rows: GK.map((k) => ({ label: k, vals: [GF[k].event.median, GF[k].placebo.median], tip: `<b>${esc(k)}</b><br>Gap after publication: median <b>${pct(GF[k].event.median, 2)}</b>, ${pctU(GF[k].event.positive)} positive, t ${GF[k].event.t} (n ${num(GF[k].event.n)})<br>Placebo (ordinary day): <b>${pct(GF[k].placebo.median, 2)}</b>` })),
+  series: [{ name: "After publication", col: "var(--s1)" }, { name: "Placebo", col: "var(--base)" }] });
+tbl("gapTable", [["Group"], ["Median gap", "n"], ["Positive", "n"], ["t", "n"], ["Placebo", "n"], ["Train", "n"], ["Validation", "n"], ["Test", "n"], ["Months positive", "n"]],
+  GK.map((k) => { const o = GF[k]; return `<tr><td>${esc(k)}</td><td class="n ${cls(o.event.median)}">${pct(o.event.median, 2)}</td><td class="n">${pctU(o.event.positive)}</td><td class="n">${o.event.t}</td><td class="n">${pct(o.placebo.median, 2)}</td><td class="n">${pct(o.bySplit.train.median, 2)}</td><td class="n">${pct(o.bySplit.validation.median, 2)}</td><td class="n">${pct(o.bySplit.test.median, 2)}</td><td class="n">${o.byMonth.filter((m) => m.median > 0).length}/${o.byMonth.length}</td></tr>`; }));
+tbl("gapTimeTable", [["Publication time (ET)"], ["Events", "n"], ["Median gap", "n"], ["Winsorized mean", "n"]],
+  Object.entries(gA.byPublicationTime).filter(([, s]) => s.n).map(([k, s]) => `<tr><td>${esc(k)}</td><td class="n">${num(s.n)}</td><td class="n ${cls(s.median)}">${pct(s.median, 2)}</td><td class="n">${pct(s.wmean, 2)}</td></tr>`));
+
+// ---------- after hours ----------
+const AK = Object.keys(AH.strata);
+hbars({ id: "ahChart", rows: AK.map((k) => { const s = AH.strata[k]; return { label: k, vals: [s.captureToOpen.median, s.ahEntry.d1.median, s.openEntrySameEvents.d1.median] }; }),
+  series: [{ name: "AH → next open", col: "var(--s1)" }, { name: "AH → next close", col: "var(--s3)" }, { name: "Open → next close", col: "var(--s2)" }], refs: [{ v: 0.005, label: "25 bps round trip" }, { v: 0.01, label: "50 bps" }] });
+tbl("ahTable", [["Group"], ["Events with AH trades", "n"], ["Min to first trade", "n"], ["AH $ volume (median)", "n"], ["First AH print vs close", "n"], ["AH → open (median)", "n"], ["t", "n"], ["AH → 1d", "n"], ["AH → 5d", "n"], ["AH → 20d", "n"], ["Open-entry 1d / 20d", "n"]],
+  AK.map((k) => { const s = AH.strata[k]; return `<tr><td class="w">${esc(k)}</td><td class="n">${s.captureToOpen.n}/${s.sampled}</td><td class="n">${s.minutesToFirstTrade.median?.toFixed(1)}</td><td class="n">$${num(Math.round(s.ahDollars.median))}</td><td class="n">${pct(s.ahFirstVsClose.median, 2)}</td><td class="n ${cls(s.captureToOpen.median)}">${pct(s.captureToOpen.median, 2)}</td><td class="n">${s.captureToOpen.t}</td><td class="n ${cls(s.ahEntry.d1.median)}">${pct(s.ahEntry.d1.median, 2)}</td><td class="n">${pct(s.ahEntry.d5.median, 2)}</td><td class="n">${pct(s.ahEntry.d20.median, 2)}</td><td class="n">${pct(s.openEntrySameEvents.d1.median, 2)} / ${pct(s.openEntrySameEvents.d20.median, 2)}</td></tr>`; }));
+tbl("ahCost", [["View"], ["n", "n"], ["AH → next open (median)", "n"], ["AH → next close (median)", "n"]], [
+  ...Object.entries(ahC.bySplit).map(([k, o]) => `<tr><td>${esc(k)} period, gross</td><td class="n">${o.n}</td><td class="n ${cls(o.captureToOpen.median)}">${pct(o.captureToOpen.median, 2)}</td><td class="n ${cls(o.d1.median)}">${pct(o.d1.median, 2)}</td></tr>`),
+  ...Object.entries(ahC.netOfCosts).map(([k, o]) => `<tr><td>All periods, net at ${esc(k)} per side</td><td class="n">${ahC.captureToOpen.n}</td><td class="n ${cls(o.captureToOpenMedian)}">${pct(o.captureToOpenMedian, 2)}</td><td class="n ${cls(o.d1Median)}">${pct(o.d1Median, 2)}</td></tr>`)]);
+
+// ---------- baseline ----------
+tbl("baseTable", [["Horizon"], ["Train", "n"], ["Validation", "n"], ["Test", "n"], ["Completed", "n"], ["Pending", "n"]],
+  Object.entries(D.baseline).map(([h, b]) => `<tr><td>${h} session${h === "1" ? "" : "s"}</td>${["train", "validation", "test"].map((sp) => b[sp].n ? `<td class="n ${cls(b[sp].meanExcess)}">${pct(b[sp].meanExcess)} <span class="muted">(${num(b[sp].n)})</span></td>` : `<td class="n muted">pending</td>`).join("")}<td class="n">${num(D.coverage[h].ok)}</td><td class="n">${num(D.coverage[h].pending)}</td></tr>`));
+
+// ---------- decay ----------
+tbl("decayTable", [["Rule (found in training)"], ["Horizon", "n"], ["Train vs other buys (n)", "n"], ["Validation", "n"], ["Test", "n"]],
+  D.decay.map((r) => `<tr><td class="w">${esc(r.family)}: ${esc(r.name)}</td><td class="n">${r.horizon}d</td><td class="n ${cls(r.train.meanAbn)}">${pct(r.train.meanAbn)} (${num(r.train.n)})</td><td class="n ${cls(r.validation?.meanAbn)}">${r.validation?.n ? `${pct(r.validation.meanAbn)} (${r.validation.n})` : "—"}</td><td class="n ${cls(r.test?.meanAbn)}">${r.test?.n ? `${pct(r.test.meanAbn)} (${r.test.n})` : "—"}</td></tr>`));
+
+// ---------- late filings ----------
+const L2 = D.late;
+const lrow = (name, o) => `<tr><td>${esc(name)}</td>${["train", "validation", "test"].map((sp) => `<td class="n ${cls(o[sp].meanAbn)}">${o[sp].n ? `${pct(o[sp].meanAbn)} / ${pct(o[sp].meanExcess)} <span class="muted">(${o[sp].n})</span>` : "—"}</td>`).join("")}</tr>`;
+tbl("lateTable", [["Cut (vs other insider buys / vs SPY)"], ["Train", "n"], ["Validation", "n"], ["Test", "n"]], [
+  ...[5, 10, 20, 40].map((h) => lrow(`${h} sessions`, L2.horizons[h])),
+  ...Object.entries(L2.costs).map(([k, o]) => lrow(`20 sessions, costs ${k}`, o)),
+  ...Object.entries(L2.liquidity).map(([k, o]) => lrow(`Liquidity ${k}`, o)),
+  ...Object.entries(L2.role).map(([k, o]) => lrow(`Role: ${k}`, o)),
+  ...Object.entries(L2.ownership).map(([k, o]) => lrow(`Ownership: ${k}`, o)),
+  lrow("One event per company per 30 days", L2.onePerIssuer30d),
+]);
+
+// ---------- cases ----------
+tbl("rappTable", [["SEC public (ET)"], ["Insider"], ["Value", "n"], ["Held"], ["Price vs prior close", "n"], ["Earlier buyers", "n"], ["Entry"], ["1d vs SPY", "n"], ["5d vs SPY", "n"]],
+  D.rapp.map((r) => `<tr><td class="mono">${esc(r.publishedAt)}</td><td>${esc(r.insider)}</td><td class="n">$${num(r.filingValue)}</td><td>${r.ownership === "I" ? "indirect" : "direct"}</td><td class="n">${pct(r.priceVsTradePrevClose)}</td><td class="n">${r.priorOtherBuyers30}</td><td class="mono">${esc(r.entryDate)}</td><td class="n ${cls(r.h?.[1]?.excess)}">${r.h?.[1]?.status === "ok" ? pct(r.h[1].excess, 2) : "pending"}</td><td class="n ${cls(r.h?.[5]?.excess)}">${r.h?.[5]?.status === "ok" ? pct(r.h[5].excess, 2) : "pending"}</td></tr>`));
+const ahRow = (r) => `<tr><td class="mono">${esc(r.ticker)}</td><td class="mono">${esc(r.publishedAt)}</td><td>${esc(r.insider)}</td><td class="n">$${num(r.filingValue)}</td><td class="n">${r.minutesAfterAcceptance}</td><td class="n">$${num(r.ahDollars)}</td><td class="n">${pct(r.ahVsClose, 2)}</td><td class="n ${cls(r.captureToOpen)}">${pct(r.captureToOpen, 2)}</td><td class="n ${cls(r.ex1)}">${pct(r.ex1, 2)}</td></tr>`;
+tbl("ahCases", [["Ticker"], ["Published (ET)"], ["Insider"], ["Value", "n"], ["Min to AH trade", "n"], ["AH $ traded", "n"], ["AH print vs close", "n"], ["AH → open", "n"], ["AH → 1d", "n"]],
+  [`<tr><td colspan="9" class="muted">Best five</td></tr>`, ...D.ahExamples.best.map(ahRow), `<tr><td colspan="9" class="muted">Worst five</td></tr>`, ...D.ahExamples.worst.map(ahRow)]);
+tbl("lateCases", [["Ticker"], ["Published (ET)"], ["Insider"], ["Role"], ["Value", "n"], ["Venue"], ["20d net vs SPY", "n"]],
+  L2.examples.map((e) => `<tr><td class="mono">${esc(e.ticker)}</td><td class="mono">${esc(e.publishedAt)}</td><td>${esc(e.insider)}</td><td>${esc(e.role)}</td><td class="n">$${num(e.filingValue)}</td><td>${esc(e.venue)}</td><td class="n ${cls(e.excessNet)}">${pct(e.excessNet)}</td></tr>`));
+</script>

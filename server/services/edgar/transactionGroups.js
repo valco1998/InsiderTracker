@@ -46,6 +46,62 @@ function referencedOwner(row, other) {
   return null;
 }
 
+// DIRECT HOLDER(S) a filing itself names in its ownership footnotes / nature / remarks, e.g.
+//   "The securities are held directly by SR One Capital Fund II Aggregator, LP …"
+//   "… New Enterprise Associates 17, L.P. ("NEA 17"), the direct beneficial owner of the securities"
+// → normalized entity names ("new enterprise associates 17 lp"). Only names ending in an entity
+// suffix are taken (LP / LLC / Ltd / Limited / Inc / Trust) — vague text ("certain affiliated
+// funds") yields nothing, so no link is ever inferred from it.
+const FORWARD_CUES = [["held", "directly", "by"], ["directly", "held", "by"], ["held", "of", "record", "by"], ["owned", "directly", "by"], ["directly", "owned", "by"], ["held", "by"]];
+const BACKWARD_CUES = [["the", "direct", "beneficial", "owner"], ["the", "direct", "owner"], ["the", "record", "holder"], ["the", "record", "owner"]];
+const STOP = new Set(["of", "by", "is", "the", "and", "a", "an", "which", "that", "partner", "general", "sole", "manager", "member", "managing", "as", "to", "in", "for", "are", "were", "be", "its", "each"]);
+function suffixAt(t, i) { // → number of tokens of an entity suffix starting at i (0 = none)
+  if (["lp", "llc", "ltd", "limited", "inc", "trust", "llp"].includes(t[i])) return 1;
+  if (t[i] === "l" && t[i + 1] === "p") return 2;
+  if (t[i] === "l" && t[i + 1] === "l" && (t[i + 2] === "c" || t[i + 2] === "p")) return 3;
+  return 0;
+}
+const canonicalEntity = (toks) => toks.join(" ").replace(/\bl l c\b/g, "llc").replace(/\bl l p\b/g, "llp").replace(/\bl p\b/g, "lp");
+const matchAt = (t, i, cue) => cue.every((w, k) => t[i + k] === w);
+// Vague descriptions never identify a holder ("certain affiliated funds managed by …").
+const VAGUE = new Set(["certain", "affiliated", "affiliates", "various", "managed", "advised", "funds", "accounts", "entities", "vehicles", "one", "more", "their", "its", "his", "her", "such"]);
+const holderName = (toks) => { const x = toks[0] === "the" ? toks.slice(1) : toks; return x.some((w) => VAGUE.has(w)) ? null : canonicalEntity(x); };
+export function directHolders(row) {
+  const t = evidenceText(row).trim().split(" ").filter(Boolean);
+  const out = new Set();
+  for (let i = 0; i < t.length; i++) {
+    for (const cue of FORWARD_CUES) {
+      if (!matchAt(t, i, cue)) continue;
+      if (t[i - 1] === "indirectly") break; // "indirectly held by X" names an indirect holder
+      const start = i + cue.length;
+      for (let j = start; j < Math.min(t.length, start + 12); j++) {
+        const n = suffixAt(t, j);
+        if (n) { const h = j > start ? holderName(t.slice(start, j + n)) : null; if (h) out.add(h); break; }
+      }
+      break;
+    }
+    for (const cue of BACKWARD_CUES) {
+      if (!matchAt(t, i, cue)) continue;
+      // nearest entity suffix within 6 tokens before the cue (an alias may sit in between)
+      for (let j = i - 1; j >= Math.max(0, i - 6); j--) {
+        const n = [3, 2, 1].find((len) => j - len + 1 >= 0 && suffixAt(t, j - len + 1) === len);
+        if (!n) continue;
+        const end = j + 1, sufStart = j - n + 1;
+        let s = sufStart;
+        while (s > 0 && sufStart - s < 8 && !STOP.has(t[s - 1])) s--;
+        const h = s < sufStart ? holderName(t.slice(s, end)) : null;
+        if (h) out.add(h);
+        break;
+      }
+    }
+  }
+  return [...out].filter((x) => x.replace(/ (lp|llc|llp|ltd|limited|inc|trust)$/, "").length >= 3);
+}
+function sharedDirectHolder(a, b) {
+  const ha = directHolders(a), hb = new Set(directHolders(b));
+  return ha.find((h) => hb.has(h)) || null;
+}
+
 function sharedOwnerCik(a, b) {
   const ciks = new Set((a.owners || []).map((o) => o.cik).filter(Boolean));
   return (b.owners || []).find((o) => o.cik && ciks.has(o.cik))?.cik || null;
@@ -70,7 +126,14 @@ export function pairEvidence(a, b) {
   if (aRefB) evidence.push(`${a.accessionNo} names "${aRefB}", a reporting owner of ${b.accessionNo}`);
   if (bRefA) evidence.push(`${b.accessionNo} names "${bRefA}", a reporting owner of ${a.accessionNo}`);
   if (cik) evidence.push(`both filings list reporting owner CIK ${cik}`);
-  if (!aRefB && !bRefA && !cik) missing.push("no reporting-relationship evidence between the filings");
+  // Same holding reported by several related persons (e.g. each manager of a fund files
+  // separately): only with an identical candidate key (this function is only called within a
+  // key bucket: date, security, shares, price AND shares owned after), BOTH indirect, and both
+  // filings' own footnotes naming the same direct holder. A shared entity name alone is never
+  // enough; same-filing rows are never merged (above).
+  const holder = !aRefB && !bRefA && !cik && a.ownership === "I" && b.ownership === "I" ? sharedDirectHolder(a, b) : null;
+  if (holder) evidence.push(`both filings name "${holder}" as the direct holder of the same shares (identical date, shares, price and holdings after)`);
+  if (!aRefB && !bRefA && !cik && !holder) missing.push("no reporting-relationship evidence between the filings");
 
   const ownershipOk = (a.ownership === "I" || b.ownership === "I") && !!a.ownership && !!b.ownership;
   if (ownershipOk) evidence.push(`ownership ${a.ownership} (${a.accessionNo}) + ${b.ownership} (${b.accessionNo})`);

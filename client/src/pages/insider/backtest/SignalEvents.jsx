@@ -24,7 +24,10 @@ function PurchaseRows({ rows, dim = false }) {
         <tbody>
           {rows.map((p) => (
             <tr key={`${p.rowId}-${p.publicAt}`} style={{ borderTop: "1px solid var(--it-line-soft)", opacity: dim ? 0.85 : 1 }}>
-              <td className="py-1.5 pr-3" style={{ color: "var(--it-text)" }}>{p.url ? <a className="hover:underline" href={p.url} target="_blank" rel="noopener noreferrer">{p.name}</a> : p.name}</td>
+              <td className="py-1.5 pr-3" style={{ color: "var(--it-text)" }}>
+                {p.url ? <a className="hover:underline" href={p.url} target="_blank" rel="noopener noreferrer">{p.name}</a> : p.name}
+                {p.possibleDuplicate ? <span className="ml-1 text-[10.5px]" style={{ color: "var(--it-warn)" }} title="Same date, shares, price and holdings-after as another filer's report, but no filing links them — counted separately, may be the same transaction">possible duplicate report</span> : null}
+              </td>
               <td className="py-1.5 pr-3 text-[11.5px] it-dim">{(p.roles || []).join(" · ")}</td>
               <td className="it-num py-1.5 pr-3 whitespace-nowrap">{day(p.transactionDate)}</td>
               <td className="it-num py-1.5 pr-3 whitespace-nowrap text-[12px] it-dim">{acceptedShort(p.publicAt)}</td>
@@ -42,6 +45,7 @@ function PurchaseRows({ rows, dim = false }) {
 export function SignalSnapshot({ signal }) {
   const snap = signal?.snapshot?.purchases || [];
   const later = signal?.hindsight?.laterPurchases || [];
+  const corrections = signal?.hindsight?.amendmentsOfSignalPurchases || [];
   if (!snap.length) return null;
   return (
     <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: "1px solid var(--it-line-soft)" }}>
@@ -57,6 +61,13 @@ export function SignalSnapshot({ signal }) {
         <h4 className="it-label">Later SEC publications · hindsight — not part of the signal or its return</h4>
         {later.length ? <PurchaseRows rows={later} dim /> : <p className="text-[12px] it-dim2">No later purchases were published for this cluster.</p>}
       </section>
+      {corrections.length > 0 && (
+        <section>
+          <h4 className="it-label">Form 4/A corrections of signal purchases · hindsight — not new purchases</h4>
+          <p className="mb-1.5 text-[11.5px] it-dim2">Filed after the signal; each restates a purchase the signal used. The signal, its entry and its return stay as published.</p>
+          <PurchaseRows rows={corrections} dim />
+        </section>
+      )}
     </div>
   );
 }

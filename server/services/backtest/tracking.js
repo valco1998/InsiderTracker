@@ -60,26 +60,43 @@ export function trackSignalsFor(signals, issuerCik) {
   return { anchor: own[0] || null, clusters: own };
 }
 
-// Purchase events (code P, current — not superseded) of the company from the
-// first purchase date to `to`. rows: economic rows (snapshot).
+// Purchase events (code P) of the company from the first purchase date to `to`.
+// rows: economic rows (snapshot). Rows superseded by a Form 4/A are left out (the amendment
+// counts) — EXCEPT a superseded row that a signal snapshot used: it was public then, so it is
+// shown, flagged with the amendment that later replaced it. A Form 4/A restating a snapshot
+// purchase is labelled as that correction, never as a new purchase.
 export function purchaseEvents({ rows, issuerCik, from, to, clusters = [], acceptedAtByAccession = new Map(), config = {} }) {
   const cik = Number(issuerCik);
   const out = [];
+  // A snapshot purchase may come from a point-in-time version of a duplicate group (signals.js
+  // groupVersions): match on every report of the final economic row, not only its primary.
+  const rowIdsOf = (r) => new Set([r.id, ...(r.reportedBy || []).map((rep) => rep.rowId)]);
+  const snapshotIndexOf = (r) => { const ids = rowIdsOf(r); return clusters.findIndex((c) => (c.snapshot?.purchases || []).some((p) => ids.has(p.rowId))); };
+  const originalsOf = (c) => new Set((c?.snapshot?.purchases || []).flatMap((p) => [p.accessionNo, p.amends]).filter(Boolean));
   for (const r of rows) {
-    if (r.code !== "P" || isSuperseded(r) || Number(r.issuerCik) !== cik) continue;
+    if (r.code !== "P" || Number(r.issuerCik) !== cik) continue;
+    const inSnapshot = snapshotIndexOf(r);
+    if (isSuperseded(r) && inSnapshot < 0) continue;
     const d = r.transactionDate;
     if (!d || d < from || d > to) continue;
     const roles = rowBacktestRoles(r);
     const cluster = clusters.findIndex((c) => d >= c.windowFrom && d <= (c.clusterTo || c.windowTo));
     const publishedAt = (knownAtOf(r, acceptedAtByAccession) || "").replace(/ ET$/, "") + " ET";
-    // Relation to the FROZEN signal snapshots (signals.js): in a signal, published after
-    // a signal of its cluster (subsequent SEC publication), or neither.
-    const inSnapshot = clusters.findIndex((c) => (c.snapshot?.purchases || []).some((p) => p.rowId === r.id));
+    // Relation to the FROZEN signal snapshots (signals.js): in a signal, a Form 4/A correction
+    // of a signal purchase, published after a signal of its cluster, or neither.
     const c = cluster >= 0 ? clusters[cluster] : null;
+    const amendedOriginal = r.amendment?.status === "amends" ? r.amendment.original : null;
+    const correctsSignal = amendedOriginal && inSnapshot < 0 ? clusters.findIndex((k) => originalsOf(k).has(amendedOriginal)) : -1;
     const signalRole = inSnapshot >= 0 ? "signal_snapshot"
-      : c && publishedAt > c.publishedAt ? "subsequent_publication"
-        : c ? "in_window_not_in_signal" : "outside_signal_clusters";
+      : correctsSignal >= 0 ? "amendment_of_signal_purchase"
+        : c && publishedAt > c.publishedAt ? "subsequent_publication"
+          : c ? "in_window_not_in_signal" : "outside_signal_clusters";
     out.push({
+      formType: r.formType || null,
+      amends: amendedOriginal,
+      // Shown only for a superseded snapshot purchase: the Form 4/A that later replaced it.
+      amendedBy: isSuperseded(r) ? { accessionNo: r.amendment.supersededBy || null, at: r.amendment.amendmentFiledAt ? `${String(r.amendment.amendmentFiledAt).replace(/\s*ET$/, "")} ET` : null } : null,
+      correctsSignalCluster: correctsSignal >= 0 ? correctsSignal : null,
       date: d,
       rowId: r.id,
       publishedAt,

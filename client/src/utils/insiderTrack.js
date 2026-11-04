@@ -98,11 +98,11 @@ export function publicationPoints(events = []) {
   const groups = new Map();
   for (const e of events) {
     if (!Number.isFinite(e.pctAtPublication) || !e.publicationPriceDate) continue;
-    const kind = e.signalRole === "signal_snapshot" ? "signal" : e.signalRole === "subsequent_publication" ? "later" : null;
+    const kind = e.signalRole === "signal_snapshot" ? "signal" : e.signalRole === "subsequent_publication" || e.signalRole === "amendment_of_signal_purchase" ? "later" : null;
     if (!kind) continue;
     const k = `${e.publicationPriceDate}|${kind}`;
-    const g = groups.get(k) || groups.set(k, { x: e.publicationPriceDate, y: e.pctAtPublication, kind, purchases: 0, insiders: [], publishedAt: [] }).get(k);
-    g.purchases++;
+    const g = groups.get(k) || groups.set(k, { x: e.publicationPriceDate, y: e.pctAtPublication, kind, purchases: 0, corrections: 0, insiders: [], publishedAt: [] }).get(k);
+    if (e.signalRole === "amendment_of_signal_purchase") g.corrections++; else g.purchases++;
     if (!g.insiders.includes(e.insider)) g.insiders.push(e.insider);
     if (!g.publishedAt.includes(e.publishedAt)) g.publishedAt.push(e.publishedAt);
   }

@@ -572,6 +572,7 @@ export function createBacktestService({
     const { signals, stats: signalStats } = detectSignals({
       rows: ctx.snap.economic, acceptedAtByAccession: ctx.dataset.acceptedAtByAccession, config, range: { from: config.from, to: config.to },
       reportOwners: (rowId) => ctx.snap.rawById.get(rowId)?.owners,
+      reportRow: (rowId) => ctx.snap.rawById.get(rowId), // point-in-time versions of duplicate groups
     });
     const provider = getProvider();
     if (!provider.available) {

@@ -41,6 +41,7 @@
 
 import { buildIdentities, ownerRoleGroups } from "../edgar/insiderInsights.js";
 import { peerKey, peerOutlierDetail } from "../edgar/priceAnomalies.js";
+import { groupTransactions } from "../edgar/transactionGroups.js";
 
 export const DEFAULTS = Object.freeze({
   minBuyers: 2,
@@ -103,9 +104,16 @@ function purchaseRecord(p) {
     rowId: r.id, person: p.person, name: r.owners?.[0]?.name || r.insiderName || "Unknown", roles: p.roles || rowBacktestRoles(r),
     transactionDate: r.transactionDate, shares: r.shares ?? null, price: r.price ?? null,
     valueUsd: p.usd == null ? null : round2(p.usd), valueExcludedReason: p.usd == null ? p.unreliable || "missing_price" : null,
-    accessionNo: r.accessionNo || null, url: r.filingUrl || null, publicAt: `${p.x.knownAt} ET`,
-    filingDelayDays: p.delayDays ?? filingDelayDays(r, p.x.knownAt), late: !!r.filingDelay?.late,
+    accessionNo: r.accessionNo || null, url: r.filingUrl || null, publicAt: `${p.x.firstKnownAt ?? p.x.knownAt} ET`,
+    filingDelayDays: p.delayDays ?? filingDelayDays(r, p.x.firstKnownAt ?? p.x.knownAt), late: !!r.filingDelay?.late,
     purchaseContext: r.purchaseContext || null,
+    // Form 4/A: accession of the original it amends (a property of this filing itself, known
+    // when it was public). A LATER amendment of this purchase is never recorded here — the
+    // snapshot stays frozen; the timeline and hindsight show it.
+    amends: r.amendment?.status === "amends" ? r.amendment.original || null : null,
+    // Identical to another filing's purchase (same date, shares, price, holdings after) but
+    // with no evidence linking the two: counted separately, flagged as a possible duplicate.
+    possibleDuplicate: r.dedupe?.status === "needs_review",
   };
 }
 
@@ -187,16 +195,48 @@ export function identityRowAt(r, T, reportOwners, acceptedAtByAccession) {
   return added ? { ...r, owners } : r;
 }
 
+// POINT-IN-TIME VERSIONS of a confirmed duplicate group (transactionGroups.js merges the
+// reports of one economic transaction using EVERY filing held now). Before all of its
+// reports were public, the public saw only some of them — possibly as separate purchases
+// (a later report can be the one that links them), and with the fields of a report that
+// was public then (the final group's primary may have been filed later). So for each
+// acceptance time t_i of the group's reports, the reports public at t_i are regrouped with
+// the SAME rules (groupTransactions) and that view is valid until t_{i+1}. The last
+// version is the final economic row itself (unchanged). → null when no versioning applies.
+//   reportRow(rowId) → the checked raw report row (snapshot.rawById).
+export function groupVersions(r, acceptedAtByAccession, reportRow) {
+  if (!reportRow || !(r.reportedBy?.length > 1)) return null;
+  const members = [];
+  for (const rep of r.reportedBy) {
+    const raw = reportRow(rep.rowId);
+    const t = stampOf(acceptedAtByAccession.get(rep.accessionNo));
+    if (!raw || !t) return null; // incomplete data → keep the final row (previous behaviour)
+    members.push({ raw, t });
+  }
+  const times = [...new Set(members.map((m) => m.t))].sort();
+  if (times.length < 2) return null; // all reports public at the same moment
+  return times.map((t, i) => ({
+    from: t,
+    until: times[i + 1] || null,
+    rows: i === times.length - 1 ? [r] : groupTransactions(members.filter((m) => m.t <= t).map((m) => m.raw)),
+  }));
+}
+
 // rows: economic rows. range: publication dates { from, to } (inclusive, ET).
 // reportOwners(rowId) → reporting owners of one raw report; links joint filers across
-// confirmed duplicate reports (identityRowAt). → { signals, stats }
-export function detectSignals({ rows, acceptedAtByAccession = new Map(), config = DEFAULTS, range = {}, reportOwners = null }) {
+// confirmed duplicate reports (identityRowAt). reportRow(rowId) → the raw report row, for
+// point-in-time versions of duplicate groups (groupVersions). → { signals, stats }
+export function detectSignals({ rows, acceptedAtByAccession = new Map(), config = DEFAULTS, range = {}, reportOwners = null, reportRow = null }) {
   const cfg = { ...DEFAULTS, ...config };
-  const stats = { rowsWithoutAcceptance: 0, purchasesConsidered: 0, purchasesUnreliableValue: 0, staleClusters: 0, issuers: 0, purchasesOverFilingDelay: 0 };
+  const stats = { rowsWithoutAcceptance: 0, purchasesConsidered: 0, purchasesUnreliableValue: 0, staleClusters: 0, issuers: 0, purchasesOverFilingDelay: 0, versionedGroups: 0 };
   const overDelay = new Set(); // row ids excluded by the optional filing-delay filter (counted once)
 
-  // 1. Point-in-time metadata per row; group by issuer.
+  // 1. Point-in-time metadata per row; group by issuer. Each item is valid from knownAt
+  // until validUntil (an amendment's acceptance, or the next version of a duplicate group);
+  // firstKnownAt = when that transaction first became public (filing delay, "public at").
   const byIssuer = new Map();
+  const push = (k, item) => (byIssuer.get(k) || byIssuer.set(k, []).get(k)).push(item);
+  const minStamp = (a, b) => (a && b ? (a < b ? a : b) : a || b || null);
   for (const r of rows) {
     if (r.code !== "P" && r.code !== "S") continue;
     if (!DATE_RE.test(r.transactionDate || "")) continue;
@@ -205,7 +245,16 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
     const validUntil = r.amendment?.status === "superseded" ? stampOf(r.amendment.amendmentFiledAt) : null;
     const k = r.issuerCik ? Number(r.issuerCik) : null;
     if (k == null) continue;
-    (byIssuer.get(k) || byIssuer.set(k, []).get(k)).push({ r, knownAt, validUntil });
+    const versions = groupVersions(r, acceptedAtByAccession, reportRow);
+    if (!versions) { push(k, { r, knownAt, validUntil, firstKnownAt: knownAt }); continue; }
+    stats.versionedGroups++;
+    for (const v of versions) {
+      if (validUntil && v.from >= validUntil) continue; // already superseded by an amendment
+      for (const vr of v.rows) {
+        if (vr.code !== r.code) continue;
+        push(k, { r: vr, knownAt: v.from, validUntil: minStamp(v.until, validUntil), firstKnownAt: knownAtOf(vr, acceptedAtByAccession) || v.from });
+      }
+    }
   }
 
   const signals = [];
@@ -227,7 +276,7 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
       for (const x of known) {
         const r = x.r;
         if (r.code !== "P" || r.transactionDate > tDate) continue;
-        const delayDays = filingDelayDays(r, x.knownAt);
+        const delayDays = filingDelayDays(r, x.firstKnownAt);
         if (cfg.maxFilingDelayDays != null && delayDays > cfg.maxFilingDelayDays) {
           if (!overDelay.has(r.id)) { overDelay.add(r.id); stats.purchasesOverFilingDelay++; }
           continue;
@@ -302,6 +351,8 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
         valueUsd: round2(found.usd),
         valuesExcluded: m.filter((p) => p.usd == null).length,
         lateFilings: m.filter((p) => p.r.filingDelay?.late).length,
+        // Purchases that may be the same transaction reported by another, unlinked filer.
+        possibleDuplicatePurchases: m.filter((p) => p.r.dedupe?.status === "needs_review").length,
         roles: BACKTEST_ROLES.filter((g) => m.some((p) => p.roles.includes(g))),
         buyers: [...buyers.values()].map((b) => ({ ...b, roles: BACKTEST_ROLES.filter((g) => b.roles.has(g)), valueUsd: round2(b.valueUsd) }))
           .sort((a, b) => b.valueUsd - a.valueUsd),
@@ -331,18 +382,23 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
         for (const x of finalRows) {
           const r = x.r;
           if (r.code !== "P" || r.transactionDate < sg.windowFrom || r.transactionDate > sg.clusterTo) continue;
-          if (cfg.maxFilingDelayDays != null && filingDelayDays(r, x.knownAt) > cfg.maxFilingDelayDays) continue;
+          if (cfg.maxFilingDelayDays != null && filingDelayDays(r, x.firstKnownAt) > cfg.maxFilingDelayDays) continue;
           if (cfg.openMarketOnly && r.purchaseContext !== "open_market") continue;
           const roles = rowBacktestRoles(r);
           if (cfg.roles.length && !roles.some((g) => cfg.roles.includes(g))) continue;
           const rel = reliableUsd(r, peers.get(peerKey(r)) || []);
           if (cfg.minTransactionUsd != null && !(rel.usd != null && rel.usd >= cfg.minTransactionUsd)) continue;
-          ps.push({ x, r, person: ids.personOf(r), usd: rel.usd, unreliable: rel.reason, roles, delayDays: filingDelayDays(r, x.knownAt) });
+          ps.push({ x, r, person: ids.personOf(r), usd: rel.usd, unreliable: rel.reason, roles, delayDays: filingDelayDays(r, x.firstKnownAt) });
         }
-        const known = (p) => p.x.knownAt <= T && p.r.transactionDate <= sg.windowTo;
+        const known = (p) => p.x.firstKnownAt <= T && p.r.transactionDate <= sg.windowTo;
+        // A Form 4/A restating a purchase of the signal snapshot is a CORRECTION of that
+        // purchase (the original is superseded now), not a new purchase or a new buyer.
+        const snapOriginals = new Set(sg.snapshot.purchases.flatMap((q) => [q.accessionNo, q.amends]).filter(Boolean));
+        const amendsSnapshot = (p) => p.r.amendment?.status === "amends" && snapOriginals.has(p.r.amendment.original);
         const people = new Set(ps.map((p) => p.person).filter(Boolean));
-        const atSignalPeople = new Set(ps.filter(known).map((p) => p.person).filter(Boolean));
-        const added = ps.filter((p) => !known(p));
+        const atSignalPeople = new Set(ps.filter((p) => known(p) || amendsSnapshot(p)).map((p) => p.person).filter(Boolean));
+        const corrections = ps.filter((p) => !known(p) && amendsSnapshot(p));
+        const added = ps.filter((p) => !known(p) && !amendsSnapshot(p));
         const addedPeople = [...people].filter((p) => !atSignalPeople.has(p));
         const nameOf = (person) => { const p = ps.find((q) => q.person === person); return p?.r.owners?.[0]?.name || p?.r.insiderName || "Unknown"; };
         sg.hindsight = {
@@ -354,11 +410,13 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
           buyersAdded: addedPeople.length, purchasesAdded: added.length,
           valueAddedUsd: round2(added.reduce((a, p) => a + (p.usd ?? 0), 0)),
           addedBuyers: addedPeople.slice(0, 12).map(nameOf),
-          lastReportedAt: ps.length ? `${ps.map((p) => p.x.knownAt).sort().at(-1)} ET` : null,
+          lastReportedAt: ps.length ? `${ps.map((p) => p.x.firstKnownAt).sort().at(-1)} ET` : null,
           // Purchases NOT in the signal snapshot (public later, or traded after windowTo):
           // subsequent events of the company timeline — never used for the signal or returns.
-          laterPurchases: [...added].sort((a, b) => a.x.knownAt.localeCompare(b.x.knownAt) || a.r.transactionDate.localeCompare(b.r.transactionDate))
+          laterPurchases: [...added].sort((a, b) => a.x.firstKnownAt.localeCompare(b.x.firstKnownAt) || a.r.transactionDate.localeCompare(b.r.transactionDate))
             .slice(0, 100).map((p) => purchaseRecord(p)),
+          // Form 4/A amendments of snapshot purchases (listed separately; never "added").
+          amendmentsOfSignalPurchases: corrections.slice(0, 50).map((p) => purchaseRecord(p)),
         };
       }
     }

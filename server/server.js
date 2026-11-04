@@ -1,4 +1,6 @@
 // server/server.js
+// LEGACY SkinTel entry point — blocked unless explicitly allowed, never against InsiderTracker.
+import "./config/legacyServerGuard.js"; // must stay the FIRST import
 import express from "express";
 import "dotenv/config";
 import cookieParser from "cookie-parser";
