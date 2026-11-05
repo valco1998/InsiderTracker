@@ -27,7 +27,7 @@ import { queryTransactions, getTransactionById } from "../services/edgar/insider
 import { lookupTicker as defaultLookupTicker, CompanyLookupUnavailable } from "../services/edgar/companyTickers.js";
 import { companyInsights, rowsForCompany } from "../services/edgar/insiderInsights.js";
 import { describeMarketData } from "../services/stockData/stockDataProvider.js";
-import { createScreener, screenCompanies, parseScreenerQuery } from "../services/edgar/companyScreener.js";
+import { createScreener, screenCompanies, parseScreenerQuery, companyEvidence } from "../services/edgar/companyScreener.js";
 import { createBacktestRouter } from "./backtestRoutes.js";
 
 const router = express.Router();
@@ -125,6 +125,20 @@ export function companiesHandler({ snapshot = getSnapshot, ingestStatus = getIng
   };
 }
 
+// GET /api/insider/companies/:cik/evidence — the SEC rows behind one screener row (same query params).
+export function companyEvidenceHandler({ snapshot = getSnapshot, issuersOf = createScreener(), now = () => Date.now() } = {}) {
+  return (req, res, next) => {
+    try {
+      const snap = snapshot();
+      const r = companyEvidence({ issuers: issuersOf(snap), cik: req.params.cik, query: req.query, now: now() });
+      if (r.error) return res.status(400).json({ error: r.error });
+      if (r.notFound) return res.status(404).json({ error: "Company not found in the loaded SEC data" });
+      res.set("Cache-Control", "no-cache");
+      res.json({ ...r, snapshotVersion: snap.version });
+    } catch (err) { next(err); }
+  };
+}
+
 export function transactionsEtag(version, query, status) {
   const h = crypto.createHash("sha1").update(JSON.stringify(query ?? {})).update("\n").update(JSON.stringify(status ?? null)).digest("base64url");
   return `W/"v${version}-${h.slice(0, 22)}"`;
@@ -191,7 +205,10 @@ router.get("/stream", (req, res) => snapshotStream.handle(req, res));
 
 router.get("/company/:ticker/insights", companyInsightsHandler());
 
-router.get("/companies", companiesHandler());
+// One issuer index (per snapshot version) shared by the screener and its evidence rows.
+const sharedIssuers = createScreener();
+router.get("/companies", companiesHandler({ issuersOf: sharedIssuers }));
+router.get("/companies/:cik/evidence", companyEvidenceHandler({ issuersOf: sharedIssuers }));
 
 // Historical insider-buying backtest (backtestRoutes.js).
 router.use("/backtest", createBacktestRouter());

@@ -31,7 +31,30 @@ export const SORT_OPTIONS = [
   { key: "value", label: "Highest purchase value" },
   { key: "recent", label: "Most recent purchase" },
   { key: "transactions", label: "Most purchase transactions" },
+  { key: "published", label: "Newest SEC publication" },
+  { key: "own", label: "Largest holdings increase" },
 ];
+// Evidence Grid filters (server: companyScreener.js parseScreenerQuery).
+export const PTYPE_OPTIONS = [
+  { key: "all", label: "All code P purchases" },
+  { key: "likely", label: "Exclude offerings", hint: "stated open-market + venue not stated" },
+  { key: "verified", label: "Stated open-market only" },
+];
+export const CONF_OPTIONS = [
+  { key: "all", label: "All confidence levels" },
+  { key: "hide_uncertain", label: "Hide uncertain" },
+  { key: "verified", label: "Verified only" },
+];
+export const PUB_OPTIONS = [
+  { key: "any", label: "Any time" },
+  { key: "24h", label: "Last 24 hours" },
+  { key: "72h", label: "Last 72 hours" },
+  { key: "7d", label: "Last 7 days" },
+];
+export const ROLE_OPTIONS = [
+  { key: "CEO", label: "CEO" }, { key: "CFO", label: "CFO" }, { key: "Director", label: "Dir" }, { key: "10% Owner", label: "10%" }, { key: "Officer", label: "Officer" },
+];
+export const CLUSTER_TYPE_OPTIONS = ["A", "B", "C"];
 
 export const DEFAULT_SCREENER_FILTERS = {
   minBuyers: 1, customBuyers: "",
@@ -39,6 +62,7 @@ export const DEFAULT_SCREENER_FILTERS = {
   period: "30d", from: "", to: "",
   basis: "transactionDate",
   openMarket: false, clusterOnly: false,
+  ptype: "all", conf: "all", roles: [], clusterTypes: [], repeat: false, pub: "any",
   q: "",
   sort: "buyers", dir: "desc",
   showSales: false,
@@ -63,8 +87,14 @@ export function normalizeScreenerFilters(v) {
     from: DATE_RE.test(v.from || "") ? v.from : "",
     to: DATE_RE.test(v.to || "") ? v.to : "",
     basis: has(BASIS_OPTIONS, v.basis) ? v.basis : d.basis,
-    openMarket: !!v.openMarket,
+    openMarket: !!v.openMarket || v.ptype === "verified",
     clusterOnly: !!v.clusterOnly,
+    ptype: has(PTYPE_OPTIONS, v.ptype) ? v.ptype : v.openMarket ? "verified" : d.ptype,
+    conf: has(CONF_OPTIONS, v.conf) ? v.conf : d.conf,
+    roles: Array.isArray(v.roles) ? [...new Set(v.roles.filter((r) => has(ROLE_OPTIONS, r)))] : [],
+    clusterTypes: Array.isArray(v.clusterTypes) ? [...new Set(v.clusterTypes.filter((t) => CLUSTER_TYPE_OPTIONS.includes(t)))].sort() : [],
+    repeat: !!v.repeat,
+    pub: has(PUB_OPTIONS, v.pub) ? v.pub : d.pub,
     q: String(v.q ?? "").slice(0, 80),
     sort: has(SORT_OPTIONS, v.sort) ? v.sort : d.sort,
     dir: v.dir === "asc" ? "asc" : "desc",
@@ -106,8 +136,15 @@ export function screenerQuery(f, { limit = 100 } = {}) {
   if (lo != null && hi != null && lo > hi) return { error: "Minimum value must not exceed the maximum value." };
   if (lo != null) p.minValue = lo;
   if (hi != null) p.maxValue = hi;
-  if (f.openMarket) p.openMarket = 1;
+  const ptype = f.ptype && f.ptype !== "all" ? f.ptype : f.openMarket ? "verified" : "all";
+  if (ptype === "verified") p.openMarket = 1; // same meaning on the server; keeps older bookmarks / caches valid
+  else if (ptype === "likely") p.ptype = "likely";
   if (f.clusterOnly) p.cluster = 1;
+  if (f.conf && f.conf !== "all") p.conf = f.conf;
+  if (f.roles?.length) p.roles = [...f.roles].sort().join(",");
+  if (f.clusterTypes?.length) p.clusterType = [...f.clusterTypes].sort().join(",");
+  if (f.repeat) p.repeat = 1;
+  if (f.pub && f.pub !== "any") p.pub = f.pub;
   if (f.q.trim()) p.q = f.q.trim();
   return { params: p };
 }
@@ -115,7 +152,8 @@ export function screenerQuery(f, { limit = 100 } = {}) {
 // Number of filters that narrow the result (not sort / display options).
 export function activeScreenerFilters(f) {
   const [lo, hi] = valueBounds(f);
-  return [effectiveMinBuyers(f) > 1, lo != null || hi != null, f.openMarket, f.clusterOnly, !!f.q.trim()].filter(Boolean).length;
+  return [effectiveMinBuyers(f) > 1, lo != null || hi != null, f.openMarket || (f.ptype && f.ptype !== "all"), f.clusterOnly, !!f.q.trim(),
+    f.conf && f.conf !== "all", !!f.roles?.length, !!f.clusterTypes?.length, !!f.repeat, f.pub && f.pub !== "any"].filter(Boolean).length;
 }
 
 const compactMoney = (n) => (n >= 1e9 ? `$${+(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${+(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `$${+(n / 1e3).toFixed(1)}K` : `$${n}`);

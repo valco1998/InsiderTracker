@@ -226,3 +226,87 @@ test("screener buyer counts: actual numbers (1, 2, 3, 5), 'min buyers' means AT 
   assert.deepEqual(tickers(screen(rows, { minBuyers: "3" })).sort(), ["FIV", "THR"]);
   assert.deepEqual(tickers(screen(rows, { minBuyers: "6" })), ["FIV"]);
 });
+
+// ── Evidence Grid fields (additive) ──────────────────────────────────────────
+test("evidence fields: publication times, legal filers, avg price, activity strip, repeat, cluster type, quality", () => {
+  const rows = [
+    row({ date: "2026-10-28", owners: [CEO], value: 10_000, shares: 1000, accepted: "2026-10-29 17:05:00 ET" }),
+    row({ date: "2026-10-28", owners: [CFO], value: 20_000, shares: 1000, accepted: "2026-10-29 18:10:00 ET" }),
+    row({ date: "2026-10-29", owners: [DIR], value: 30_000, shares: 1000, accepted: "2026-10-30 09:00:00 ET" }),
+    row({ date: "2026-10-30", owners: [CEO], value: 5_000, shares: 500, accepted: "2026-11-02 08:00:00 ET" }),
+  ];
+  const c = screen(rows).companies[0];
+  assert.equal(c.firstAcceptedAt, "2026-10-29 17:05:00");
+  assert.equal(c.latestAcceptedAt, "2026-11-02 08:00:00");
+  assert.equal(c.filings, 4);
+  assert.equal(c.legalFilers, 3);
+  assert.equal(c.avgPrice, Math.round((65_000 / 3_500) * 1e4) / 1e4);
+  assert.equal(c.activity.days.length, 30);
+  assert.equal(c.activity.days.reduce((a, b) => a + b, 0), 4);
+  assert.equal(c.activity.repeat, true, "the CEO bought on two dates");
+  assert.equal(c.clusterType, "B", "3 buyers within 2 days (Oct 28–29)");
+  assert.equal(c.quality.status, "verified");
+  assert.equal(c.buyersList.length, 3);
+  // Existing fields unchanged.
+  assert.equal(c.uniqueBuyers, 3);
+  assert.equal(c.purchaseTransactions, 4);
+});
+
+test("cluster types: A = 2 same day, C = 5 within 7 days, none for a single buyer", () => {
+  const people = [CEO, CFO, DIR, DIR2, FUND];
+  const a = screen([row({ date: "2026-10-20", owners: [CEO] }), row({ date: "2026-10-20", owners: [DIR] })]).companies[0];
+  assert.equal(a.clusterType, "A");
+  const cRows = people.map((p, i) => row({ date: `2026-10-${20 + i}`, owners: [p] }));
+  assert.equal(screen(cRows).companies[0].clusterType, "C");
+  assert.equal(screen([row({ date: "2026-10-20", owners: [CEO] })]).companies[0].clusterType, null);
+});
+
+test("quality: offering → uncertain; anomaly / superseded → warning with reasons", () => {
+  const off = screen([row({ date: "2026-10-20", owners: [CEO], context: "offering_or_private" })]).companies[0];
+  assert.equal(off.quality.status, "uncertain");
+  assert.ok(off.quality.flags.some((f) => f.code === "offering"));
+  const w = screen([row({ date: "2026-10-20", owners: [CEO] }), row({ date: "2026-10-21", owners: [DIR], anomaly: true }), row({ date: "2026-10-21", owners: [DIR2] }), row({ date: "2026-10-22", owners: [CFO], superseded: true })]).companies[0];
+  assert.equal(w.quality.status, "warning");
+  assert.deepEqual(w.quality.flags.map((f) => f.code).sort(), ["priceAnomaly", "superseded"]);
+});
+
+test("new filters: roles, ptype, conf, clusterType, repeat, pub — and new sorts", () => {
+  const rows = [
+    row({ ticker: "AAA", issuerCik: "1", date: "2026-10-20", owners: [CEO], accepted: "2026-10-21 10:00:00 ET" }),
+    row({ ticker: "AAA", issuerCik: "1", date: "2026-10-20", owners: [DIR], accepted: "2026-10-21 10:05:00 ET" }),
+    row({ ticker: "BBB", issuerCik: "2", date: "2026-10-30", owners: [DIR2], accepted: "2026-11-02 09:00:00 ET", context: "offering_or_private" }),
+    row({ ticker: "CCC", issuerCik: "3", date: "2026-10-25", owners: [CFO], accepted: "2026-10-26 12:00:00 ET", context: null }),
+  ];
+  assert.deepEqual(tickers(screen(rows, { roles: "CEO" })), ["AAA"]);
+  assert.deepEqual(tickers(screen(rows, { roles: "CFO,CEO", sort: "recent" })).sort(), ["AAA", "CCC"]);
+  assert.deepEqual(tickers(screen(rows, { ptype: "verified" })), ["AAA"], "verified = stated open-market only");
+  assert.deepEqual(tickers(screen(rows, { ptype: "likely" })).sort(), ["AAA", "CCC"], "likely excludes offerings");
+  assert.deepEqual(tickers(screen(rows, { conf: "hide_uncertain" })).sort(), ["AAA", "CCC"]);
+  assert.deepEqual(tickers(screen(rows, { clusterType: "A" })), ["AAA"]);
+  assert.deepEqual(tickers(screen(rows, { pub: "72h" })), ["BBB"], "published within 72h of Nov 2 10:00 ET");
+  assert.equal(tickers(screen(rows, { sort: "published" }))[0], "BBB");
+  // openMarket=1 keeps its old meaning.
+  assert.deepEqual(tickers(screen(rows, { openMarket: "1" })), ["AAA"]);
+  assert.equal(screen(rows, { roles: "CEO" }).filters.roles[0], "CEO");
+  for (const bad of [{ roles: "King" }, { ptype: "x" }, { conf: "x" }, { clusterType: "D" }, { pub: "1y" }, { sort: "x" }]) assert.ok(screen(rows, bad).error, JSON.stringify(bad));
+});
+
+test("totals: buyers, legal filers, clusters, quality counts", () => {
+  const rows = [row({ ticker: "AAA", issuerCik: "1", date: "2026-10-20", owners: [CEO] }), row({ ticker: "AAA", issuerCik: "1", date: "2026-10-20", owners: [DIR] }), row({ ticker: "BBB", issuerCik: "2", date: "2026-10-20", owners: [CFO], context: "offering_or_private" })];
+  const t = screen(rows).totals;
+  assert.equal(t.uniqueBuyers, 3);
+  assert.equal(t.clusterTypes.A, 1);
+  assert.deepEqual(t.quality, { verified: 1, warning: 0, uncertain: 1 });
+});
+
+test("companyEvidence: counted rows with accessions, superseded rows as excluded, 404 / 400", async () => {
+  const { companyEvidence } = await import("./companyScreener.js");
+  const rows = [row({ date: "2026-10-20", owners: [CEO] }), row({ date: "2026-10-21", owners: [DIR], superseded: true })];
+  const issuers = indexIssuers(rows);
+  const e = companyEvidence({ issuers, cik: "1000", query: {}, now: NOW });
+  assert.equal(e.counted.length, 1);
+  assert.match(e.counted[0].accessionNo, /^0000000000-26-/);
+  assert.equal(e.excluded.filter((x) => x.kind === "superseded").length, 1);
+  assert.equal(companyEvidence({ issuers, cik: "999999", query: {}, now: NOW }).notFound, true);
+  assert.ok(companyEvidence({ issuers, cik: "abc", query: {}, now: NOW }).error);
+});
