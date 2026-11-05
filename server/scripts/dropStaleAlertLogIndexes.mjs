@@ -20,6 +20,7 @@
  *   node scripts/dropStaleAlertLogIndexes.mjs --dry-run   (default, no changes)
  *   node scripts/dropStaleAlertLogIndexes.mjs --apply     (actually drops)
  */
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import "dotenv/config";
 import mongoose from "mongoose";
 

@@ -1,3 +1,4 @@
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import mongoose from "mongoose";
 
 export default async function connectToMongoDB() {

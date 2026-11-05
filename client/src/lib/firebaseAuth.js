@@ -72,6 +72,7 @@ const MESSAGES = {
   "auth/account-conflict": "This email is already linked to a different Google account.",
   "auth/provider-not-allowed": "Only Google sign-in is supported.",
   "auth/session-failed": "Signed in with Google, but the server could not start your session. Please try again.",
+  "auth/accounts-unavailable": "Signed in with Google, but accounts are not available on this server right now. Market and insider data still work without an account.",
 };
 export function authErrorMessage(e) {
   return MESSAGES[e?.code] || "Sign-in failed. Please try again.";

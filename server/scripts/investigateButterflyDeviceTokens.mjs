@@ -6,6 +6,7 @@
  * Read-only. Run from server/:
  *   node scripts/investigateButterflyDeviceTokens.mjs
  */
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import "dotenv/config";
 import mongoose from "mongoose";
 import DeviceToken from "../models/DeviceToken.model.js";

@@ -31,13 +31,20 @@ const SP500 = { symbol: "AMEX:SPY", label: "S&P 500 (SPY)" };
 
 // Injects one TradingView embed script into its own container; recreated only
 // when the serialized config changes (no re-injection on unrelated re-renders).
+// The embed script is async and, when it runs, renders into its own parentNode.
+// Removing it before it has run (range/theme/compare change, remount, React
+// StrictMode's double effect) made it throw "Cannot read properties of null
+// (reading 'querySelector')". So every run gets its own slot; cleanup hides the
+// slot at once but detaches it only after the script has loaded (or failed).
 const TradingViewEmbed = memo(function TradingViewEmbed({ widget, config, height, title }) {
   const ref = useRef(null);
   const json = JSON.stringify(config);
   useEffect(() => {
     const host = ref.current;
     if (!host) return undefined;
-    host.innerHTML = "";
+    const slot = document.createElement("div");
+    slot.style.height = "100%";
+    slot.style.width = "100%";
     const inner = document.createElement("div");
     inner.className = "tradingview-widget-container__widget";
     inner.style.height = "100%";
@@ -47,9 +54,19 @@ const TradingViewEmbed = memo(function TradingViewEmbed({ widget, config, height
     script.src = TV_SCRIPT(widget);
     script.async = true;
     script.innerHTML = json;
-    host.appendChild(inner);
-    host.appendChild(script);
-    return () => { host.innerHTML = ""; };
+    let settled = false;
+    const settle = () => { settled = true; };
+    script.addEventListener("load", settle, { once: true });
+    script.addEventListener("error", settle, { once: true });
+    slot.appendChild(inner);
+    slot.appendChild(script);
+    host.appendChild(slot);
+    return () => {
+      slot.style.display = "none";
+      const detach = () => setTimeout(() => slot.remove(), 250);
+      if (settled) detach();
+      else { script.addEventListener("load", detach, { once: true }); script.addEventListener("error", detach, { once: true }); }
+    };
   }, [widget, json]);
   return <div ref={ref} className="tradingview-widget-container" style={{ height, width: "100%" }} aria-label={title} />;
 });

@@ -25,6 +25,7 @@
  *
  * Performs ONLY read operations. Expected runtime: 3–10 minutes on Atlas M0.
  */
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import "dotenv/config";
 import mongoose from "mongoose";
 import PriceSnapshot from "../models/PriceSnapshot.model.js";

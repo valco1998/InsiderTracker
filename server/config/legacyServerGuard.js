@@ -9,6 +9,11 @@
 // It refuses to start unless explicitly allowed (ALLOW_LEGACY_SKINTEL_SERVER=1), and NEVER
 // against a database whose name contains "insider", whatever the flag says.
 // InsiderTracker itself starts with `npm start` (insider-mvp.js).
+//
+// The same guard is the FIRST import of every other legacy SkinTel MongoDB entry point
+// (db/connectToMongooseDB.js, test-mongo.js and the legacy scripts/ diagnostics), so none of
+// them can connect to — and auto-create SkinTel collections in — the InsiderTracker database.
+// config/legacyDbEntryPoints.test.js fails if a new MongoDB connection appears without it.
 import dotenv from "dotenv";
 
 dotenv.config({ quiet: true });
@@ -24,6 +29,7 @@ export function legacyServerBlockReason(env = process.env) {
 
 const reason = legacyServerBlockReason();
 if (reason) {
-  console.error(`[LEGACY_SERVER_BLOCKED] server.js is the legacy SkinTel server and must not run in InsiderTracker: ${reason}. Start InsiderTracker with "npm start" (insider-mvp.js).`);
+  const entry = String(process.argv[1] || "server.js").split(/[\\/]/).slice(-2).join("/");
+  console.error(`[LEGACY_SERVER_BLOCKED] ${entry} is legacy SkinTel code and must not run in InsiderTracker: ${reason}. Start InsiderTracker with "npm start" (insider-mvp.js).`);
   process.exit(1);
 }

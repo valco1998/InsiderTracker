@@ -54,7 +54,7 @@ function ChartFrame({ title, subtitle, controls, children, table, empty, emptyTe
 function DataTable({ head, rows }) {
   return (
     <table className="it-table">
-      <thead><tr>{head.map((h, i) => <th key={h} className={i ? "num" : ""} scope="col">{h}</th>)}</tr></thead>
+      <thead><tr>{head.map((h, i) => <th key={`${i}:${h}`} className={i ? "num" : ""} scope="col">{h}</th>)}</tr></thead>
       <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} className={j ? "num it-num" : "it-num"}>{c}</td>)}</tr>)}</tbody>
     </table>
   );

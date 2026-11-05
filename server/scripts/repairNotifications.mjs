@@ -5,6 +5,7 @@
  * Scans every active TradePost against every ImportedInventory,
  * creates any missing notifications, and prints a full report.
  */
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import "dotenv/config";
 import mongoose from "mongoose";
 import ImportedInventory      from "../models/ImportedInventory.model.js";

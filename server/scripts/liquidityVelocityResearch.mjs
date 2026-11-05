@@ -10,6 +10,7 @@
  * Output: human-readable progress to stdout, full structured JSON result
  * written to the path in OUT_PATH below.
  */
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import "dotenv/config";
 import mongoose from "mongoose";
 import fs from "fs";

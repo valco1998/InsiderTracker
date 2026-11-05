@@ -4,6 +4,7 @@
  *
  * Run once:  node --env-file=.env server/scripts/migrateFriendships.js
  */
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import "dotenv/config";
 import mongoose from "mongoose";
 

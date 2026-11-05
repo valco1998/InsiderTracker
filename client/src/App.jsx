@@ -1,32 +1,19 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import ProtectedLayout from "./pages/components/ProtectedLayout.jsx";
-import AppLayout from "./pages/components/AppLayout.jsx";
 import RealtimeAlertPopup from "./pages/Popup/RealtimeAlertPopup.jsx";
 import TradeMatchToast from "./components/TradeMatchToast.jsx";
-import useAuth from "./hooks/useAuth.js";
 import ErrorBoundary from "./pages/insider/components/ErrorBoundary.jsx";
 import { currentTheme, fallbackPalette, isInsiderPath } from "./utils/insiderUiFallback.js";
 
 // Heavy pages — code-split so the initial bundle only contains the shell.
 // Each page chunk is downloaded on first navigation, not on first load.
-const Market       = lazy(() => import("./pages/market/Market.jsx"));
-const Home         = lazy(() => import("./pages/home/home.jsx"));
-const Watchlist    = lazy(() => import("./pages/components/watch/Watchlist.jsx"));
-const Alerts       = lazy(() => import("./pages/alerts/Alerts.jsx"));
-const ChatPage     = lazy(() => import("./pages/chat/ChatPage.jsx"));
-const ItemPage     = lazy(() => import("./pages/market/ItemPage.jsx"));
-const AuctionsPage = lazy(() => import("./pages/AuctionsPage"));
-const SteamCallback   = lazy(() => import("./pages/steam/SteamCallback.jsx"));
-const SteamInventory  = lazy(() => import("./pages/steam/SteamInventory.jsx"));
-const TradePage            = lazy(() => import("./pages/trade/TradePage.jsx"));
-const TradeDetailPage      = lazy(() => import("./pages/trade/TradeDetailPage.jsx"));
-const TradeNotificationsPage = lazy(() => import("./pages/trade/TradeNotificationsPage.jsx"));
-const Landing = lazy(() => import("./pages/landing/Landing.jsx"));
+// InsiderTracker routes only. The legacy SkinTel pages (landing, home, market, chat,
+// trade, auctions, Steam inventory, CS2 alerts, notification dashboard) are no longer
+// routed: their APIs (/items, /chat, /trades, /auctions, /steam, /alerts/stats,
+// /notifications/metrics) do not exist on the InsiderTracker server (insider-mvp.js),
+// so every one of those pages could only fail. Their files are left in place.
 const Privacy = lazy(() => import("./pages/Privacy.jsx"));
-const NotificationDashboard = lazy(() => import("./pages/admin/NotificationDashboard.jsx"));
-const AlertsDebug           = lazy(() => import("./pages/alerts/AlertsDebug.jsx"));
 const InsiderDashboard      = lazy(() => import("./pages/insider/InsiderDashboard.jsx"));
 
 function PageFallback({ insider }) {
@@ -65,18 +52,6 @@ function PageFallback({ insider }) {
   );
 }
 
-function SmartHome() {
-  const { token } = useAuth();
-  if (token) {
-    return (
-      <AppLayout>
-        <Home />
-      </AppLayout>
-    );
-  }
-  return <Landing />;
-}
-
 export default function App() {
   const { pathname } = useLocation();
   const isInsider = pathname.startsWith("/insider");
@@ -105,36 +80,19 @@ export default function App() {
       <Suspense fallback={<PageFallback insider={isInsiderPath(pathname)} />}>
         <Routes>
 
-          {/* Public */}
-          <Route path="/" element={<SmartHome />} />
+          {/* Public: the InsiderTracker home is /insider (also the push-notification default) */}
+          <Route path="/" element={<Navigate to="/insider" replace />} />
           <Route path="/privacy" element={<Privacy />} />
           {/* Google-only sign-in (email/password retired) */}
           <Route path="/login" element={<Navigate to="/insider/sign-in" replace />} />
-          <Route path="/signup" element={<Navigate to="/login" replace />} />
-          <Route path="/steam/callback" element={<SteamCallback />} />
+          <Route path="/signup" element={<Navigate to="/insider/sign-in" replace />} />
           <Route path="/insider/*" element={
             // Top-level safety net; InsiderDashboard adds per-view boundaries inside.
             <ErrorBoundary resetKey={pathname}><InsiderDashboard /></ErrorBoundary>
           } />
 
-          {/* Protected */}
-          <Route element={<ProtectedLayout />}>
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/market" element={<Market />} />
-            <Route path="/watchlist" element={<Watchlist />} />
-            <Route path="/alerts" element={<Alerts />} />
-            <Route path="/alerts/debug" element={<AlertsDebug />} />
-            <Route path="/item/:slug" element={<ItemPage />} />
-            <Route path="/auctions" element={<AuctionsPage />} />
-            <Route path="/inventory" element={<SteamInventory />} />
-            <Route path="/trade" element={<TradePage />} />
-            <Route path="/trade/notifications" element={<TradeNotificationsPage />} />
-            <Route path="/trade/:id" element={<TradeDetailPage />} />
-            <Route path="/admin/notifications" element={<NotificationDashboard />} />
-          </Route>
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* Fallback: unknown and retired legacy paths open InsiderTracker */}
+          <Route path="*" element={<Navigate to="/insider" replace />} />
         </Routes>
       </Suspense>
     </>

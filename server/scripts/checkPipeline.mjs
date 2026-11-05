@@ -3,6 +3,7 @@
  *   node scripts/checkPipeline.mjs
  * Shows the current state of the trade notification pipeline in MongoDB.
  */
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import "dotenv/config";
 import mongoose from "mongoose";
 

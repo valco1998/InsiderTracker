@@ -7,6 +7,7 @@
  * Connects using MONGO_URI / MONGO_URL from .env (same as the running server).
  * Performs ONLY find/aggregate/countDocuments — no writes, no deletes.
  */
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import "dotenv/config";
 import mongoose from "mongoose";
 

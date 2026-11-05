@@ -16,6 +16,10 @@ import api from "../lib/api";
 export const AuthContext = createContext(null);
 
 const errorOf = (code) => ({ code, message: authErrorMessage({ code }) });
+// POST /auth/session failure → message code. 503 = the server has account features switched off
+// (requireAccounts: database not verified / not configured) — retrying cannot help, so say so.
+export const sessionErrorCode = (e) => (e?.response?.data?.code === "auth/account-conflict" ? "auth/account-conflict"
+  : e?.response?.status === 503 ? "auth/accounts-unavailable" : "auth/session-failed");
 
 export function AuthProvider({ children }) {
   const configured = isFirebaseConfigured();
@@ -60,7 +64,7 @@ export function AuthProvider({ children }) {
         setCachedUser(res.data?.user || null);
         setAuthError(null);
       } catch (e) {
-        await endSession(errorOf(e?.response?.data?.code === "auth/account-conflict" ? "auth/account-conflict" : "auth/session-failed"));
+        await endSession(errorOf(sessionErrorCode(e)));
       } finally {
         setLoading(false);
       }

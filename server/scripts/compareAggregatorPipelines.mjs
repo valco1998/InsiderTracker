@@ -14,6 +14,7 @@
  *
  * Read-only: no writes, no bulkWrite, nothing committed to SkinMetrics.
  */
+import "../config/legacyServerGuard.js"; // must stay the FIRST import: refuses InsiderTracker databases (legacy SkinTel code)
 import "dotenv/config";
 import mongoose from "mongoose";
 import PriceSnapshot from "../models/PriceSnapshot.model.js";

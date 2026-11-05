@@ -97,34 +97,25 @@ export default defineConfig({
         type: "module",
       },
 
+      // InsiderTracker branding. id and scope stay "/" so an existing install and its push
+      // subscription keep their identity; the app opens on /insider.
+      // TODO: add a 512×512 InsiderTracker icon (only the 192 px one exists; icon-192/512.png are SkinTel's).
       manifest: {
-        name: "SkinTel",
-        short_name: "SkinTel",
-        description: "CS2 skin trading and trade alert platform",
-        theme_color: "#050816",
-        background_color: "#050816",
+        name: "InsiderTracker",
+        short_name: "InsiderTracker",
+        description: "SEC Form 4 insider purchases and sales, company screener, analytics and backtesting",
+        theme_color: "#0B1120",
+        background_color: "#0B1120",
         display: "standalone",
-        start_url: "/",
+        start_url: "/insider",
         scope: "/",
         id: "/",
         icons: [
           {
-            src: "/icons/icon-192.png",
+            src: "/icons/insider-notification-192.png",
             sizes: "192x192",
             type: "image/png",
             purpose: "any",
-          },
-          {
-            src: "/icons/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any",
-          },
-          {
-            src: "/icons/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
           },
         ],
       },
