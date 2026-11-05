@@ -5,6 +5,8 @@ import useInsiderAccount from "../../hooks/useInsiderAccount";
 import useInsiderFeed from "../../hooks/useInsiderFeed";
 import useInsiderAnalytics from "../../hooks/useInsiderAnalytics";
 import { useLiveStream } from "../../hooks/useInsiderStream";
+import { useLocation } from "react-router-dom";
+import { needsInsiderAnalytics } from "../../utils/insiderAnalyticsRoutes";
 
 const Ctx = createContext(null);
 
@@ -53,7 +55,16 @@ export function InsiderProvider({ children }) {
   const feed = useInsiderFeed(feedParams, { live });
   // Published snapshot version the data reflects (falls back to the ingest version).
   const dataVersion = feed.version ?? feed.status?.dataVersion ?? null;
-  const analytics = useInsiderAnalytics(analyticsParams, dataVersion);
+  // The ~5 MB analytics dataset loads only on the routes that show it (utils/insiderAnalyticsRoutes.js);
+  // elsewhere it stays in its loading state, and navigating to a consumer starts the load.
+  const { pathname } = useLocation();
+  const analytics = useInsiderAnalytics(analyticsParams, dataVersion, { enabled: needsInsiderAnalytics(pathname) });
+
+  // Nothing could be loaded at all (API unreachable): views show an error + Retry instead of skeletons.
+  const dataError = feed.error && !feed.status ? feed.error : null;
+  const { reload: reloadFeed } = feed;
+  const { retry: retryAnalytics } = analytics;
+  const retryData = useCallback(() => { reloadFeed(); retryAnalytics(); }, [reloadFeed, retryAnalytics]);
 
   const unfiltered = filters.type === "all" && !filters.ticker && !filters.from && !filters.to && !filters.openMarketOnly;
   // Newest SEC acceptance time — only knowable from the unfiltered newest-first feed.
@@ -65,8 +76,8 @@ export function InsiderProvider({ children }) {
   const value = useMemo(() => ({
     filters, setFilter, clearFilters, tickerInput, setTickerInput, unfiltered,
     feedParams, feed, analytics, dataVersion, latestFiling, live,
-    account, accountOpen, setAccountOpen,
-  }), [filters, setFilter, clearFilters, tickerInput, unfiltered, feedParams, feed, analytics, dataVersion, latestFiling, live, account, accountOpen]);
+    account, accountOpen, setAccountOpen, dataError, retryData,
+  }), [filters, setFilter, clearFilters, tickerInput, unfiltered, feedParams, feed, analytics, dataVersion, latestFiling, live, account, accountOpen, dataError, retryData]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

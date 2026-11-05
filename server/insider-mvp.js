@@ -17,6 +17,7 @@ import crypto from "node:crypto";
 import express from "express";
 import cors from "cors";
 import compression from "compression";
+import helmet from "helmet";
 import { getAllowedOrigins } from "./config/clientUrls.js";
 import { checkFirebaseConfig, checkJwtSecret, readAlertFlags } from "./config/isolationGuards.js";
 import { getUserAgent, EdgarConfigError } from "./services/edgar/edgarClient.js";
@@ -24,7 +25,7 @@ import { startInsiderIngest, stopInsiderIngest, flushInsiderIngest, getIngestSta
 import { getSnapshotStats, snapshotStream } from "./services/edgar/insiderData.js";
 import { compressionFilter } from "./services/edgar/insiderStream.js";
 import { computeHealth } from "./services/healthReport.js";
-import { logError } from "./utils/safeLog.js";
+import { logError, logWarn } from "./utils/safeLog.js";
 import { initFirebaseAdmin, isFcmReady } from "./services/fcm.js";
 import { initInsiderSocket } from "./socket/insiderSocket.js";
 import { rateLimit } from "./middelware/rateLimit.js";
@@ -59,6 +60,11 @@ const alertFlags = readAlertFlags();
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", false);
+// Security headers. JSON API only (no HTML) → no CSP. CORP "same-site": CORP only
+// governs no-cors loads, so CORS-mode fetch / EventSource from the client keep
+// working (and localhost:5174 → :5055 is same-site anyway); the API serves no
+// images. frameguard / noSniff / referrerPolicy / HSTS stay at helmet defaults.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: "same-site" } }));
 app.use(cors({ origin: origins, credentials: true, exposedHeaders: ["X-Request-Id"] }));
 
 // Request id for log correlation (echoed in X-Request-Id and in 500 bodies).
@@ -105,6 +111,20 @@ app.get("/api/health/ready", (_req, res) => {
   const h = healthReport();
   res.status(h.ready ? 200 : 503).json({ ready: h.ready, status: h.status, reasons: h.reasons });
 });
+
+// Per-IP limits on the expensive public backtest endpoints (fixed 1-minute
+// windows; 429 { error } + Retry-After). Client cadence: a running job is polled
+// every 700 ms after each response (≤ ~86/min) plus publication-now every 4 s and
+// 60 s polls; owners / owner profiles and both POSTs are user clicks. Light
+// snapshot-backed GETs (/transactions, /companies, /status, /stream) are not
+// limited: they are served from the snapshot with ETag/304 + caches, and with
+// trust proxy off a reverse proxy would put every user in one shared bucket.
+const backtestPollLimit = rateLimit({ windowMs: 60_000, max: 600, key: "backtest.run.poll" });
+app.post("/api/insider/backtest/run", rateLimit({ windowMs: 60_000, max: 5, key: "backtest.run" }));
+app.post("/api/insider/backtest/monthly-study", rateLimit({ windowMs: 60_000, max: 5, key: "backtest.monthly-study" }));
+app.use("/api/insider/backtest/run", (req, res, next) => (req.method === "POST" ? next() : backtestPollLimit(req, res, next)));
+app.get("/api/insider/backtest/owners", rateLimit({ windowMs: 60_000, max: 30, key: "backtest.owners" }));
+app.get("/api/insider/backtest/owner/:cik", rateLimit({ windowMs: 60_000, max: 30, key: "backtest.owner" }));
 
 // Public SEC data.
 app.use("/api/insider", insiderRoutes);
@@ -157,6 +177,14 @@ const server = app.listen(PORT, HOST, async () => {
   startInsiderIngest().catch((err) => console.error(`[INSIDER_MVP] ingest start failed: ${err.message}`));
 });
 
+// Persist pending SEC cache changes (bounded wait).
+function flushCacheBounded(reason) {
+  return Promise.race([
+    Promise.resolve().then(flushInsiderIngest).catch((err) => console.warn(`[INSIDER_CACHE] flush on ${reason} failed: ${err.message}`)),
+    new Promise((r) => setTimeout(r, 5000).unref()),
+  ]);
+}
+
 let shuttingDown = false;
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, async () => {
@@ -164,11 +192,22 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
     shuttingDown = true;
     stopInsiderIngest();
     snapshotStream.close(); // open SSE connections would otherwise keep server.close() waiting
-    // Persist pending SEC cache changes (bounded wait) before exiting.
-    await Promise.race([
-      flushInsiderIngest().catch((err) => console.warn(`[INSIDER_CACHE] flush on shutdown failed: ${err.message}`)),
-      new Promise((r) => setTimeout(r, 5000).unref()),
-    ]);
+    await flushCacheBounded("shutdown");
     server.close(() => process.exit(0));
   });
 }
+
+// Fatal errors: structured, redacted log → the same bounded SEC cache flush as a
+// normal shutdown → exit 1 (the process state is no longer trustworthy).
+let fatalExit = false;
+async function onFatal(kind, err) {
+  logError("INSIDER_FATAL", { kind, err: err instanceof Error ? err : new Error(String(err)), stack: err?.stack });
+  if (fatalExit) return;
+  fatalExit = true;
+  process.exitCode = 1;
+  try { stopInsiderIngest(); } catch (e) { logWarn("INSIDER_FATAL", { stage: "stop_ingest", err: e }); }
+  await flushCacheBounded(kind);
+  process.exit(1);
+}
+process.on("unhandledRejection", (reason) => { onFatal("unhandledRejection", reason); });
+process.on("uncaughtException", (err) => { onFatal("uncaughtException", err); });

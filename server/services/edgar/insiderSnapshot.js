@@ -117,6 +117,44 @@ function compactRow(snap, r) {
   return c;
 }
 
+// Filtered rows + totals of one filter set, memoized per snapshot (a snapshot is
+// immutable, so results are identical to recomputing). Pagination (cursor /
+// limit / view) is applied afterwards and is not part of the key. Without this,
+// ?dedupe=false re-grouped the whole filtered set on every request.
+const VIEW_CACHE_MAX = 16;
+const viewCache = new WeakMap(); // snapshot → Map(filterKey → { rows, totals }) in LRU order
+
+function computeView(snap, { dedupe, code, venue, check, tq, from, to }) {
+  const all = dedupe ? snap.economic : snap.raw;
+  const inRange = (d) => !!d && (!from || d >= from) && (!to || d <= to);
+  const unfiltered = !code && venue === "all" && check === "all" && !tq && !from && !to;
+  const rows = unfiltered ? all : all.filter((t) =>
+    (!code || t.code === code) &&
+    (venue === "all" || (t.code === "P" && t.purchaseContext === venue)) &&
+    (check === "all" || t.priceCheck?.status === check) &&
+    (!tq || tickerMatches(t, tq)) &&
+    (!from && !to ? true : (t.reportedBy || [t]).some((r) => inRange(r.filingDate)))
+  );
+  // Totals always over economic transactions matching the same filters.
+  const totals = dedupe ? (unfiltered ? snap.totalsAll : computeTotals(rows)) : computeTotals(groupTransactions(rows));
+  return { rows, totals, unfiltered };
+}
+
+export function filteredView(snap, f) {
+  if (f.dedupe && !f.code && f.venue === "all" && f.check === "all" && !f.tq && !f.from && !f.to) return computeView(snap, f); // nothing to compute
+  let cache = viewCache.get(snap);
+  if (!cache) viewCache.set(snap, (cache = new Map()));
+  const key = JSON.stringify([f.dedupe, f.code ?? null, f.venue, f.check, f.tq, f.from, f.to]);
+  let v = cache.get(key);
+  if (v) cache.delete(key); // refresh LRU position
+  else {
+    v = computeView(snap, f);
+    while (cache.size >= VIEW_CACHE_MAX) cache.delete(cache.keys().next().value);
+  }
+  cache.set(key, v);
+  return v;
+}
+
 // q: raw query object. → { status: 400, error } | { status: 200, body }
 export function queryTransactions(snap, q = {}) {
   const type = String(q.type || "all").toLowerCase();
@@ -144,21 +182,7 @@ export function queryTransactions(snap, q = {}) {
     if (!cursor) return bad("invalid cursor");
   }
 
-  const all = dedupe ? snap.economic : snap.raw;
-  const code = TYPES[type];
-  const tq = canonical(ticker);
-  const inRange = (d) => !!d && (!from || d >= from) && (!to || d <= to);
-  const unfiltered = !code && venue === "all" && check === "all" && !ticker && !from && !to;
-  const rows = unfiltered ? all : all.filter((t) =>
-    (!code || t.code === code) &&
-    (venue === "all" || (t.code === "P" && t.purchaseContext === venue)) &&
-    (check === "all" || t.priceCheck?.status === check) &&
-    (!ticker || tickerMatches(t, tq)) &&
-    (!from && !to ? true : (t.reportedBy || [t]).some((r) => inRange(r.filingDate)))
-  );
-
-  // Totals always over economic transactions matching the same filters.
-  const totals = dedupe ? (unfiltered ? snap.totalsAll : computeTotals(rows)) : computeTotals(groupTransactions(rows));
+  const { rows, totals } = filteredView(snap, { dedupe, code: TYPES[type], venue, check, tq: canonical(ticker), from, to });
 
   // Cursor: first row strictly after the cursor key in sort order (binary search).
   let start = 0;

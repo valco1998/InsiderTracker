@@ -45,6 +45,11 @@ function fakeSec(cfg = {}) {
       if (typeof d === "number") throw httpError(d);
       return dailyIndex(d);
     }
+    // Quarter directory listing: `cfg.listing` = ISO days listed; absent → 404 (index requested directly).
+    if (u.pathname.endsWith("/index.json")) {
+      if (!cfg.listing) throw httpError(404);
+      return JSON.stringify({ directory: { item: cfg.listing.map((d) => ({ name: `form.${d.replace(/-/g, "")}.idx` })) } });
+    }
     m = u.pathname.match(/\/(\d{10}-\d{2}-\d{6})\.txt$/);
     if (m) {
       const script = filings[m[1]];
@@ -326,7 +331,10 @@ test("data version changes only when stored filings change", async () => {
 // ── Phase C: freshness, failure and recovery as seen by /api/health ─────────
 const { computeHealth } = await import("../healthReport.js");
 const { buildSnapshot } = await import("./insiderSnapshot.js");
-const healthOf = (ing, c) => computeHealth({ db: { configured: false }, ingest: ing.getStatus(), accountsConfigured: false, now: c.now() });
+// The synthetic feed here is empty during EDGAR hours, which the feed CONTENT checks
+// rightly flag; these tests target poll staleness / cache health, so content checks
+// are off here and covered by their own tests (healthReport.test.js).
+const healthOf = (ing, c) => computeHealth({ db: { configured: false }, ingest: ing.getStatus(), accountsConfigured: false, now: c.now() }, { feedContentChecks: false });
 
 test("stale SEC polling is detected from the last successful poll, and clears on recovery", async () => {
   const c = clock(TUE);
@@ -415,4 +423,29 @@ test("restart: ingest state, amendment links and the processed snapshot are iden
   const strip = (s) => JSON.parse(JSON.stringify({ raw: s.raw, economic: s.economic, totals: s.totalsAll }));
   assert.deepEqual(strip(s2), strip(s1));
   assert.ok(s2.totalsAll.count > 0);
+});
+
+test("P4: an unreadable cache is moved aside (never deleted or overwritten) and ingest starts empty", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "insider-ingest-"));
+  const cacheFile = path.join(dir, "insider-filings.json");
+  const corrupt = '{"version":3,"filings":{"0001866581-26-000164":{"cikDir":"18665';
+  fs.writeFileSync(cacheFile, corrupt);
+  const c = clock(TUE);
+  const lg = quietLog();
+  const ing = make(fakeSec({ days: { "2026-11-09": [F.LONA] } }), c, { cacheFile, log: lg });
+  await ing.start(); ing.stop();
+  await ing.flush();
+  const aside = fs.readdirSync(dir).filter((f) => /^insider-filings\.corrupt-2026-11-10T15-00-00-000Z\.json$/.test(f));
+  assert.equal(aside.length, 1, fs.readdirSync(dir).join(","));
+  assert.equal(fs.readFileSync(path.join(dir, aside[0]), "utf8"), corrupt, "original bytes preserved");
+  assert.ok(lg.lines.some((l) => /\[INSIDER_CACHE\] unreadable, starting empty/.test(l)));
+  assert.ok(lg.lines.some((l) => /corrupt cache moved aside to insider-filings\.corrupt-/.test(l)));
+  // Started empty, then a fresh cache was written next to the preserved one.
+  assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(cacheFile, "utf8")).filings), [F.LONA.acc]);
+
+  // A missing cache is not "corrupt": nothing is created aside.
+  const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), "insider-ingest-"));
+  const ing2 = make(fakeSec({ days: { "2026-11-09": [F.LONA] } }), c, { cacheFile: path.join(dir2, "insider-filings.json") });
+  await ing2.start(); ing2.stop(); await ing2.flush();
+  assert.equal(fs.readdirSync(dir2).filter((f) => /corrupt/.test(f)).length, 0);
 });

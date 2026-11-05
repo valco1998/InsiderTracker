@@ -48,74 +48,167 @@ function Check({ checked, onChange, children, title }) {
   );
 }
 
+// Filter controls are shared by the desktop toolbar and the phone "Filters" sheet
+// (same pattern as components/FilterBar.jsx), so state and behaviour are identical.
+function PeriodSeg({ f, patch }) {
+  return (
+    <div className="it-seg it-scroll-x max-w-full" role="group" aria-label="Period">
+      {PERIOD_OPTIONS.map((p) => <button key={p.key} aria-pressed={f.period === p.key} onClick={() => patch({ period: p.key })}>{p.label}</button>)}
+    </div>
+  );
+}
+
+function BasisField({ f, patch, fill = false }) {
+  return (
+    <Field label="Date basis">
+      <div className={`it-seg${fill ? " it-seg-fill w-full" : ""}`} role="group" aria-label="Date basis">
+        {BASIS_OPTIONS.map((b) => <button key={b.key} aria-pressed={f.basis === b.key} title={b.hint} onClick={() => patch({ basis: b.key })}>{b.label}</button>)}
+      </div>
+    </Field>
+  );
+}
+
+function CustomRangeField({ f, patch, fill = false }) {
+  if (f.period !== "custom") return null;
+  const basis = BASIS_OPTIONS.find((b) => b.key === f.basis);
+  const w = fill ? "min-w-0 flex-1" : "w-[150px]";
+  return (
+    <Field label={`Custom range (${basis.label.toLowerCase()})`}>
+      <input type="date" className={`it-input it-num ${w}`} aria-label="From date" value={f.from} max={f.to || undefined} onChange={(e) => patch({ from: e.target.value })} />
+      <span className="it-dim2 text-xs">to</span>
+      <input type="date" className={`it-input it-num ${w}`} aria-label="To date (empty = today)" value={f.to} min={f.from || undefined} onChange={(e) => patch({ to: e.target.value })} />
+    </Field>
+  );
+}
+
+function BuyersField({ f, patch, fill = false }) {
+  return (
+    <Field label="Unique insider buyers">
+      <select className={`it-input ${fill ? "min-w-0 flex-1" : "w-auto min-w-[150px]"}`} aria-label="Minimum unique insider buyers" value={String(f.minBuyers)}
+        onChange={(e) => patch({ minBuyers: e.target.value === "custom" ? "custom" : Number(e.target.value) })}>
+        {BUYER_OPTIONS.map((b) => <option key={b} value={b}>At least {b} buyer{b === 1 ? "" : "s"}</option>)}
+        <option value="custom">Custom minimum…</option>
+      </select>
+      {f.minBuyers === "custom" && (
+        <input className="it-input it-num w-20" inputMode="numeric" placeholder="Min" aria-label="Custom minimum unique buyers" value={f.customBuyers}
+          onChange={(e) => patch({ customBuyers: e.target.value.replace(/\D/g, "").slice(0, 4) })} />
+      )}
+    </Field>
+  );
+}
+
+function ValueField({ f, patch, fill = false }) {
+  const w = fill ? "min-w-0 flex-1" : "w-28";
+  return (
+    <Field label="Total purchase value">
+      <select className={`it-input ${fill ? "w-full" : "w-[130px]"}`} aria-label="Minimum total purchase value" value={f.value} onChange={(e) => patch({ value: e.target.value })}>
+        {VALUE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.key === "custom" ? "Custom range…" : o.label}</option>)}
+      </select>
+      {f.value === "custom" && (
+        <>
+          <input className={`it-input it-num ${w}`} inputMode="decimal" placeholder="Min $" aria-label="Minimum total purchase value in dollars" value={f.minValue}
+            onChange={(e) => patch({ minValue: e.target.value.replace(/[^0-9.]/g, "").slice(0, 14) })} />
+          <input className={`it-input it-num ${w}`} inputMode="decimal" placeholder="Max $" aria-label="Maximum total purchase value in dollars" value={f.maxValue}
+            onChange={(e) => patch({ maxValue: e.target.value.replace(/[^0-9.]/g, "").slice(0, 14) })} />
+        </>
+      )}
+    </Field>
+  );
+}
+
+function SearchField({ f, patch, fill = false }) {
+  return (
+    <Field label="Search">
+      <input className={`it-input ${fill ? "w-full" : "w-44"}`} placeholder="Ticker or company" aria-label="Search ticker or company" value={f.q} onChange={(e) => patch({ q: e.target.value.slice(0, 80) })} />
+    </Field>
+  );
+}
+
+function SortField({ f, patch, fill = false }) {
+  return (
+    <Field label="Sort by">
+      <select className={`it-input ${fill ? "w-full" : "w-[200px]"}`} aria-label="Sort companies" value={f.sort} onChange={(e) => patch({ sort: e.target.value, dir: "desc" })}>
+        {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+      </select>
+    </Field>
+  );
+}
+
+function Checks({ f, patch }) {
+  return (
+    <>
+      <Check checked={f.openMarket} onChange={(v) => patch({ openMarket: v })}
+        title="Only purchases whose filing describes open-market execution. Form 4 code P alone does not mean the shares were bought on an exchange.">Open-market purchases only</Check>
+      <Check checked={f.clusterOnly} onChange={(v) => patch({ clusterOnly: v })}
+        title="3 or more different insiders bought within any 30-day trade-date window overlapping the period">Cluster buying only</Check>
+      <Check checked={f.showSales} onChange={(v) => patch({ showSales: v })} title="Show insider sales as separate columns (never subtracted from purchases)">Show sales columns</Check>
+    </>
+  );
+}
+
 function ScreenerFilters({ filters: f, patch, reset }) {
   const n = activeScreenerFilters(f);
-  const basis = BASIS_OPTIONS.find((b) => b.key === f.basis);
+  const [sheet, setSheet] = useState(false);
+  // Phone button count: active screen filters plus non-default sheet-only settings.
+  const sheetCount = n + (f.basis !== DEFAULT_SCREENER_FILTERS.basis ? 1 : 0) + (f.showSales ? 1 : 0);
+  const p = { f, patch };
+
+  useEffect(() => {
+    if (!sheet) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setSheet(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sheet]);
+
   return (
-    <div className="flex flex-col gap-3 px-3 py-3 sm:px-4" style={{ borderBottom: "1px solid var(--it-line-soft)" }} role="search" aria-label="Screen companies by insider purchases">
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-        <Field label="Period">
-          <div className="it-seg it-scroll-x max-w-full" role="group" aria-label="Period">
-            {PERIOD_OPTIONS.map((p) => <button key={p.key} aria-pressed={f.period === p.key} onClick={() => patch({ period: p.key })}>{p.label}</button>)}
-          </div>
-        </Field>
-        <Field label="Date basis">
-          <div className="it-seg" role="group" aria-label="Date basis">
-            {BASIS_OPTIONS.map((b) => <button key={b.key} aria-pressed={f.basis === b.key} title={b.hint} onClick={() => patch({ basis: b.key })}>{b.label}</button>)}
-          </div>
-        </Field>
-        {f.period === "custom" && (
-          <Field label={`Custom range (${basis.label.toLowerCase()})`}>
-            <input type="date" className="it-input it-num w-[150px]" aria-label="From date" value={f.from} max={f.to || undefined} onChange={(e) => patch({ from: e.target.value })} />
-            <span className="it-dim2 text-xs">to</span>
-            <input type="date" className="it-input it-num w-[150px]" aria-label="To date (empty = today)" value={f.to} min={f.from || undefined} onChange={(e) => patch({ to: e.target.value })} />
-          </Field>
-        )}
+    <div style={{ borderBottom: "1px solid var(--it-line-soft)" }} role="search" aria-label="Screen companies by insider purchases">
+      {/* desktop / tablet (md+) — same layout as before */}
+      <div className="hidden flex-col gap-3 px-3 py-3 sm:px-4 md:flex">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          <Field label="Period"><PeriodSeg {...p} /></Field>
+          <BasisField {...p} />
+          <CustomRangeField {...p} />
+        </div>
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          <BuyersField {...p} />
+          <ValueField {...p} />
+          <SearchField {...p} />
+          <SortField {...p} />
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <Checks {...p} />
+          {n > 0 && <button className="it-link text-[12px]" onClick={reset}>Reset filters ({n})</button>}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-        <Field label="Unique insider buyers">
-          <select className="it-input w-[150px]" aria-label="Minimum unique insider buyers" value={String(f.minBuyers)}
-            onChange={(e) => patch({ minBuyers: e.target.value === "custom" ? "custom" : Number(e.target.value) })}>
-            {BUYER_OPTIONS.map((b) => <option key={b} value={b}>At least {b} buyer{b === 1 ? "" : "s"}</option>)}
-            <option value="custom">Custom minimum…</option>
-          </select>
-          {f.minBuyers === "custom" && (
-            <input className="it-input it-num w-20" inputMode="numeric" placeholder="Min" aria-label="Custom minimum unique buyers" value={f.customBuyers}
-              onChange={(e) => patch({ customBuyers: e.target.value.replace(/\D/g, "").slice(0, 4) })} />
-          )}
-        </Field>
-        <Field label="Total purchase value">
-          <select className="it-input w-[130px]" aria-label="Minimum total purchase value" value={f.value} onChange={(e) => patch({ value: e.target.value })}>
-            {VALUE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.key === "custom" ? "Custom range…" : o.label}</option>)}
-          </select>
-          {f.value === "custom" && (
-            <>
-              <input className="it-input it-num w-28" inputMode="decimal" placeholder="Min $" aria-label="Minimum total purchase value in dollars" value={f.minValue}
-                onChange={(e) => patch({ minValue: e.target.value.replace(/[^0-9.]/g, "").slice(0, 14) })} />
-              <input className="it-input it-num w-28" inputMode="decimal" placeholder="Max $" aria-label="Maximum total purchase value in dollars" value={f.maxValue}
-                onChange={(e) => patch({ maxValue: e.target.value.replace(/[^0-9.]/g, "").slice(0, 14) })} />
-            </>
-          )}
-        </Field>
-        <Field label="Search">
-          <input className="it-input w-44" placeholder="Ticker or company" aria-label="Search ticker or company" value={f.q} onChange={(e) => patch({ q: e.target.value.slice(0, 80) })} />
-        </Field>
-        <Field label="Sort by">
-          <select className="it-input w-[200px]" aria-label="Sort companies" value={f.sort} onChange={(e) => patch({ sort: e.target.value, dir: "desc" })}>
-            {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-          </select>
-        </Field>
+      {/* phone — period stays visible, everything else lives in a bottom sheet */}
+      <div className="flex items-center gap-2 p-3 md:hidden">
+        <div className="min-w-0 flex-1"><PeriodSeg {...p} /></div>
+        <button className="it-btn shrink-0" onClick={() => setSheet(true)} aria-haspopup="dialog" aria-expanded={sheet}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+          Filters{sheetCount ? ` · ${sheetCount}` : ""}
+        </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <Check checked={f.openMarket} onChange={(v) => patch({ openMarket: v })}
-          title="Only purchases whose filing describes open-market execution. Form 4 code P alone does not mean the shares were bought on an exchange.">Open-market purchases only</Check>
-        <Check checked={f.clusterOnly} onChange={(v) => patch({ clusterOnly: v })}
-          title="3 or more different insiders bought within any 30-day trade-date window overlapping the period">Cluster buying only</Check>
-        <Check checked={f.showSales} onChange={(v) => patch({ showSales: v })} title="Show insider sales as separate columns (never subtracted from purchases)">Show sales columns</Check>
-        {n > 0 && <button className="it-link text-[12px]" onClick={reset}>Reset filters ({n})</button>}
-      </div>
+      {sheet && (
+        <>
+          <div className="it-backdrop md:hidden" onClick={() => setSheet(false)} />
+          <div className="it-sheet flex flex-col gap-4 p-4 pb-6 md:hidden" role="dialog" aria-modal="true" aria-label="Screen filters">
+            <div className="flex items-center justify-between">
+              <span className="it-panel-title">Filters</span>
+              <button className="it-btn it-btn-primary" onClick={() => setSheet(false)}>Done</button>
+            </div>
+            <BasisField {...p} fill />
+            <CustomRangeField {...p} fill />
+            <BuyersField {...p} fill />
+            <ValueField {...p} fill />
+            <SearchField {...p} fill />
+            <SortField {...p} fill />
+            <div className="flex flex-col"><Checks {...p} /></div>
+            {n > 0 && <button className="it-btn" onClick={() => { reset(); setSheet(false); }}>Reset filters ({n})</button>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -231,15 +324,20 @@ export default function CompaniesScreener() {
   const [limit, setLimit] = useState(PAGE);
   const q = useMemo(() => screenerQuery(debounced, { limit }), [debounced, limit]);
   useEffect(() => { setLimit(PAGE); }, [debounced]);
-  const { data, loading, error } = useCompanyScreener(q.params || null, dataVersion);
+  // retry() comes from useCompanyScreener (forces a refetch of the current query).
+  const { data, loading, error, retry } = useCompanyScreener(q.params || null, dataVersion);
 
   const onSort = useCallback((key) => patch(filters.sort === key ? { dir: filters.dir === "desc" ? "asc" : "desc" } : { sort: key, dir: "desc" }), [filters.sort, filters.dir, patch]);
   const initial = loading && !data;
+  const failed = !!error && !data && !loading; // nothing to show: full error state, no table
   const list = data?.companies || [];
   const basisLabel = data?.window?.basis === "filingDate" ? "SEC filing date" : "trade date";
-  const subtitle = data
+  const subtitleText = data
     ? `${count(data.total)} compan${data.total === 1 ? "y" : "ies"} · ${compactUsd(data.totals.purchaseValue)} reported purchases · ${day(data.window.from)} – ${day(data.window.to)} by ${basisLabel}${data.coverage.complete ? "" : " · partial data"}`
-    : "loading…";
+    : failed ? "Could not load" : "loading…";
+  // Panel truncates subtitles; let it wrap so phones show the whole summary. Below md it reserves
+  // three lines (its loaded height at ~390px) so results arriving do not push the list down.
+  const subtitle = <span className="block min-h-[3lh] whitespace-normal md:min-h-0">{subtitleText}</span>;
 
   return (
     <div className="flex flex-col gap-5">
@@ -255,21 +353,31 @@ export default function CompaniesScreener() {
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[11.5px] sm:px-4" style={{ borderBottom: "1px solid var(--it-line-soft)" }}>
           <span className="it-dim">{describeScreen(filters)}</span>
           <span className="it-dim2">
-            Basis: <strong className="font-medium it-dim">{filters.basis === "filingDate" ? "SEC filing date (when reported)" : "Trade date (when insiders bought)"}</strong>
-            {loading && data ? " · updating…" : ""}
+            <span className="hidden md:inline">Basis: <strong className="font-medium it-dim">{filters.basis === "filingDate" ? "SEC filing date (when reported)" : "Trade date (when insiders bought)"}</strong></span>
+            {loading && data ? <><span className="hidden md:inline"> · </span>updating…</> : ""}
           </span>
         </div>
         {q.error && <div className="px-4 py-2 text-[12px]" style={{ color: "var(--it-warn)" }}>{q.error}</div>}
-        {error && <div className="p-3"><ErrorNote>{error}</ErrorNote></div>}
+        {error && data && !loading && (
+          <div role="status" className="mx-3 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2 text-[12px] sm:mx-4"
+            style={{ color: "var(--it-warn)", background: "var(--it-warn-soft)", border: "1px solid var(--it-warn-line)" }}>
+            <span>Could not refresh — showing the previous results. {error}</span>
+            <button className="it-link text-[12px] font-medium" onClick={retry}>Retry</button>
+          </div>
+        )}
         {data && !data.coverage.complete && <div className="px-3 pt-3 sm:px-4"><CoverageNote coverage={data.coverage} window={data.window} /></div>}
-        {initial ? (
-          <div className="flex flex-col gap-2 p-3">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-7 w-full" />)}</div>
-        ) : !error && list.length === 0 ? (
+        {failed ? (
+          <div className="p-3 sm:p-4"><ErrorNote onRetry={retry}>{error}</ErrorNote></div>
+        ) : initial || (!data && !q.error) ? (
+          // Keys: the skeleton and the table are distinct nodes (no DOM reuse that would register
+          // as a moved element), and the skeleton is a viewport tall so content below stays put.
+          <div key="skeleton" className="flex min-h-[100vh] flex-col gap-2 p-3">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-7 w-full" />)}</div>
+        ) : list.length === 0 ? (
           <EmptyState title="No companies match this screen.">
             Lower the minimum buyers or value, widen the period{data && !data.coverage.complete ? " (only part of the period is loaded)" : ""}, or reset the filters.
           </EmptyState>
         ) : (
-          <div className="pt-2">
+          <div key="table" className="pt-2">
             <ScreenerTable companies={list} sort={{ key: filters.sort, dir: filters.dir }} onSort={onSort} showSales={filters.showSales} />
             {data && data.total > list.length && (
               <div className="flex justify-center p-3" style={{ borderTop: "1px solid var(--it-line-soft)" }}>

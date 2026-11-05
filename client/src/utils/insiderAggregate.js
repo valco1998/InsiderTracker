@@ -6,11 +6,16 @@
 //   • value == null (no price)  → counted as a transaction, no value
 // so chart sums equal the API `totals` for the same filters.
 
-export const isSuperseded = (r) => r.amendment?.status === "superseded";
-export const isCounted = (r) => !isSuperseded(r);
-// Value that may be summed (null when excluded or not computable).
+export const isSuperseded = (r) => r?.amendment?.status === "superseded";
+// Malformed API payloads (null / non-object rows) are skipped, never counted.
+export const isCounted = (r) => r != null && typeof r === "object" && !isSuperseded(r);
+// Value that may be summed (null when excluded or not computable). Only finite
+// numbers are summable: NaN / Infinity / strings are treated like a missing
+// price (transaction counted, value not summed) — never coerced or invented.
 export const countableValue = (r) =>
-  isSuperseded(r) || r.priceCheck?.status === "anomaly" || r.value == null ? null : r.value;
+  !isCounted(r) || r.priceCheck?.status === "anomaly" || !Number.isFinite(r.value) ? null : r.value;
+// Non-array responses (error body, undefined while loading) aggregate as empty.
+export const rowsOf = (rows) => (Array.isArray(rows) ? rows : []);
 
 const insiderKey = (r) => r.insiderCik || r.insiderName || null;
 
@@ -21,10 +26,10 @@ function blankDay(day) {
 // Per-day purchase/sale value and count. dateKey: "filingDate" | "transactionDate".
 export function byDay(rows, dateKey = "filingDate") {
   const map = new Map();
-  for (const r of rows) {
+  for (const r of rowsOf(rows)) {
     if (!isCounted(r)) continue;
     const d = r[dateKey];
-    if (!d) continue;
+    if (!d || typeof d !== "string") continue;
     const b = map.get(d) || map.set(d, blankDay(d)).get(d);
     const v = countableValue(r);
     if (r.code === "P") { b.buyCount++; if (v != null) b.buyValue += v; }
@@ -36,7 +41,7 @@ export function byDay(rows, dateKey = "filingDate") {
 // Per-issuer leaderboard (keyed by issuer CIK — filed ticker text varies).
 export function byCompany(rows) {
   const map = new Map();
-  for (const r of rows) {
+  for (const r of rowsOf(rows)) {
     if (!isCounted(r)) continue;
     const k = r.issuerCik || r.ticker || r.issuerName;
     if (!k) continue;
@@ -67,7 +72,7 @@ export function topCompanies(rows, code = "P", n = 10) {
 // Distinct issuers and primary reporting insiders among counted rows.
 export function uniqueCounts(rows) {
   const companies = new Set(), insiders = new Set();
-  for (const r of rows) {
+  for (const r of rowsOf(rows)) {
     if (!isCounted(r)) continue;
     if (r.issuerCik) companies.add(r.issuerCik);
     const ik = insiderKey(r);
@@ -79,7 +84,7 @@ export function uniqueCounts(rows) {
 // Per-insider summary (company detail view). Roles come from the filing.
 export function byInsider(rows) {
   const map = new Map();
-  for (const r of rows) {
+  for (const r of rowsOf(rows)) {
     if (!isCounted(r)) continue;
     const k = insiderKey(r);
     if (!k) continue;
@@ -98,8 +103,8 @@ export function byInsider(rows) {
 // anomalous / unpriced rows are kept (size floor) but flagged.
 export function timelinePoints(rows) {
   const out = [];
-  for (const r of rows) {
-    if (!isCounted(r) || !r.transactionDate || !r.filingDate) continue;
+  for (const r of rowsOf(rows)) {
+    if (!isCounted(r) || typeof r.transactionDate !== "string" || !r.transactionDate || typeof r.filingDate !== "string" || !r.filingDate) continue;
     out.push({
       id: r.id,
       trade: r.transactionDate,
@@ -131,7 +136,7 @@ export function dayRange(first, last) {
 // Sum check against server totals (dev verification).
 export function sumValues(rows) {
   let purchaseValue = 0, saleValue = 0, purchases = 0, sales = 0;
-  for (const r of rows) {
+  for (const r of rowsOf(rows)) {
     if (!isCounted(r)) continue;
     const v = countableValue(r);
     if (r.code === "P") { purchases++; if (v != null) purchaseValue += v; }

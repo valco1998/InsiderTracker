@@ -8,9 +8,12 @@
 //      source. Covers the last EDGAR_BACKFILL_DAYS business days and, after a
 //      restart or outage, EVERY missing business day back to the oldest day
 //      already held (capped at EDGAR_RECOVERY_MAX_DAYS). Federal holidays have
-//      no index; a 404 for a past business day is recorded as "no index".
+//      no index; a 404 for a past business day is recorded as "no index", and so
+//      is a past day absent from the quarter's directory listing (see
+//      LISTING_TRUST_DAYS — EDGAR answers missing objects with 403).
 //   2. Latest-filings Atom feed — today's filings before the nightly index
-//      exists. Paged until a page yields no new Form 4s. Feed filings are
+//      exists. Paged until a page yields no new Form 4s (EDGAR_FEED_MAX_PAGES,
+//      up to EDGAR_FEED_BURST_MAX_PAGES while every page is new). Feed filings are
 //      processed before backfill so fresh data is never stuck behind recovery.
 // Each filing is fetched once as its full .txt submission and parsed by form4Parser.
 //
@@ -58,12 +61,26 @@ const isoToCompact = (iso) => iso.replace(/-/g, "");
 // 429 / 403 from SEC (flagged by edgarClient, or a bare status from another fetcher).
 const isThrottled = (err) => !!err?.throttled || err?.status === 429 || err?.status === 403;
 
+// EDGAR answers a MISSING object (e.g. the index of an unscheduled closure such as
+// 2025-12-24, absent from businessDays.js) with 403 AccessDenied — which edgarClient
+// must treat as throttling and which opens its GLOBAL breaker (live feed included).
+// So before requesting the index of a PAST day we consult the quarter's directory
+// listing (one request per quarter, cached) and never request an index it lacks.
+// Same rule as the backfill (services/backtest/form4Backfill.js): a day absent from
+// the listing is a closed day only once it is older than LISTING_TRUST_DAYS (a
+// listing may lag); a younger absent day is re-checked like an unpublished one.
+const LISTING_TRUST_DAYS = 3;
+const quarterListingUrl = (iso) => `https://www.sec.gov/Archives/edgar/daily-index/${iso.slice(0, 4)}/QTR${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}/index.json`;
+const calendarDaysBetween = (fromIso, toIso) => Math.round((Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000);
+
 export function createInsiderIngest({
   fetchText = edgarGetText,
   now = () => Date.now(),
   cacheFile = DEFAULT_CACHE_FILE,
   pollMs = Math.max(Number(process.env.EDGAR_POLL_MS) || 60_000, 30_000),
   feedMaxPages = envInt("EDGAR_FEED_MAX_PAGES", 10, 1, 50),
+  // Catch-up cap: paging may exceed feedMaxPages only while every page is entirely new.
+  feedBurstMaxPages = envInt("EDGAR_FEED_BURST_MAX_PAGES", 40, 1, 100),
   backfillDays = Math.min(Math.max(Number(process.env.EDGAR_BACKFILL_DAYS ?? 3) || 0, 0), 10),
   recoveryMaxDays = envInt("EDGAR_RECOVERY_MAX_DAYS", 30, 1, 90),
   retryBaseMs = envInt("EDGAR_RETRY_BASE_MS", 60_000, 1, 3_600_000),
@@ -103,7 +120,12 @@ export function createInsiderIngest({
     lastPollError: null,
     lastPollErrorAt: null,
     consecutivePollFailures: 0,
-    lastFeed: { pages: 0, entries: 0, form4: 0, added: 0 },
+    lastFeed: { pages: 0, entries: 0, form4: 0, added: 0, capped: false },
+    // Feed health apart from index syncs (an index 5xx must not make the feed look stale).
+    lastFeedOkAt: null,
+    // Content freshness: newest feed <updated> (= SEC acceptance) seen, and when the
+    // feed last brought a Form 4 we did not hold yet.
+    feedContent: { newestAcceptedAt: null, lastNewFilingAt: null },
     lastIndexCheck: null,
     initialSyncCompletedAt: null,
     filingsParsed: 0,
@@ -136,8 +158,11 @@ export function createInsiderIngest({
 
   function loadCache() {
     let upgraded = 0, refresh = 0;
+    let readOk = false; // read errors (EACCES/EBUSY/EISDIR) are not corruption — the file is left alone
     try {
-      const raw = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
+      const text = fs.readFileSync(cacheFile, "utf8");
+      readOk = true;
+      const raw = JSON.parse(text);
       let stale = 0;
       for (const [acc, f] of Object.entries(raw.filings || {})) {
         // Parsed by an older parser → drop; rediscovered via index/feed and re-parsed.
@@ -163,7 +188,28 @@ export function createInsiderIngest({
       log.log(`[INSIDER_CACHE] loaded filings=${filings.size} staleDropped=${stale} indexes=${indexes.size} retries=${retries.size} timelines=${timelines.size} tickerUpgraded=${upgraded} amendmentRefresh=${refresh} parserVersion=${PARSER_VERSION}`);
       if (upgraded) scheduleSave();
     } catch (err) {
-      if (err.code !== "ENOENT") log.warn(`[INSIDER_CACHE] unreadable, starting empty: ${err.message}`);
+      if (err.code !== "ENOENT") {
+        log.warn(`[INSIDER_CACHE] unreadable, starting empty: ${err.message}`);
+        if (readOk) quarantineCache();
+      }
+    }
+  }
+
+  // An unreadable cache would be overwritten by the next save. Keep it aside
+  // (rename, or copy when the rename fails) so its data can be recovered. Never deleted.
+  function quarantineCache() {
+    const ext = path.extname(cacheFile);
+    const aside = `${cacheFile.slice(0, cacheFile.length - ext.length)}.corrupt-${new Date(now()).toISOString().replace(/[:.]/g, "-")}${ext || ".json"}`;
+    try {
+      fs.renameSync(cacheFile, aside);
+      log.warn(`[INSIDER_CACHE] corrupt cache moved aside to ${path.basename(aside)}`);
+    } catch (renameErr) {
+      try {
+        fs.copyFileSync(cacheFile, aside, fs.constants.COPYFILE_EXCL);
+        log.warn(`[INSIDER_CACHE] corrupt cache copied aside to ${path.basename(aside)} (rename failed: ${renameErr.code || renameErr.message})`);
+      } catch (copyErr) {
+        log.error(`[INSIDER_CACHE] could NOT set the corrupt cache aside (rename: ${renameErr.code || renameErr.message}; copy: ${copyErr.code || copyErr.message}) — the next save will overwrite it`);
+      }
     }
   }
 
@@ -464,19 +510,36 @@ export function createInsiderIngest({
   }
 
   // ── Sources ────────────────────────────────────────────────────────────────
+  // Adaptive paging: up to maxPages normally; while EVERY page so far was entirely
+  // new (we are behind, e.g. after an outage — ~100 Form 4s/page, 10 pages ≈ 1.5–3 h
+  // of peak filing) paging continues up to feedBurstMaxPages. Always stops at the
+  // first page that brings nothing new, or when the feed ends. Every request still
+  // goes through the rate-limited client (≤ EDGAR_MAX_RPS): this changes how many
+  // pages a catch-up poll may read, never the request rate.
   async function pollFeed(maxPages) {
-    const res = { pages: 0, entries: 0, form4: 0, added: 0 };
-    for (let p = 0; p < maxPages; p++) {
+    const burstMax = Math.max(feedBurstMaxPages, maxPages);
+    const res = { pages: 0, entries: 0, form4: 0, added: 0, capped: false };
+    let allNew = true, ended = false, newest = status.feedContent.newestAcceptedAt;
+    for (let p = 0; p < burstMax; p++) {
+      if (p >= maxPages && !allNew) break;
       const page = parseFeedForm4(await fetchText(feedUrl(p * 100)));
       res.pages++;
       res.entries += page.entries;
       res.form4 += page.form4.length;
       let addedHere = 0;
-      for (const f of page.form4) if (enqueue(f.accessionNo, f.cikDir, "feed", { priority: true, feedUpdatedAt: f.updatedAt })) addedHere++;
+      for (const f of page.form4) {
+        if (enqueue(f.accessionNo, f.cikDir, "feed", { priority: true, feedUpdatedAt: f.updatedAt })) addedHere++;
+        if (f.updatedAt && (!newest || f.updatedAt > newest)) newest = f.updatedAt;
+      }
       res.added += addedHere;
+      if (addedHere < page.form4.length) allNew = false;
       // Stop once a page brings nothing new (older pages are already known) or the feed ends.
-      if (page.entries < 100 || (addedHere === 0 && page.form4.length > 0)) break;
+      if (page.entries < 100 || (addedHere === 0 && page.form4.length > 0)) { ended = true; break; }
     }
+    res.capped = !ended;
+    status.feedContent.newestAcceptedAt = newest;
+    if (res.added) status.feedContent.lastNewFilingAt = isoNow();
+    if (res.capped && allNew) log.warn(`[EDGAR_FEED_CAPPED] pages=${res.pages} new=${res.added} — older filings are left to the daily index`);
     status.lastFeed = res;
     return res;
   }
@@ -517,14 +580,53 @@ export function createInsiderIngest({
     return { latest, days: sorted };
   }
 
+  // Quarter directory listing → Set of file names, or null when unavailable (then the
+  // index is requested directly, as before). Cached UNPUBLISHED_RETRY_MS per quarter,
+  // and only requested while a past day's index is missing. Throttling is re-thrown.
+  const listings = new Map(); // url → { at, names }
+  async function quarterListing(day) {
+    const url = quarterListingUrl(day);
+    const hit = listings.get(url);
+    if (hit && now() - hit.at < UNPUBLISHED_RETRY_MS) return hit.names;
+    let names = null;
+    try {
+      const items = JSON.parse(await fetchText(url, { retries: 1 }))?.directory?.item;
+      if (Array.isArray(items) && items.length) names = new Set(items.map((i) => i?.name).filter(Boolean));
+    } catch (err) {
+      if (isThrottled(err)) throw err;
+      log.warn(`[EDGAR_INDEX_LISTING_FAILED] url=${url} status=${err.status ?? "-"} err=${String(err.message).slice(0, 100)}`);
+    }
+    listings.set(url, { at: now(), names });
+    return names;
+  }
+
   // Fetches any target index not yet held and enqueues its unseen filings.
   async function syncDailyIndexes() {
     const { latest, days } = targetIndexDays();
+    const today = easternNow().iso;
     const results = [];
     let firstError = null;
     for (const day of days) {
       if (indexes.has(day) || noIndexDays.has(day)) continue;
       if (now() - (unpublishedAt.get(day) || 0) < UNPUBLISHED_RETRY_MS) { results.push(`${day}:unpublished`); continue; }
+      if (day < today) {
+        // Past day: never request an index the quarter listing does not have (403 = missing object).
+        let names;
+        try { names = await quarterListing(day); } catch (err) {
+          firstError ||= err;
+          results.push(`${day}:throttled`);
+          break;
+        }
+        if (names && !names.has(`form.${isoToCompact(day)}.idx`)) {
+          if (calendarDaysBetween(day, today) > LISTING_TRUST_DAYS) {
+            noIndexDays.add(day); scheduleSave();
+            log.log(`[EDGAR_INDEX_NOT_LISTED] day=${day} absent from the quarter listing — SEC closed, recorded as no-index`);
+            results.push(`${day}:no-index(not-listed)`); continue;
+          }
+          unpublishedAt.set(day, now()); // re-checked after UNPUBLISHED_RETRY_MS
+          results.push(`${day}:not-listed`); continue;
+        }
+      }
       let entries;
       try {
         entries = parseDailyFormIndex(await fetchText(dailyIndexUrl(isoToCompact(day)), { retries: 1 }));
@@ -571,7 +673,7 @@ export function createInsiderIngest({
     }
     const errors = [];
     let feed = null;
-    try { feed = await pollFeed(feedPages); } catch (err) { errors.push(`feed: ${err.message}`); if (isThrottled(err)) pauseForThrottle(err); }
+    try { feed = await pollFeed(feedPages); status.lastFeedOkAt = new Date(now()).toISOString(); } catch (err) { errors.push(`feed: ${err.message}`); if (isThrottled(err)) pauseForThrottle(err); }
     if (!isPaused()) {
       try { await syncDailyIndexes(); } catch (err) { errors.push(`index: ${err.message}`); if (isThrottled(err)) pauseForThrottle(err); }
     }
@@ -685,6 +787,7 @@ export function createInsiderIngest({
     for (const q of queue) if (q.live) liveQueued++;
     return {
       ...status,
+      feedContent: { ...status.feedContent },
       filingsStored: filings.size,
       queueLength: queue.length,
       liveQueued,

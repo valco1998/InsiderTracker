@@ -1,7 +1,7 @@
 // Lazy entry points: ECharts and the chart components load in one separate
 // chunk the first time a chart is rendered.
-import { lazy, Suspense } from "react";
-import { Skeleton } from "../components/Common";
+import { Component, lazy, Suspense } from "react";
+import { EmptyState, Skeleton } from "../components/Common";
 
 const load = () => import("./InsiderCharts.jsx");
 const pick = (name) => lazy(() => load().then((m) => ({ default: m[name] })));
@@ -22,12 +22,49 @@ export function ChartSkeleton({ height = 280, title }) {
   );
 }
 
+// Chart-level error boundary: one failing chart (render/setOption error or a
+// failed lazy-chunk load) is replaced by a panel instead of unmounting the
+// whole dashboard. Retry remounts the chart with a fresh ECharts instance.
+export class ChartErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+    this.retry = () => this.setState({ error: null });
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error) {
+    console.error(`[CHART_ERROR] chart="${this.props.title}" phase=render message=${error?.message}`);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <section className="it-panel" role="alert" data-chart-error={this.props.title}>
+        <div className="flex flex-col items-center justify-center" style={{ minHeight: this.props.height }}>
+          <EmptyState title="Chart unavailable">
+            The {this.props.title} chart could not be displayed. The rest of the dashboard is unaffected.
+          </EmptyState>
+          <button type="button" className="it-btn mb-6" onClick={this.retry}>Retry</button>
+        </div>
+      </section>
+    );
+  }
+}
+
 // `loading` → skeleton until the analytics dataset has rows (avoids an empty-state flash).
 function wrap(C, title, defaultHeight) {
   return function LazyChart({ loading, ...props }) {
     const h = props.height || defaultHeight;
     if (loading) return <ChartSkeleton height={h} title={title} />;
-    return <Suspense fallback={<ChartSkeleton height={h} title={title} />}><C {...props} /></Suspense>;
+    return (
+      <ChartErrorBoundary title={title} height={h}>
+        <Suspense fallback={<ChartSkeleton height={h} title={title} />}><C {...props} /></Suspense>
+      </ChartErrorBoundary>
+    );
   };
 }
 

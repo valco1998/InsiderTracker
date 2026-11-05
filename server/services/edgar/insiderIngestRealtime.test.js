@@ -52,6 +52,11 @@ function fakeSec(cfg = {}) {
       if (typeof d === "number") throw httpError(d);
       return dailyIndex(d);
     }
+    // Quarter directory listing: `cfg.listing` = ISO days listed; absent → 404 (index requested directly).
+    if (u.pathname.endsWith("/index.json")) {
+      if (!cfg.listing) throw httpError(404);
+      return JSON.stringify({ directory: { item: cfg.listing.map((d) => ({ name: `form.${d.replace(/-/g, "")}.idx` })) } });
+    }
     m = u.pathname.match(/\/(\d{10}-\d{2}-\d{6})\.txt$/);
     if (m) {
       if (cfg.hooks.txt) { const r = await cfg.hooks.txt(m[1]); if (r !== undefined) return r; }
@@ -210,10 +215,11 @@ test("D2 integration: a 10-minute SEC 403 block with the REAL client — one req
   const sec = fakeSec({ days: { "2026-10-29": BACKLOG } });
   const blockUntil = c.now() + 10 * 60_000;
   const secCalls = [];
-  // Network layer: SEC answers 403 to everything until blockUntil (after the first download).
+  // Network layer: SEC answers 403 to everything until blockUntil (after the first download:
+  // feed, quarter listing for the past index day, index, first filing).
   const fetchImpl = async (url) => {
     secCalls.push({ url: String(url), t: c.now() });
-    if (secCalls.length > 3 && c.now() < blockUntil) return { status: 403, ok: false, headers: { get: () => null }, text: async () => "" };
+    if (secCalls.length > 4 && c.now() < blockUntil) return { status: 403, ok: false, headers: { get: () => null }, text: async () => "" };
     const body = await sec.fetchText(String(url)).catch((e) => ({ err: e }));
     if (body?.err) return { status: body.err.status || 500, ok: false, headers: { get: () => null }, text: async () => "" };
     return { status: 200, ok: true, headers: { get: () => null }, text: async () => body };
@@ -367,4 +373,163 @@ test("D0 units: feed timestamps need an explicit offset; ET acceptance handles E
   assert.deepEqual(tr.summary().live.metrics.downloadMs, { n: 3, min: 2, p50: 3, p95: 4, p99: 4, max: 4 });
   const feed = parseFeedForm4(atom([{ ...F.LONA, updated: "2026-10-28T20:43:08-04:00" }]));
   assert.equal(feed.form4[0].updatedAt, F.LONA.accepted);
+});
+
+// ── Wave 1: 403 = missing object, adaptive feed paging, feed-vs-index freshness ──
+// REAL edgarClient over a scripted network layer (`route(url)` → body | status).
+function realSec(c, route) {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(String(url));
+    const r = await route(new URL(String(url)));
+    if (typeof r === "number") return { status: r, ok: false, headers: { get: () => null }, text: async () => "" };
+    return { status: 200, ok: true, headers: { get: () => null }, text: async () => r };
+  };
+  const client = createEdgarClient({ fetchImpl, now: c.now, sleep: async (ms) => c.advance(ms), userAgent: () => "IT test@example.com", maxRps: 5, throttle403Ms: 600_000, log: quietLog() });
+  return { client, calls, fetchText: (u, o) => client.getText(u, o) };
+}
+const listingJson = (days) => JSON.stringify({ directory: { item: days.map((d) => ({ name: `form.${d.replace(/-/g, "")}.idx`, type: "file" })) } });
+// 2026-12-24 (Thu): an unscheduled closure that businessDays.js does not know; EDGAR answers its index with 403.
+const closureRoute = ({ listed, feed = () => atom([]) }) => (u) => {
+  if (u.pathname === "/cgi-bin/browse-edgar") return feed();
+  if (u.pathname.endsWith("/index.json")) return listingJson(listed);
+  if (/form\.20261224\.idx$/.test(u.pathname)) return 403;
+  if (/\.idx$/.test(u.pathname)) return 404;
+  const m = u.pathname.match(/\/(\d{10}-\d{2}-\d{6})\.txt$/);
+  return m && BODY[m[1]] ? BODY[m[1]] : 404;
+};
+
+test("P1: a past day absent from the quarter listing is never requested — no-index (persisted), breaker stays closed", async () => {
+  const cacheFile = tmpCache();
+  const c = clock("2026-12-26T15:00:00Z"); // Sat 10:00 ET → latest expected index day is Thu 12-24 (12-25 holiday)
+  const sec = realSec(c, closureRoute({ listed: ["2026-12-22", "2026-12-23"] }));
+  const ing = make(sec.fetchText, c, { cacheFile, getClientStats: sec.client.getStats });
+
+  // Inside LISTING_TRUST_DAYS (2 days old): treated as not yet published, re-checked later.
+  await ing.pollOnce();
+  assert.equal(sec.calls.filter((u) => /form\.20261224\.idx$/.test(u)).length, 0, "the missing index is never requested");
+  assert.equal(sec.calls.filter((u) => u.endsWith("/2026/QTR4/index.json")).length, 1);
+  assert.equal(ing._state.noIndexDays.has("2026-12-24"), false);
+  assert.ok(ing.getStatus().lastIndexCheck.results.includes("2026-12-24:not-listed"));
+  assert.equal(sec.client.getStats().breaker.state, "closed");
+  assert.equal(ing.getStatus().lastPollError, null);
+
+  c.advance(60_000); await ing.pollOnce(); // within 30 min: nothing re-requested
+  assert.equal(sec.calls.filter((u) => u.endsWith("/index.json")).length, 1);
+
+  // Monday: 4 days old and still absent → recorded as a closed day.
+  c.set("2026-12-28T15:00:00Z");
+  await ing.pollOnce();
+  assert.ok(ing._state.noIndexDays.has("2026-12-24"));
+  assert.ok(ing.getStatus().lastIndexCheck.results.includes("2026-12-24:no-index(not-listed)"));
+  assert.equal(sec.calls.filter((u) => /form\.20261224\.idx$/.test(u)).length, 0);
+  const st = sec.client.getStats().breaker;
+  assert.equal(st.state, "closed");
+  assert.equal(st.throttleEvents, 0);
+  assert.equal(ing.getStatus().throttle.paused, false);
+  assert.equal(ing.getStatus().lastPollError, null);
+  assert.ok(ing.getStatus().lastPollAt, "the poll fully succeeded");
+  await ing.saveNow();
+  assert.ok(JSON.parse(fs.readFileSync(cacheFile, "utf8")).noIndexDays.includes("2026-12-24"), "persisted like other no-index days");
+  const n = sec.calls.length;
+  c.advance(31 * 60_000); await ing.pollOnce();
+  assert.equal(sec.calls.slice(n).filter((u) => /index\.json$|\.idx$/.test(u)).length, 0, "never re-checked once recorded");
+});
+
+test("P1: a past day that IS listed but answers 403 is real throttling — breaker opens exactly as before", async () => {
+  const c = clock("2026-12-28T15:00:00Z");
+  const sec = realSec(c, closureRoute({ listed: ["2026-12-23", "2026-12-24"] }));
+  const ing = make(sec.fetchText, c, { getClientStats: sec.client.getStats });
+  await ing.pollOnce();
+  assert.equal(sec.calls.filter((u) => /form\.20261224\.idx$/.test(u)).length, 1);
+  const st = sec.client.getStats().breaker;
+  assert.equal(st.state, "open");
+  assert.equal(st.lastStatus, 403);
+  assert.ok(st.remainingMs > 590_000, String(st.remainingMs));
+  assert.equal(ing.getStatus().throttle.paused, true);
+  assert.equal(ing._state.noIndexDays.has("2026-12-24"), false);
+  assert.ok(ing.getStatus().lastIndexCheck.results.includes("2026-12-24:throttled"));
+  const n = sec.calls.length;
+  c.advance(60_000); await ing.pollOnce();
+  assert.equal(sec.calls.length, n, "no SEC traffic while paused");
+});
+
+test("P1: a 403 on the live feed (getcurrent) still opens the global breaker", async () => {
+  const c = clock(FRI);
+  const sec = realSec(c, closureRoute({ listed: [], feed: () => 403 }));
+  const ing = make(sec.fetchText, c, { getClientStats: sec.client.getStats });
+  await ing.pollOnce();
+  const st = sec.client.getStats().breaker;
+  assert.equal(st.state, "open");
+  assert.equal(st.lastStatus, 403);
+  assert.equal(ing.getStatus().throttle.paused, true);
+  assert.match(ing.getStatus().lastPollError, /feed: .*403/);
+  assert.equal(ing.getStatus().lastFeedOkAt, null);
+  assert.equal(sec.calls.length, 1, "nothing else requested once paused");
+});
+
+// Synthetic feed of distinct Form 4 entries (newest first), 100 per page.
+const synth = (i) => ({ acc: `0009999999-26-${String(i).padStart(6, "0")}`, cik: "9999999" });
+function pagedSec() {
+  const s = { list: [], feedRequests: 0 };
+  s.fetchText = async (url) => {
+    const u = new URL(url);
+    if (u.pathname === "/cgi-bin/browse-edgar") { s.feedRequests++; const st = Number(u.searchParams.get("start")); return atom(s.list.slice(st, st + 100)); }
+    throw httpError(404); // indexes, listings, downloads (a 404 download stays in backoff → "known")
+  };
+  return s;
+}
+const feedPages = async (ing, s) => { const n = s.feedRequests; await ing.pollOnce(); return s.feedRequests - n; };
+
+test("P2: adaptive paging — beyond feedMaxPages only while every page is entirely new; stops at the first page with nothing new", async () => {
+  const c = clock(FRI);
+  const s = pagedSec();
+  const ing = make(s.fetchText, c, { feedMaxPages: 10, feedBurstMaxPages: 40 });
+  s.list = Array.from({ length: 500 }, (_, i) => synth(10_000 - i)); // older filings, seen first
+  assert.equal(await feedPages(ing, s), 6, "5 full pages + the empty end page");
+  // Outage: 1,500 new filings on top → 15 entirely-new pages (old cap: 10), stop at page 16 (all known).
+  s.list = [...Array.from({ length: 1500 }, (_, i) => synth(20_000 - i)), ...s.list];
+  assert.equal(await feedPages(ing, s), 16);
+  assert.equal(ing.getStatus().lastFeed.added, 1500);
+  assert.equal(ing.getStatus().lastFeed.capped, false);
+  // Caught up → a single page.
+  assert.equal(await feedPages(ing, s), 1);
+});
+
+test("P2: adaptive paging respects the burst cap, and pages with known filings keep the normal cap", async () => {
+  const c = clock(FRI);
+  const lg = quietLog();
+  const s = pagedSec();
+  const ing = make(s.fetchText, c, { feedMaxPages: 10, feedBurstMaxPages: 40, log: lg });
+  s.list = Array.from({ length: 5000 }, (_, i) => synth(50_000 - i));
+  assert.equal(await feedPages(ing, s), 40, "burst cap");
+  assert.equal(ing.getStatus().lastFeed.capped, true);
+  assert.ok(lg.lines.some((l) => /EDGAR_FEED_CAPPED/.test(l)));
+
+  const c2 = clock(FRI);
+  const s2 = pagedSec();
+  const ing2 = make(s2.fetchText, c2, { feedMaxPages: 10, feedBurstMaxPages: 40 });
+  const old = Array.from({ length: 30 }, (_, i) => synth(90_000 - i));
+  s2.list = old;
+  await feedPages(ing2, s2);
+  // Every page mixes 99 new + 1 known → never "entirely new" → normal cap of 10 pages.
+  s2.list = Array.from({ length: 20 }, (_, p) => [...Array.from({ length: 99 }, (_, i) => synth(60_000 - p * 100 - i)), old[p]]).flat();
+  assert.equal(await feedPages(ing2, s2), 10);
+});
+
+test("P3: an index 5xx does not make the feed stale — lastFeedOkAt advances, health reports 'error' not 'stale'", async () => {
+  const c = clock(FRI);
+  const sec = fakeSec({ days: { "2026-10-29": 503 }, feed: [{ ...F.LONA, updated: "2026-10-30T16:07:00-04:00" }] });
+  const ing = make(sec.fetchText, c);
+  await ing.start(); ing.stop();
+  for (let i = 0; i < 5; i++) { c.advance(60_000); await ing.pollOnce(); }
+  const s = ing.getStatus();
+  assert.equal(s.lastPollAt, null, "lastPollAt keeps its meaning: last FULLY successful poll");
+  assert.equal(s.lastFeedOkAt, new Date(c.now()).toISOString());
+  assert.equal(s.feedContent.newestAcceptedAt, "2026-10-30T20:07:00.000Z");
+  const h = computeHealth({ db: { configured: false }, ingest: s, accountsConfigured: false, now: c.now() });
+  assert.equal(h.checks.sec.state, "error");
+  assert.ok(!h.reasons.includes("sec_poll_stale"), JSON.stringify(h.reasons));
+  assert.ok(h.reasons.includes("sec_poll_error"));
+  assert.equal(h.ready, true);
 });

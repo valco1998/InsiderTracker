@@ -6,6 +6,8 @@ import AppLayout from "./pages/components/AppLayout.jsx";
 import RealtimeAlertPopup from "./pages/Popup/RealtimeAlertPopup.jsx";
 import TradeMatchToast from "./components/TradeMatchToast.jsx";
 import useAuth from "./hooks/useAuth.js";
+import ErrorBoundary from "./pages/insider/components/ErrorBoundary.jsx";
+import { currentTheme, fallbackPalette, isInsiderPath } from "./utils/insiderUiFallback.js";
 
 // Heavy pages — code-split so the initial bundle only contains the shell.
 // Each page chunk is downloaded on first navigation, not on first load.
@@ -27,7 +29,26 @@ const NotificationDashboard = lazy(() => import("./pages/admin/NotificationDashb
 const AlertsDebug           = lazy(() => import("./pages/alerts/AlertsDebug.jsx"));
 const InsiderDashboard      = lazy(() => import("./pages/insider/InsiderDashboard.jsx"));
 
-function PageFallback() {
+function PageFallback({ insider }) {
+  // InsiderTracker pages are light by default: never paint the legacy dark
+  // purple screen there. Theme comes from <html data-theme> (set pre-paint).
+  if (insider) {
+    const p = fallbackPalette(currentTheme());
+    return (
+      <div aria-busy="true" style={{
+        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+        background: p.bg,
+      }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: "50%",
+          border: `2px solid ${p.accentLine}`,
+          borderTopColor: p.accent,
+          animation: "spin 0.7s linear infinite",
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
   return (
     <div style={{
       minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
@@ -57,7 +78,8 @@ function SmartHome() {
 }
 
 export default function App() {
-  const isInsider = useLocation().pathname.startsWith("/insider");
+  const { pathname } = useLocation();
+  const isInsider = pathname.startsWith("/insider");
   return (
     <>
       <Toaster
@@ -80,7 +102,7 @@ export default function App() {
       {!isInsider && <RealtimeAlertPopup />}
       {!isInsider && <TradeMatchToast />}
 
-      <Suspense fallback={<PageFallback />}>
+      <Suspense fallback={<PageFallback insider={isInsiderPath(pathname)} />}>
         <Routes>
 
           {/* Public */}
@@ -90,7 +112,10 @@ export default function App() {
           <Route path="/login" element={<Navigate to="/insider/sign-in" replace />} />
           <Route path="/signup" element={<Navigate to="/login" replace />} />
           <Route path="/steam/callback" element={<SteamCallback />} />
-          <Route path="/insider/*" element={<InsiderDashboard />} />
+          <Route path="/insider/*" element={
+            // Top-level safety net; InsiderDashboard adds per-view boundaries inside.
+            <ErrorBoundary resetKey={pathname}><InsiderDashboard /></ErrorBoundary>
+          } />
 
           {/* Protected */}
           <Route element={<ProtectedLayout />}>

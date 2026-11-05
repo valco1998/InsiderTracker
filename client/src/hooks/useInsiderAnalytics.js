@@ -5,7 +5,7 @@
 // query changes or the server's `dataVersion` (seen by the main feed's existing
 // refresh) changes — and at most once per MIN_REFETCH_MS for the same query,
 // except when the cached result is empty (utils/insiderAnalyticsCache.js).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import api from "../lib/api";
 import { refetchDelay } from "../utils/insiderAnalyticsCache";
 
@@ -44,6 +44,8 @@ export default function useInsiderAnalytics(params, dataVersion, { enabled = tru
     return c ? { ...c, key, loading: false, error: null } : { key, rows: [], total: 0, totals: null, partial: false, loading: true, error: null };
   });
   const runId = useRef(0);
+  const [retryNonce, setRetryNonce] = useState(0); // bumped by retry(): refetch now, bypassing the throttle
+  const force = useRef(false);
 
   useEffect(() => {
     if (!enabled || dataVersion == null) return undefined;
@@ -55,7 +57,8 @@ export default function useInsiderAnalytics(params, dataVersion, { enabled = tru
     if (cached) setState((s) => (s.key === key && s.rows === cached.rows ? s : { ...cached, key, loading: false, error: null }));
     else setState((s) => (s.key === key ? { ...s, loading: true } : { key, rows: [], total: 0, totals: null, partial: false, loading: true, error: null }));
 
-    const wait = refetchDelay(cached, dataVersion);
+    const wait = force.current ? 0 : refetchDelay(cached, dataVersion);
+    force.current = false;
     if (wait == null) return undefined;
 
     const run = async () => {
@@ -76,7 +79,13 @@ export default function useInsiderAnalytics(params, dataVersion, { enabled = tru
     // Throttled per query while data keeps changing — never when the cache is empty (see refetchDelay).
     const timer = setTimeout(run, wait);
     return () => { clearTimeout(timer); };
-  }, [key, dataVersion, enabled]);
+  }, [key, dataVersion, enabled, retryNonce]);
 
-  return state.key === key ? state : { key, rows: [], total: 0, totals: null, partial: false, loading: true, error: null };
+  // Immediate refetch of the current query (error-state Retry); runs once enabled with a known version.
+  const retry = useCallback(() => { force.current = true; setRetryNonce((n) => n + 1); }, []);
+  const current = state.key === key ? state : null;
+  return useMemo(
+    () => ({ ...(current || { key, rows: [], total: 0, totals: null, partial: false, loading: true, error: null }), retry }),
+    [current, key, retry],
+  );
 }

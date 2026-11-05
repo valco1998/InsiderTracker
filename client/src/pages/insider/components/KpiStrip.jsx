@@ -15,6 +15,16 @@ const ICONS = {
   net: <path d="M4 12h16M12 4v16" />,
 };
 
+// Loading placeholders keep the final line boxes (a non-breaking space in the real
+// text element) so values replace them in place without moving the layout.
+function LinePlaceholder({ className, width }) {
+  return (
+    <div className={`relative ${className}`} aria-hidden="true">
+      {" "}<Skeleton className="absolute left-0" style={{ top: "15%", bottom: "15%", width }} />
+    </div>
+  );
+}
+
 function HeroKpi({ kind, label, value, format, sub, color, title, loading, children, className = "" }) {
   return (
     <div className={`it-kcard ${className}`} title={title}>
@@ -24,12 +34,12 @@ function HeroKpi({ kind, label, value, format, sub, color, title, loading, child
         </span>
         <span className="min-w-0">{label}</span>
       </div>
-      {loading ? <Skeleton className="mt-4 h-8 w-32" /> : (
+      {loading ? <LinePlaceholder className="it-kcard-value" width="8rem" /> : (
         <div className="it-kcard-value it-num truncate" style={{ color: color || "var(--it-text)" }}>
           <AnimatedNumber value={value} format={format} />
         </div>
       )}
-      {loading ? <Skeleton className="mt-2 h-3 w-24" /> : sub && <div className="it-kcard-sub it-num truncate">{sub}</div>}
+      {loading ? <LinePlaceholder className="it-kcard-sub" width="6rem" /> : sub && <div className="it-kcard-sub it-num truncate">{sub}</div>}
       {children}
     </div>
   );
@@ -39,10 +49,11 @@ function Stat({ label, value, format, sub, title, loading }) {
   return (
     <div className="it-stat" title={title}>
       <div className="it-label truncate">{label}</div>
-      {loading ? <Skeleton className="mt-1.5 h-5 w-20" /> : (
+      {loading ? <LinePlaceholder className="it-stat-value" width="5rem" /> : (
         <div className="it-stat-value it-num truncate"><AnimatedNumber value={value} format={format} /></div>
       )}
-      {sub && <div className="it-stat-sub mt-0.5 truncate text-[12px] it-dim2">{sub}</div>}
+      {sub ? <div className="it-stat-sub mt-0.5 truncate text-[12px] it-dim2">{sub}</div>
+        : loading && <div className="it-stat-sub mt-0.5 text-[12px]" aria-hidden="true">{" "}</div>}
     </div>
   );
 }
@@ -67,6 +78,16 @@ function ValueMix({ buy, sell }) {
   );
 }
 
+// Same box as ValueMix (empty track + one legend line) while totals load.
+function ValueMixPlaceholder() {
+  return (
+    <div aria-hidden="true">
+      <div className="it-mix" />
+      <div className="it-mix-legend">{" "}</div>
+    </div>
+  );
+}
+
 export function periodLabel(filters, status) {
   if (filters.from || filters.to) {
     return `Filed ${filters.from ? day(filters.from) : "…"} – ${filters.to ? day(filters.to) : "latest"}`;
@@ -87,7 +108,7 @@ function KpiStrip({ totals, status, analytics, filters, loading }) {
     <section className="flex flex-col gap-3" aria-label="Key figures">
       <div className="it-section-head">
         <h2 className="it-eyebrow">Summary</h2>
-        <span className="min-w-0 truncate text-[12px] it-dim2">{periodLabel(filters, status)} · by filing date{filters.type !== "all" ? ` · ${filters.type === "purchase" ? "purchases" : "sales"} only` : ""}{filters.ticker ? ` · ${filters.ticker}` : ""}</span>
+        <span className="w-full min-w-0 truncate text-[12px] it-dim2 sm:w-auto">{periodLabel(filters, status)} · by filing date{filters.type !== "all" ? ` · ${filters.type === "purchase" ? "purchases" : "sales"} only` : ""}{filters.ticker ? ` · ${filters.ticker}` : ""}</span>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <HeroKpi kind="buy" label="Reported purchases" loading={loading} value={t?.purchaseValue} format={compactUsd} color="var(--it-buy)"
@@ -97,7 +118,7 @@ function KpiStrip({ totals, status, analytics, filters, loading }) {
         <HeroKpi kind="net" label="Net reported" loading={loading} value={net} format={signedCompactUsd} className="col-span-2 lg:col-span-1"
           color={net == null ? undefined : net >= 0 ? "var(--it-buy)" : "var(--it-sell)"} sub="purchases − sales"
           title="Reported purchase value minus reported sale value for the current filters.">
-          {!loading && t && <ValueMix buy={t.purchaseValue} sell={t.saleValue} />}
+          {loading ? <ValueMixPlaceholder /> : t && <ValueMix buy={t.purchaseValue} sell={t.saleValue} />}
         </HeroKpi>
       </div>
       <div className="it-panel">

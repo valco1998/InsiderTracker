@@ -25,8 +25,8 @@ import { BuySellChart, BuyingTrendChart, TopCompaniesChart, ActivityTimeline, Cl
 import { ROW_CAP } from "../../../hooks/useInsiderAnalytics";
 import { count } from "../../../utils/insiderFormat";
 
-function AnalyticsNotice({ analytics }) {
-  if (analytics.error) return <ErrorNote>{analytics.error}</ErrorNote>;
+function AnalyticsNotice({ analytics, onRetry }) {
+  if (analytics.error) return <ErrorNote onRetry={onRetry}>{analytics.error}</ErrorNote>;
   if (!analytics.partial) return null;
   return (
     <div className="rounded-md px-3 py-2 text-[11.5px]" style={{ color: "var(--it-warn)", background: "var(--it-warn-soft)", border: "1px solid var(--it-warn-line)" }}>
@@ -43,9 +43,11 @@ function useCrossFilter() {
 }
 
 export function OverviewView() {
-  const { feed, analytics, filters } = useInsider();
+  const { feed, analytics, filters, dataError, retryData } = useInsider();
   const { pickDay, pickTicker } = useCrossFilter();
   const chartsLoading = analytics.loading && analytics.rows.length === 0;
+  // API unreachable and nothing loaded yet: one error panel instead of skeletons that never resolve.
+  const blocked = !!dataError && !feed.loading;
   // Side by side with the ranked list on wide screens: match its height there.
   const chartHeight = useWide() ? 492 : 300;
   return (
@@ -57,8 +59,13 @@ export function OverviewView() {
           <Link to="/insider/transactions" className="it-btn it-btn-primary">All transactions</Link>
         </>} />
       <FilterBar />
+      {blocked ? (
+        <ErrorNote onRetry={retryData}>
+          {dataError} Figures and charts will appear once the data loads.
+        </ErrorNote>
+      ) : (<>
       <KpiStrip totals={feed.totals} status={feed.status} analytics={analytics} filters={filters} loading={feed.loading && !feed.totals} />
-      <AnalyticsNotice analytics={analytics} />
+      <AnalyticsNotice analytics={analytics} onRetry={analytics.retry} />
       <section className="flex flex-col gap-3" aria-label="Activity">
         <div className="it-section-head"><h2 className="it-eyebrow">Activity</h2><span className="text-[12px] it-dim2">Click a bar to filter that filing day · click a company to filter by ticker</span></div>
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
@@ -67,6 +74,7 @@ export function OverviewView() {
         </div>
       </section>
       <TransactionsPanel limit={25} title="Latest reported transactions" maxHeight="none" />
+      </>)}
       <Disclaimer />
     </div>
   );

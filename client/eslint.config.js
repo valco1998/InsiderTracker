@@ -5,9 +5,11 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
+  // Global ignores: generated build output (vite build -> dist, PWA dev service worker -> dev-dist).
+  { ignores: ['dist', 'dev-dist'] },
   {
     files: ['**/*.{js,jsx}'],
-    ignores: ['dist'],
+    ignores: ['dist', 'dev-dist'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,

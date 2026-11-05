@@ -131,6 +131,25 @@ export default defineConfig({
     }),
   ],
 
+  // Pre-bundle every dependency that Vite would otherwise discover only at
+  // runtime. A runtime discovery (e.g. workbox-* when the dev service worker
+  // loads) re-bundles ALL deps, including ECharts; a lazily loaded chart chunk
+  // fetched across that re-bundle mixes two ECharts module copies and setOption
+  // throws "Invalid data provider." (SourceImpl instanceof check fails).
+  // Guarded by src/pages/insider/charts/echartsModuleIdentity.test.js.
+  optimizeDeps: {
+    include: [
+      "echarts/core",
+      "echarts/charts",
+      "echarts/components",
+      "echarts/renderers",
+      "react/jsx-dev-runtime",
+      "workbox-window",
+      "workbox-core",
+      "workbox-precaching",
+    ],
+  },
+
   server: {
     // 5174, not Vite's default 5173: keeps Insider Tracker's localStorage,
     // IndexedDB and service workers separate from a local SkinTel dev server.

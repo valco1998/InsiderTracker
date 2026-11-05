@@ -11,13 +11,32 @@
 // Features that are intentionally OFF (no MONGO_URI, no Firebase, alerts
 // disabled) are reported as "disabled" and never count as unhealthy.
 
+import { isBusinessDay } from "./edgar/businessDays.js";
+
 export const DEFAULTS = {
-  staleAfterPolls: 3,          // SEC poll older than 3 intervals → degraded
+  staleAfterPolls: 3,          // SEC feed poll older than 3 intervals → degraded
   notReadyAfterMs: 15 * 60_000, // … older than 15 min → not ready
   cacheDirtyMaxMs: 5 * 60_000, // unsaved SEC cache changes older than 5 min → degraded
+  // Content freshness, only during EDGAR hours (06:00–22:00 ET, business days) — degraded, never "not ready".
+  // 150 min: across 10 business days fully covered by the official daily indexes
+  // (2026-10-19…10-27, 11-02…11-04; 3,989 Form 4/4A, acceptance times, 06:00–22:00 ET,
+  // measured from 06:00) the longest gap between acceptances was 127 min (mid-day
+  // gaps up to 108 min); gaps > 45 min occurred 0–4 times a day, so 45 min would
+  // fire daily on normal traffic.
+  feedQuietWarnMs: 150 * 60_000,
+  feedEmptyGraceMs: 30 * 60_000, // an empty feed is tolerated for the first 30 min after 06:00 ET
+  feedContentChecks: true,
 };
 
 const ageMs = (iso, now) => (iso ? Math.max(now - Date.parse(iso), 0) : null);
+
+// New York calendar date and minutes since midnight (EDGAR's timezone).
+function easternClock(now) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(now)).map((x) => [x.type, x.value]));
+  return { iso: `${p.year}-${p.month}-${p.day}`, minutes: Number(p.hour) * 60 + Number(p.minute) + Number(p.second) / 60 + (now % 1000) / 60_000 };
+}
 
 // db: getDbState(); ingest: getIngestStatus(); snapshot: getSnapshotStats();
 // → { status, ready, reasons[], checks{} }
@@ -48,22 +67,47 @@ export function computeHealth({ db, ingest, snapshot = null, accountsConfigured,
   }
 
   // ── SEC polling ──
+  // Staleness follows the live FEED (lastFeedOkAt): a failing daily-index sync alone
+  // is "error", not "stale". Falls back to lastPollAt for status without the field.
   const pollMs = ingest?.pollIntervalMs || 60_000;
-  const sinceOk = ageMs(ingest?.lastPollAt, now);
+  const sincePoll = ageMs(ingest?.lastPollAt, now);
+  const sinceOk = ageMs(ingest?.lastFeedOkAt ?? ingest?.lastPollAt, now);
   const initialSync = !!ingest?.initialSyncCompletedAt;
   const stale = sinceOk == null ? initialSync : sinceOk > pollMs * o.staleAfterPolls;
   const sec = {
     state: !initialSync ? "initial_sync" : stale ? "stale" : ingest?.lastPollError ? "error" : "ok",
-    lastPollAt: ingest?.lastPollAt ?? null, lastPollAgeMs: sinceOk,
+    lastPollAt: ingest?.lastPollAt ?? null, lastPollAgeMs: sincePoll,
+    lastFeedOkAt: ingest?.lastFeedOkAt ?? null, lastFeedAgeMs: ageMs(ingest?.lastFeedOkAt, now),
     lastPollAttemptAt: ingest?.lastPollAttemptAt ?? null,
     lastPollError: ingest?.lastPollError ?? null, consecutivePollFailures: ingest?.consecutivePollFailures ?? 0,
     pollIntervalMs: pollMs, initialSyncCompletedAt: ingest?.initialSyncCompletedAt ?? null,
+    feed: null,
   };
   if (!initialSync) { reasons.push("sec_initial_sync"); ready = false; }
   else if (stale) {
     reasons.push("sec_poll_stale");
     if (sinceOk == null || sinceOk > o.notReadyAfterMs) ready = false;
   } else if (ingest?.lastPollError) reasons.push("sec_poll_error");
+
+  // ── SEC feed CONTENT (polls succeed but nothing new arrives) ──
+  // Only during EDGAR hours on business days; quiet time is counted from 06:00 ET at
+  // the earliest, so the overnight lull never counts. Degraded only.
+  if (o.feedContentChecks && initialSync && !stale && ingest?.lastFeedOkAt) {
+    const et = easternClock(now);
+    const businessHours = isBusinessDay(et.iso) && et.minutes >= 360 && et.minutes < 1320;
+    const windowStart = now - (et.minutes - 360) * 60_000;
+    const fc = ingest.feedContent || {};
+    const lastContent = Math.max(Date.parse(fc.newestAcceptedAt) || 0, Date.parse(fc.lastNewFilingAt) || 0);
+    const entries = ingest.lastFeed?.entries ?? null;
+    const quietForMs = businessHours ? Math.max(now - Math.max(lastContent, windowStart), 0) : null;
+    let state = businessHours ? "ok" : "off_hours";
+    if (businessHours && entries === 0 && now - windowStart > o.feedEmptyGraceMs) { state = "empty"; reasons.push("sec_feed_empty"); }
+    else if (businessHours && quietForMs > o.feedQuietWarnMs) { state = "no_new_filings"; reasons.push("sec_feed_no_new_filings"); }
+    sec.feed = {
+      state, businessHours, entries, quietForMs, quietWarnMs: o.feedQuietWarnMs,
+      newestAcceptedAt: fc.newestAcceptedAt ?? null, lastNewFilingAt: fc.lastNewFilingAt ?? null,
+    };
+  }
 
   // ── SEC throttling (Phase D2): 429/403 → all SEC requests paused ──
   // Degraded while paused; readiness still follows data freshness above.

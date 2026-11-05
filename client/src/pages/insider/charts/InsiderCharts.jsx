@@ -2,7 +2,7 @@
 // transaction rows via utils/insiderAggregate.js — no mock or random data.
 import { memo, useMemo, useState } from "react";
 import EChart, { C, MONO, axisCommon, baseOption } from "./EChart";
-import { byDay, timelinePoints, topCompanies } from "../../../utils/insiderAggregate";
+import { byDay, countableValue, isCounted, rowsOf, timelinePoints, topCompanies } from "../../../utils/insiderAggregate";
 import { compactUsd, count, shortDay, day } from "../../../utils/insiderFormat";
 import { EmptyState } from "../components/Common";
 
@@ -140,13 +140,14 @@ export const BuySellChart = memo(function BuySellChart({ rows, onPickDay, height
 export const BuyingTrendChart = memo(function BuyingTrendChart({ rows, height = 240 }) {
   const series = useMemo(() => {
     const m = new Map();
-    for (const r of rows) {
-      if (r.code !== "P" || r.amendment?.status === "superseded" || !r.transactionDate) continue;
+    for (const r of rowsOf(rows)) {
+      if (!isCounted(r) || r.code !== "P" || typeof r.transactionDate !== "string" || !r.transactionDate) continue;
       let d = m.get(r.transactionDate);
       if (!d) { d = { day: r.transactionDate, companies: new Set(), count: 0, value: 0 }; m.set(r.transactionDate, d); }
       d.companies.add(r.issuerCik || r.ticker);
       d.count++;
-      if (r.priceCheck?.status !== "anomaly" && r.value != null) d.value += r.value;
+      const v = countableValue(r);
+      if (v != null) d.value += v;
     }
     return [...m.values()].sort((a, b) => a.day.localeCompare(b.day)).map((d) => ({ ...d, companies: d.companies.size }));
   }, [rows]);

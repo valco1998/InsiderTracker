@@ -2,7 +2,7 @@
    ONE source of truth for colour: semantic tokens below. Light is the default theme;
    <html data-theme="dark"> switches every token (set before first paint in index.html,
    toggled by theme.js). Components never hard-code theme colours. */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+/* Fonts (Inter 400–900, JetBrains Mono 400–600) are loaded by a <link> in index.html. */
 
 /* ------------------------------------------------------------------ tokens */
 .it-root {

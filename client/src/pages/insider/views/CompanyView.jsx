@@ -34,6 +34,18 @@ function Stat({ label, value, sub, color }) {
   );
 }
 
+// Loading placeholder that keeps the final text line box (non-breaking space +
+// absolutely positioned skeleton), so arriving values do not shift the page.
+function Line({ width }) {
+  return <span className="relative block" aria-hidden="true">{" "}<Skeleton className="absolute left-0" style={{ top: "20%", bottom: "20%", width }} /></span>;
+}
+
+// Same labels / static sub-lines as the loaded KPI row, values replaced by placeholders.
+const KPI_PLACEHOLDERS = [
+  ["Reported purchases", null], ["Reported sales", null], ["Net reported", "purchases − sales"],
+  ["Reporting filers", "Form 4 filer groups — not distinct buyers"], ["Late filings", "Form 4 due in 2 business days"],
+];
+
 export default function CompanyView() {
   const raw = (useParams().ticker || "").toUpperCase();
   const ticker = TICKER_RE.test(raw) ? raw : "";
@@ -72,15 +84,18 @@ export default function CompanyView() {
               <h1 className="text-[28px] font-bold leading-none tracking-tight" style={{ color: "var(--it-text)" }}>{ticker}</h1>
               {head && <FollowButton t={head} account={account} />}
             </div>
-            <div className="mt-1.5 truncate text-[15px] it-dim">{loading && !company ? <Skeleton className="h-3 w-48" /> : head?.issuerName || company?.name || "No reported purchases or sales in the loaded window"}</div>
+            <div className="mt-1.5 truncate text-[15px] it-dim">{loading && !company ? <Line width="12rem" /> : head?.issuerName || company?.name || "No reported purchases or sales in the loaded window"}</div>
           </div>
           <div className="text-right text-[12.5px] it-dim2">
-            {(head?.issuerCik || company?.cik) && <div className="it-num">CIK {head?.issuerCik || company.cik}{company?.exchange ? ` · ${company.exchange}` : ""}</div>}
+            {(head?.issuerCik || company?.cik) ? <div className="it-num">CIK {head?.issuerCik || company.cik}{company?.exchange ? ` · ${company.exchange}` : ""}</div>
+              : (loading || insights.loading) && <div className="flex justify-end"><span className="w-28"><Line width="100%" /></span></div>}
             <div>{periodLabel({}, feed.status)}</div>
           </div>
         </div>
         {loading ? (
-          <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-5">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-10" />)}</div>
+          <div className="it-kpis grid grid-cols-2 lg:grid-cols-5" aria-busy="true">
+            {KPI_PLACEHOLDERS.map(([label, sub]) => <Stat key={label} label={label} value={<Line width="5rem" />} sub={sub || <Line width="6rem" />} />)}
+          </div>
         ) : t && (
           <div className="it-kpis grid grid-cols-2 lg:grid-cols-5">
             <Stat label="Reported purchases" value={compactUsd(t.purchaseValue)} sub={`${count(t.purchases)} transactions`} color="var(--it-buy)" />

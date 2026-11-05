@@ -161,3 +161,75 @@ test("pinger: consecutive failures/timeouts mark MongoDB down; a successful ping
     assert.equal(st.pingFailures, 0);
   } finally { restore(); }
 });
+
+// ── SEC feed freshness (lastFeedOkAt) and CONTENT warnings ──
+// at: ISO "now"; content timestamps are minutes before it.
+const feedHealth = (at, { entries = 100, acceptedMinAgo = 5, newMinAgo = null, lastPollMinAgo = 0.3, feedOkMinAgo = 0.3, err = null } = {}) => {
+  const t = Date.parse(at);
+  const ago = (m) => (m == null ? null : new Date(t - m * 60_000).toISOString());
+  return computeHealth({
+    db: goodDb(), snapshot: snap, accountsConfigured: true, now: t,
+    ingest: {
+      ...goodIngest(), lastPollAt: ago(lastPollMinAgo), lastPollAttemptAt: ago(0.3), lastPollError: err, consecutivePollFailures: err ? 5 : 0,
+      lastFeedOkAt: ago(feedOkMinAgo), lastFeed: { pages: 1, entries, form4: entries, added: 0, capped: false },
+      feedContent: { newestAcceptedAt: ago(acceptedMinAgo), lastNewFilingAt: ago(newMinAgo) },
+    },
+  });
+};
+const MON_10ET = "2026-11-02T15:00:00Z"; // Monday 10:00 EST
+
+test("feed content: healthy feed in EDGAR hours → ok; new fields are additive", () => {
+  const h = feedHealth(MON_10ET);
+  assert.equal(h.status, "ok");
+  assert.deepEqual(h.reasons, []);
+  assert.equal(h.checks.sec.feed.state, "ok");
+  assert.equal(h.checks.sec.feed.businessHours, true);
+  assert.equal(h.checks.sec.feed.quietForMs, 5 * 60_000);
+  assert.equal(h.checks.sec.lastFeedOkAt, new Date(Date.parse(MON_10ET) - 18_000).toISOString());
+  for (const k of ["state", "lastPollAt", "lastPollAgeMs", "lastPollAttemptAt", "lastPollError", "consecutivePollFailures", "pollIntervalMs", "initialSyncCompletedAt", "throttle", "latency"]) assert.ok(k in h.checks.sec, k);
+});
+
+test("feed content: 0 entries during EDGAR hours → sec_feed_empty (degraded, still ready); grace right after 06:00 ET", () => {
+  const h = feedHealth(MON_10ET, { entries: 0 });
+  assert.deepEqual(h.reasons, ["sec_feed_empty"]);
+  assert.equal(h.status, "degraded");
+  assert.equal(h.ready, true);
+  assert.equal(h.checks.sec.feed.state, "empty");
+  assert.deepEqual(feedHealth("2026-11-02T11:10:00Z", { entries: 0 }).reasons, [], "06:10 ET: within the 30-min grace");
+});
+
+test("feed content: no new Form 4 acceptance for > 150 min in EDGAR hours → sec_feed_no_new_filings", () => {
+  const h = feedHealth(MON_10ET, { acceptedMinAgo: 151 });
+  assert.deepEqual(h.reasons, ["sec_feed_no_new_filings"]);
+  assert.equal(h.ready, true);
+  assert.equal(h.checks.sec.feed.state, "no_new_filings");
+  assert.deepEqual(feedHealth(MON_10ET, { acceptedMinAgo: 120 }).reasons, [], "normal mid-day gap (max observed 127 min)");
+  assert.deepEqual(feedHealth(MON_10ET, { acceptedMinAgo: 200, newMinAgo: 10 }).reasons, [], "a newly discovered filing counts as content");
+  // The overnight lull never counts: 07:00 ET with the newest acceptance from last evening → quiet 60 min.
+  const early = feedHealth("2026-11-02T12:00:00Z", { acceptedMinAgo: 600 });
+  assert.deepEqual(early.reasons, []);
+  assert.equal(early.checks.sec.feed.quietForMs, 60 * 60_000);
+});
+
+test("feed content: no warnings at night, on weekends or on holidays", () => {
+  const quiet = { entries: 0, acceptedMinAgo: 3000 };
+  for (const at of ["2026-11-03T04:00:00Z" /* Mon 23:00 ET */, "2026-11-02T10:30:00Z" /* Mon 05:30 ET */, "2026-11-07T15:00:00Z" /* Sat */, "2026-11-26T15:00:00Z" /* Thanksgiving */]) {
+    const h = feedHealth(at, quiet);
+    assert.deepEqual(h.reasons, [], at);
+    assert.equal(h.checks.sec.feed.state, "off_hours", at);
+    assert.equal(h.checks.sec.feed.businessHours, false, at);
+  }
+});
+
+test("feed freshness: a failing index sync with a working feed is 'error', not 'stale'; a dead feed is still 'stale'", () => {
+  const idx = feedHealth(MON_10ET, { lastPollMinAgo: 30, feedOkMinAgo: 0.3, err: "index: [EDGAR] HTTP 503" });
+  assert.equal(idx.checks.sec.state, "error");
+  assert.deepEqual(idx.reasons, ["sec_poll_error"]);
+  assert.equal(idx.ready, true);
+  assert.equal(idx.checks.sec.lastPollAgeMs, 30 * 60_000, "lastPollAgeMs keeps its meaning");
+  const dead = feedHealth(MON_10ET, { lastPollMinAgo: 30, feedOkMinAgo: 30, err: "feed: [EDGAR] HTTP 503" });
+  assert.equal(dead.checks.sec.state, "stale");
+  assert.deepEqual(dead.reasons, ["sec_poll_stale"], "content checks are skipped while stale");
+  assert.equal(dead.ready, false);
+  assert.equal(dead.checks.sec.feed, null);
+});

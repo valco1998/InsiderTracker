@@ -6,7 +6,7 @@
 // colours inside strings returned by formatter functions — to the active theme's
 // validated colours (dataviz validator: light on #FFFFFF, dark on #111827; CVD ΔE ≥ 8),
 // and re-applies the option when the theme changes. Chart data logic is untouched.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as echarts from "echarts/core";
 import { BarChart, LineChart, ScatterChart } from "echarts/charts";
 import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, MarkAreaComponent } from "echarts/components";
@@ -107,23 +107,54 @@ export default function EChart({ option, onEvents, height = 260, ariaLabel }) {
   handlers.current = onEvents;
   const [theme] = useTheme();
   const appliedTheme = useRef(theme);
+  // A setOption failure leaves the ECharts instance mid-update (every later
+  // resize then warns "should not be called during main process"). Re-throw it
+  // during render so the chart-level error boundary (LazyCharts.jsx) replaces
+  // this chart and the unmount disposes the broken instance.
+  const [failure, setFailure] = useState(null);
+  if (failure) throw failure;
 
   useEffect(() => {
-    const inst = echarts.init(el.current, null, { renderer: "canvas" });
+    const node = el.current;
+    const inst = echarts.init(node, null, { renderer: "canvas" });
     chart.current = inst;
     const names = ["click", "datazoom"];
     names.forEach((n) => inst.on(n, (p) => handlers.current?.[n]?.(p, inst)));
-    const ro = new ResizeObserver(() => inst.resize());
-    ro.observe(el.current);
-    return () => { ro.disconnect(); inst.dispose(); chart.current = null; };
+    // Coalesce resizes into one animation frame: never resize synchronously
+    // inside another ECharts update, and never after dispose.
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (!inst.isDisposed()) inst.resize();
+      });
+    });
+    ro.observe(node);
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(frame);
+      chart.current = null;
+      // After a failed setOption the instance is half-built and ECharts' own
+      // dispose can throw (e.g. InsideZoomView._clear); the original error has
+      // already been logged and shown by the boundary, so don't let cleanup
+      // raise a second, misleading uncaught error.
+      try { inst.dispose(); } catch (err) { console.warn(`[CHART_ERROR] phase=dispose message=${err?.message}`); }
+    };
   }, []);
 
   useEffect(() => {
-    if (!chart.current || !option) return;
+    const inst = chart.current;
+    if (!inst || inst.isDisposed() || !option) return;
     const themeChanged = appliedTheme.current !== theme;
     appliedTheme.current = theme;
-    chart.current.setOption(themeOption(option, theme), themeChanged ? { notMerge: true } : { notMerge: false, replaceMerge: ["series", "xAxis", "yAxis", "dataZoom"] });
-  }, [option, theme]);
+    try {
+      inst.setOption(themeOption(option, theme), themeChanged ? { notMerge: true } : { notMerge: false, replaceMerge: ["series", "xAxis", "yAxis", "dataZoom"] });
+    } catch (err) {
+      console.error(`[CHART_ERROR] chart="${ariaLabel || "unknown"}" phase=setOption message=${err?.message}`);
+      setFailure(err instanceof Error ? err : new Error(String(err)));
+    }
+  }, [option, theme, ariaLabel]);
 
   return <div ref={el} role="img" aria-label={ariaLabel} style={{ width: "100%", height }} />;
 }

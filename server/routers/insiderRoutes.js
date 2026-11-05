@@ -27,7 +27,7 @@ import { queryTransactions, getTransactionById } from "../services/edgar/insider
 import { lookupTicker as defaultLookupTicker, CompanyLookupUnavailable } from "../services/edgar/companyTickers.js";
 import { companyInsights, rowsForCompany } from "../services/edgar/insiderInsights.js";
 import { describeMarketData } from "../services/stockData/stockDataProvider.js";
-import { createScreener, screenCompanies } from "../services/edgar/companyScreener.js";
+import { createScreener, screenCompanies, parseScreenerQuery } from "../services/edgar/companyScreener.js";
 import { createBacktestRouter } from "./backtestRoutes.js";
 
 const router = express.Router();
@@ -76,12 +76,49 @@ export function companyInsightsHandler({ lookupTicker = defaultLookupTicker, sna
 // value / dates over a trade-date or filing-date window, with SEC coverage.
 // Read-only over the published snapshot; the issuer index is rebuilt once per
 // snapshot version.
+//
+// Results are memoized in a small LRU keyed by everything screenCompanies'
+// output depends on: snapshot version, the normalized options (which include
+// the Eastern "today" and, for 1d filing-date windows, the 24 h cut-off), and
+// the coverage inputs taken from the ingest status. A weak ETag over the same
+// key answers If-None-Match with 304 BEFORE anything is screened or serialized.
+const COMPANIES_CACHE_MAX = 50;
+
+export function companiesCacheKey(version, opt, ingest, now) {
+  const pollMs = ingest?.pollIntervalMs || 60_000;
+  const livePollOk = !!ingest?.lastPollAt && now - Date.parse(ingest.lastPollAt) <= pollMs * 3;
+  return JSON.stringify([version, opt, {
+    coverage: ingest?.coverage || [], noIndexDays: ingest?.noIndexDays || [],
+    latestIndexDay: ingest?.recovery?.latestExpectedDay ?? null, livePollOk,
+  }]);
+}
+
 export function companiesHandler({ snapshot = getSnapshot, ingestStatus = getIngestStatus, issuersOf = createScreener(), now = () => Date.now() } = {}) {
+  const cache = new Map(); // key → screenCompanies result, LRU order
   return (req, res, next) => {
     try {
       const snap = snapshot();
-      const r = screenCompanies({ issuers: issuersOf(snap), query: req.query, ingest: ingestStatus(), now: now() });
-      if (r.error) return res.status(400).json({ error: r.error });
+      const ingest = ingestStatus();
+      const nowMs = now();
+      // ?win=… makes screenCompanies treat the query itself as parsed options — keep that path uncached.
+      const opt = req.query.win ? null : parseScreenerQuery(req.query, nowMs);
+      if (opt?.error) return res.status(400).json({ error: opt.error });
+      let r, key = null;
+      if (opt) {
+        key = companiesCacheKey(snap.version, opt, ingest, nowMs);
+        const etag = `W/"c${snap.version}-${crypto.createHash("sha1").update(key).digest("base64url").slice(0, 22)}"`;
+        res.set("Cache-Control", "no-cache");
+        res.set("ETag", etag);
+        if (ifNoneMatch(req.get("If-None-Match"), etag)) return res.status(304).end();
+        r = cache.get(key);
+        if (r) cache.delete(key); // refresh LRU position
+      }
+      if (!r) r = screenCompanies({ issuers: issuersOf(snap), query: req.query, ingest, now: nowMs });
+      if (r.error) { res.removeHeader("ETag"); return res.status(400).json({ error: r.error }); }
+      if (key) {
+        cache.set(key, r);
+        while (cache.size > COMPANIES_CACHE_MAX) cache.delete(cache.keys().next().value);
+      }
       res.set("Cache-Control", "no-cache");
       res.json({ ...r, snapshotVersion: snap.version });
     } catch (err) { next(err); }
@@ -91,6 +128,35 @@ export function companiesHandler({ snapshot = getSnapshot, ingestStatus = getIng
 export function transactionsEtag(version, query, status) {
   const h = crypto.createHash("sha1").update(JSON.stringify(query ?? {})).update("\n").update(JSON.stringify(status ?? null)).digest("base64url");
   return `W/"v${version}-${h.slice(0, 22)}"`;
+}
+
+// Query with keys in a fixed order: the response depends only on the values.
+export function normalizeQuery(query) {
+  const q = query ?? {};
+  return Object.fromEntries(Object.keys(q).sort().map((k) => [k, q[k]]));
+}
+
+// The part of the ingest status the ETag tracks: the fields the client renders
+// (StatusBar / KpiStrip / feed polling: processing, queueLength, lastPollError,
+// pollIntervalMs, filingsStored, coverage, dataVersion) — NOT the telemetry that
+// changes on every SEC request (edgar / latency / cache / throttle counters).
+// lastPollAt changes on every 60 s poll; it is tracked in 5-minute buckets so an
+// unchanged snapshot revalidates as 304 while the "Last SEC poll" fallback (the
+// stream heartbeat carries the live value) is never more than one bucket behind.
+export const LAST_POLL_BUCKET_MS = 5 * 60_000;
+export function etagStatus(status) {
+  if (!status) return null;
+  const lastPoll = status.lastPollAt ? Date.parse(status.lastPollAt) : NaN;
+  return {
+    dataVersion: status.dataVersion ?? null,
+    processing: status.processing ?? null,
+    queueLength: status.queueLength ?? null,
+    lastPollError: status.lastPollError ?? null,
+    pollIntervalMs: status.pollIntervalMs ?? null,
+    filingsStored: status.filingsStored ?? null,
+    coverage: status.coverage ?? null,
+    lastPollBucket: Number.isFinite(lastPoll) ? Math.floor(lastPoll / LAST_POLL_BUCKET_MS) : null,
+  };
 }
 
 // RFC 9110 §13.1.2 If-None-Match with weak comparison, evaluated by the origin.
@@ -106,7 +172,7 @@ export function ifNoneMatch(header, etag) {
 router.get("/transactions", (req, res) => {
   const snap = getSnapshot();
   const status = getIngestStatus();
-  const etag = transactionsEtag(snap.version, req.query, status);
+  const etag = transactionsEtag(snap.version, normalizeQuery(req.query), etagStatus(status));
   res.set("Cache-Control", "no-cache"); // always revalidate; never served stale from a cache
   res.set("ETag", etag);
   if (ifNoneMatch(req.get("If-None-Match"), etag)) return res.status(304).end();
