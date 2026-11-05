@@ -8,9 +8,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { alpacaCredentials, createAlpacaClient } from "../../../services/stockData/alpacaClient.js";
-import "../lib.mjs"; // loads server/.env (Alpaca credentials) the same way every research script does
-import { etParts } from "../../../services/backtest/entrySelection.js";
+// Alpaca is reached only through the research library (isolation guard: services/backtest/isolation.test.js).
+import { fetchDailyBarsRange } from "../lib.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SERVER = path.join(here, "..", "..", "..");
@@ -28,33 +27,19 @@ let out = {};
 try { out = JSON.parse(fs.readFileSync(FILE, "utf8")); } catch { out = {}; }
 out.__meta = { from: FROM, source: "Alpaca SIP daily bars, adjustment=split", startedAt: out.__meta?.startedAt || new Date().toISOString() };
 const want = wantAll.filter((s) => !(s in out));
-const creds = alpacaCredentials();
-if (!creds) { console.error("[DEEP6_BARS] Alpaca credentials missing"); process.exit(2); }
-const client = createAlpacaClient({ ...creds, perMinute: 100 });
 const end = new Date(Date.now() - 16 * 60_000).toISOString();
 const log = { invalid: skippedInvalid, invalidAtAlpaca: [], chunkErrors: [] };
 console.log(`[DEEP6_BARS] symbols=${wantAll.length} toFetch=${want.length} from=${FROM} end=${end}`);
-for (let i = 0; i < want.length; i += 100) {
-  let chunk = want.slice(i, i + 100);
-  for (let attempt = 0; attempt < 15 && chunk.length; attempt++) {
-    try {
-      const got = Object.fromEntries(chunk.map((s) => [s, []]));
-      let token = null;
-      do {
-        const r = await client.barsMultiPage(chunk, { start: `${FROM}T00:00:00Z`, end, timeframe: "1Day", adjustment: "split", pageToken: token });
-        for (const [s, bs] of Object.entries(r.bars || {})) for (const b of bs) got[s]?.push([etParts(b.t).date, b.o, b.h, b.l, b.c, b.v]);
-        token = r.next;
-      } while (token);
-      Object.assign(out, got);
-      break;
-    } catch (err) {
-      const m = /invalid symbol:\s*([A-Za-z0-9.\-/]+)/i.exec(String(err?.message || ""));
-      if (!m) { log.chunkErrors.push({ at: i, error: String(err.message).slice(0, 160) }); console.warn(`[DEEP6_BARS] chunk failed: ${String(err.message).slice(0, 120)}`); break; }
-      const bad = m[1].toUpperCase(); out[bad] = null; log.invalidAtAlpaca.push(bad); chunk = chunk.filter((s) => s !== bad);
-    }
-  }
-  fs.writeFileSync(FILE, JSON.stringify(out)); // checkpoint after every chunk
-  console.log(`[DEEP6_BARS] ${Math.min(i + 100, want.length)}/${want.length}`);
+if (want.length) {
+  const { errors } = await fetchDailyBarsRange(want, {
+    from: FROM, endIso: end, perMinute: 100,
+    onChunk: (done, total, partial) => { // checkpoint after every chunk
+      for (const [s, bs] of Object.entries(partial)) { if (!(s in out)) { out[s] = bs; if (bs === null) log.invalidAtAlpaca.push(s); } }
+      fs.writeFileSync(FILE, JSON.stringify(out));
+      console.log(`[DEEP6_BARS] ${done}/${total}`);
+    },
+  });
+  log.chunkErrors.push(...errors);
 }
 out.__meta.finishedAt = new Date().toISOString(); out.__meta.end = end;
 fs.writeFileSync(FILE, JSON.stringify(out));

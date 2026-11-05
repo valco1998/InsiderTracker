@@ -97,3 +97,8 @@ Buyer-sequence research (buyer #k per calendar month and rolling 30 days), +5/10
 
 ## Cluster + Bollinger Bands portfolio backtest (2026-11-05)
 `cluster-bollinger/`: `spec.json` (rules + definitions, hash in `.cache/research/cluster-bollinger/spec.log` before any computation), `cbLib.mjs`, `run.mjs` (variants A–D, event level + $100k portfolio, matched controls, sensitivities), `selfcheck.mjs` (8/8), `report/`. Result: full strategy −2.2% vs SPY +10.8% (Dec 2025–Nov 2026), PF 0.88, max DD −9.6%; Bollinger exits did not beat a fixed 20-session hold; earnings filter blocked (no earnings data).
+
+## Deep study 6: 12-month insider clusters + locked November 2025 test (2026-11-05)
+`deep6/`: `prereg6.json` (hash and input/code freeze hashes in `.cache/research/deep6/prereg.log`), `lib6.mjs` (deep6 inputs for the unchanged deep5 pipeline), `fetchBars.mjs` (isolated extended bars → `.cache/research/deep6/daily-bars-ext.json`, via `lib.fetchDailyBarsRange`; never touches `daily-bars.json`), `build6.mjs`, `selfcheck6.mjs` (9/9), `testNov.mjs` (one-time locked test; refuses to rerun), `pooled.mjs`, `report6.mjs`; `coverage12m.mjs` came from the backfill session.
+Result: the pre-registered replication of deep5 on unseen Nov 2025 clusters (n = 39) is NOT REPLICATED. The mean beat similar stocks (+9.7 pts) and SPY (+5.8), but this was not significant and was driven by two outliers (AP, ALMS). Medians agree with deep5 (−0.8 vs similar stocks, −6.7 vs SPY). The disclosure gap replicated (+6.6 pts). There is no statistically significant tradable edge.
+Reproduce without touching the locked outputs: copy build6/testNov with `OUT6` pointed elsewhere and compare; the outputs are identical except timestamps (verified 2026-11-05).

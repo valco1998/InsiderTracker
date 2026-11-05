@@ -149,6 +149,37 @@ export async function loadDailyBars(symbols, { from = "2025-10-01", log = consol
   for (const [s, bs] of Object.entries(cache)) if (s !== "__meta") out.set(s, bs ? new Map(bs.map((b) => [b[0], { o: b[1], h: b[2], l: b[3], c: b[4], v: b[5] }])) : null);
   return out;
 }
+// Split-adjusted Alpaca SIP daily bars for `symbols` from `from` (YYYY-MM-DD) to `endIso`, returned IN MEMORY
+// ({ SYM: [[date,o,h,l,c,v],…] | null for symbols Alpaca rejects }). Never reads or writes daily-bars.json, so a
+// study can keep its own isolated file (deep6/fetchBars.mjs). onChunk(done, total, partial) runs after each chunk.
+export async function fetchDailyBarsRange(symbols, { from, endIso, perMinute = 100, onChunk = () => {}, log = console } = {}) {
+  const creds = alpacaCredentials();
+  if (!creds) throw new Error("ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY are required in server/.env");
+  const client = createAlpacaClient({ ...creds, perMinute });
+  const out = {}, errors = [];
+  for (let i = 0; i < symbols.length; i += 100) {
+    let chunk = symbols.slice(i, i + 100);
+    for (let attempt = 0; attempt < 15 && chunk.length; attempt++) {
+      try {
+        const got = Object.fromEntries(chunk.map((s) => [s, []]));
+        let token = null;
+        do {
+          const r = await client.barsMultiPage(chunk, { start: `${from}T00:00:00Z`, end: endIso, timeframe: "1Day", adjustment: "split", pageToken: token });
+          for (const [s, bs] of Object.entries(r.bars || {})) for (const b of bs) got[s]?.push([etParts(b.t).date, b.o, b.h, b.l, b.c, b.v]);
+          token = r.next;
+        } while (token);
+        Object.assign(out, got);
+        break;
+      } catch (err) {
+        const m = /invalid symbol:\s*([A-Za-z0-9.\-/]+)/i.exec(String(err?.message || ""));
+        if (!m) { errors.push({ at: i, error: String(err.message).slice(0, 160) }); log.warn?.(`[RESEARCH_BARS] chunk failed: ${String(err.message).slice(0, 120)}`); break; }
+        out[m[1].toUpperCase()] = null; chunk = chunk.filter((s) => s !== m[1].toUpperCase());
+      }
+    }
+    await onChunk(Math.min(i + 100, symbols.length), symbols.length, out);
+  }
+  return { bars: out, errors };
+}
 // Alpaca SIP trades (exact timestamps, conditions) for one symbol in [startIso, endIso). Research only.
 let tradeClient = null;
 export async function fetchTrades(symbol, startIso, endIso, { maxPages = 3 } = {}) {
