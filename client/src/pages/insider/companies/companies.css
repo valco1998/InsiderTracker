@@ -245,3 +245,29 @@
 /* cluster evolution chart */
 .cp-evo text { font-family: var(--it-mono); }
 .cp-defs-note { grid-column: 1 / -1; }
+/* price & insider purchases drawer (TrackChart reused from Backtesting) */
+.cp-drawer.cp-drawer-wide { width: min(860px, 100vw); }
+.cp-pkpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.cp-pkpi { padding: 10px 12px; border: 1px solid var(--it-line-soft); border-radius: 10px; background: var(--it-panel); min-width: 0; }
+.cp-pkpi-label { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--it-text-3); }
+.cp-pkpi-tag { padding: 0 5px; border-radius: 4px; font-size: 9.5px; letter-spacing: 0.04em; color: var(--it-warn); background: var(--it-warn-soft); }
+.cp-pkpi-value { font-size: 20px; font-weight: 700; margin: 3px 0 2px; }
+.cp-pchart { border: 1px solid var(--it-line-soft); border-radius: 10px; padding: 10px 8px 8px; background: var(--it-panel); }
+.cp-pick { margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--cp-act); background: var(--cp-act-soft); }
+.cp-ph4 { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--it-text-3); margin-bottom: 6px; }
+.cp-pdays { list-style: none; margin: 0; padding: 0; }
+.cp-pday { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; width: 100%; min-height: 40px; padding: 6px 10px; border-radius: 8px; font-size: 12.5px; text-align: left; color: var(--it-text); border-bottom: 1px dashed var(--it-line-soft); }
+.cp-pday:hover { background: var(--it-panel); }
+.cp-pday.on { background: var(--cp-act-soft); }
+.cp-pday-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--it-text-2); }
+@media (max-width: 759px) {
+  .cp-pkpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cp-pkpi-value { font-size: 17px; }
+  .cp-ev-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cp-pday { grid-template-columns: 52px minmax(0, 1fr) auto; }
+  .cp-pday > :nth-child(3) { display: none; }
+}
+.cp-price-btn { width: 24px; height: 24px; display: inline-grid; place-items: center; border-radius: 6px; color: var(--cp-act); background: var(--cp-act-soft); flex: none; }
+.cp-price-btn:hover, .cp-price-btn:focus-visible { color: var(--it-text); background: var(--it-hover); }
+.cp-card .cp-expand-btn { width: 40px; height: 40px; }
+.cp-card .cp-price-card-btn { color: var(--cp-act); background: var(--cp-act-soft); }

@@ -247,6 +247,7 @@ export function summarizeIssuer(issuer, opt) {
     purchaseShares: a.purchaseShares,
     openMarketPurchases: buys.filter((r) => r.purchaseContext === "open_market").length,
     latestPurchaseDate: a.lastPurchase,
+    firstPurchaseDate: a.firstPurchase || null,
     latestFilingDate: buys.reduce((m, r) => { const d = lastFiled(r); return d > m ? d : m; }, "") || null,
     roles: Object.entries(a.byRole).filter(([, v]) => v.buyers > 0).map(([role, v]) => ({ role, buyers: v.buyers })),
     topBuyers: a.buyers.slice(0, 3).map((b) => ({ name: b.name, roles: b.roles, value: b.value })),

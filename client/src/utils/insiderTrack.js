@@ -108,3 +108,43 @@ export function publicationPoints(events = []) {
   }
   return [...groups.values()].sort((a, b) => a.x.localeCompare(b.x));
 }
+
+// ---------- company timeline KPIs (Companies page) ----------
+// All % values are relative to the FIXED baseline (first purchase's trade-date close), so a
+// return from any later point P to the last close is (1 + last) / (1 + P) − 1 — the same
+// split-adjusted closes, nothing re-fetched or estimated. null when an input is missing.
+export function sinceMark(track, pctAtMark) {
+  const last = track?.stats?.changePct;
+  if (!Number.isFinite(last) || !Number.isFinite(pctAtMark) || 1 + pctAtMark <= 0) return null;
+  return (1 + last) / (1 + pctAtMark) - 1;
+}
+
+export function companyReturns(track) {
+  const s = track?.stats;
+  if (track?.status !== "ok" || !s || !Number.isFinite(s.changePct)) return null;
+  const ev = track.events || [];
+  const priced = ev.filter((e) => Number.isFinite(e.pctAtEvent));
+  const latest = priced.reduce((m, e) => (!m || e.date > m.date ? e : m), null);
+  const pubs = ev.filter((e) => Number.isFinite(e.pctAtPublication) && e.publicationPriceDate);
+  const firstPub = pubs.reduce((m, e) => (!m || e.publishedAt < m.publishedAt ? e : m), null);
+  const base = track.baseline?.date || track.series?.[0]?.date || null;
+  return {
+    // Hindsight: the trade date is known only once the Form 4 is published.
+    sinceFirst: { pct: s.changePct, from: base, fromClose: track.series?.[0]?.close ?? null, to: s.lastDate, toClose: s.lastClose ?? null },
+    // First close after the first SEC acceptance — the earliest point the public could act.
+    sinceFirstPublication: firstPub ? { pct: sinceMark(track, firstPub.pctAtPublication), from: firstPub.publicationPriceDate, publishedAt: firstPub.publishedAt } : null,
+    sinceLatest: latest && base && latest.date > base ? { pct: sinceMark(track, latest.pctAtEvent), from: latest.priceDate || latest.date, date: latest.date, insider: latest.insider } : null,
+    benchmark: Number.isFinite(s.benchmarkChangePct) ? { pct: s.benchmarkChangePct, symbol: track.benchmarkSymbol || "SPY" } : null,
+    peak: Number.isFinite(s.peakPct) ? { pct: s.peakPct, date: s.peakDate } : null,
+    trough: Number.isFinite(s.troughPct) ? { pct: s.troughPct, date: s.troughDate } : null,
+  };
+}
+
+// Messages for a company timeline without prices (never simulated).
+export const COMPANY_TRACK_STATUS_TEXT = {
+  price_data_required: "Historical prices are not available for this company on this server, so only the SEC Form 4 purchases are listed. No prices are simulated.",
+  price_data_restricted: "Price data is licensed for internal use only — the price chart is shown only on the machine running the server. The SEC purchases are listed below.",
+  no_price_symbol: "No historical price series was found for this ticker (missing ticker, delisted or renamed). The SEC purchases are listed below; no prices are simulated.",
+  no_price_data: "The price series for this ticker has no usable daily closes. No prices are simulated.",
+  no_baseline_price: "The price history does not reach back to the first purchase's trade date, so no baseline can be set. No prices are simulated.",
+};

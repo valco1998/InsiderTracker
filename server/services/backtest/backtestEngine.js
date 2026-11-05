@@ -271,12 +271,46 @@ export function createBacktestService({
   async function track({ result, signalId, withSeries = true, barsCache = new Map() }) {
     const sig = result.signals.find((s) => s.id === signalId);
     if (!sig) return null;
-    const today = easternToday(now());
     const { anchor, clusters } = trackSignalsFor(result.signals, sig.issuerCik);
+    return buildTrack({ issuerCik: sig.issuerCik, anchor, clusters, config: result.config, withSeries, barsCache });
+  }
+
+  // Company timeline for the Companies page (no backtest run): the same pipeline as track() —
+  // purchaseEvents → price source → priceTimeline → placeEvents — anchored at the TRADE DATE of the
+  // first purchase on/after `from`. The single "cluster" is the company's purchases in [from, to]
+  // (the screener window); it has no frozen snapshot, so later events are labelled relative to its
+  // first SEC acceptance. Retrospective by design (trade-date baseline = hindsight); the SEC
+  // publication of each purchase is placed on the first session after acceptance (pctAtPublication).
+  async function companyTrack({ cik, from, to = null, withSeries = true }) {
+    const cikNum = Number(String(cik || "").replace(/\D/g, ""));
+    if (!cikNum) return null;
+    const today = easternToday(now());
+    const end = to && to < today ? to : today;
+    const ctx = dataset();
+    const own = ctx.snap.economic.filter((r) => r.code === "P" && Number(r.issuerCik) === cikNum && r.amendment?.status !== "superseded"
+      && r.transactionDate >= from && r.transactionDate <= end);
+    if (!own.length) return null;
+    const byDate = [...own].sort((a, b) => a.transactionDate.localeCompare(b.transactionDate));
+    const accepted = own.map((r) => String(knownAtOf(r, ctx.dataset.acceptedAtByAccession) || r.acceptedAtET || "").replace(/\s*ET$/, "")).filter(Boolean).sort();
+    const newest = [...own].sort((a, b) => String(b.acceptedAtET || "").localeCompare(String(a.acceptedAtET || "")))[0];
+    const windowFrom = byDate[0].transactionDate, clusterTo = byDate[byDate.length - 1].transactionDate;
+    const publishedAt = accepted[0] ? `${accepted[0]} ET` : null;
+    const anchor = {
+      id: `company:${cikNum}:${windowFrom}`, windowFrom, windowTo: end, ticker: newest.ticker || byDate[0].ticker || null,
+      issuerName: newest.issuerName || byDate[0].issuerName || null, publishedAt, publishedDate: accepted[0] ? accepted[0].slice(0, 10) : windowFrom,
+    };
+    const cluster = { ...anchor, clusterTo, entryDate: publishedAt ? entrySessionFor(publishedAt) : null, uniqueBuyers: new Set(own.map((r) => r.insiderCik || r.insiderName)).size, valueUsd: own.reduce((s, r) => s + (r.priceCheck?.status === "anomaly" ? 0 : r.value || 0), 0) };
+    const t = await buildTrack({ issuerCik: own[0].issuerCik, anchor, clusters: [cluster], config: {}, withSeries });
+    return { ...t, scope: "company", window: { from, to: end } };
+  }
+
+  async function buildTrack({ issuerCik, anchor, clusters, config = {}, withSeries = true, barsCache = new Map() }) {
+    const sig = { issuerCik };
+    const today = easternToday(now());
     const ctx = dataset();
     const events = purchaseEvents({
       rows: ctx.snap.economic, issuerCik: sig.issuerCik, from: anchor.windowFrom, to: today, clusters,
-      acceptedAtByAccession: ctx.dataset.acceptedAtByAccession, config: result.config,
+      acceptedAtByAccession: ctx.dataset.acceptedAtByAccession, config,
     });
     const provider = getProvider();
     const out = {
@@ -762,7 +796,7 @@ export function createBacktestService({
   }
 
   return {
-    status, run, track, current, publicationNow, eventStudy, ipoContext, coverageByMonth, normalize: (b) => normalizeRunConfig(b, now()),
+    status, run, track, companyTrack, current, publicationNow, eventStudy, ipoContext, coverageByMonth, normalize: (b) => normalizeRunConfig(b, now()),
     monthlyStudy, normalizeStudy: (b) => normalizeStudyConfig(b, now()), owners, ownerProfile,
   };
 }

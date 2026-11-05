@@ -3,7 +3,7 @@
 // (returns, sparkline) is not rendered — no display-licensed price source is configured.
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router-dom";
-import { LuX, LuExternalLink, LuInfo, LuTriangleAlert, LuShieldCheck, LuFileSearch, LuChevronRight } from "react-icons/lu";
+import { LuX, LuExternalLink, LuInfo, LuTriangleAlert, LuShieldCheck, LuFileSearch, LuChevronRight, LuChartLine } from "react-icons/lu";
 import api from "../../../lib/api";
 import { compactUsd, count, price as fmtPrice, shortDay, acceptedShort, ago } from "../../../utils/insiderFormat";
 import { CONF, QUALITY_FLAG, CLUSTER_DEF, MOMENTUM, PURCHASE_TYPE, ROLE_TITLE, roleChips, evolutionPoints, holdingsLabel, etToIso } from "../../../utils/companiesEvidence";
@@ -115,7 +115,7 @@ function FlagList({ flags = [] }) {
   });
 }
 
-export function ExpandedRow({ c, onEvidence }) {
+export function ExpandedRow({ c, onEvidence, onPrice }) {
   const types = c.purchaseTypes || {};
   return (
     <div className="cp-x">
@@ -151,7 +151,8 @@ export function ExpandedRow({ c, onEvidence }) {
           {c.avgPrice != null && <div className="cp-row" style={{ justifyContent: "space-between" }}><span className="it-dim">Insiders&rsquo; average price</span><b className="it-num">{fmtPrice(c.avgPrice)}</b></div>}
           <FlagList flags={c.quality?.flags} />
         </div>
-        <button className="it-btn" style={{ marginTop: 12, width: "100%", height: 34 }} onClick={onEvidence}><LuFileSearch size={15} />Open evidence (SEC rows)</button>
+        {onPrice && <button className="it-btn it-btn-primary" style={{ marginTop: 12, width: "100%", height: 34 }} onClick={onPrice}><LuChartLine size={15} />Price chart &amp; insider purchases</button>}
+        <button className="it-btn" style={{ marginTop: 8, width: "100%", height: 34 }} onClick={onEvidence}><LuFileSearch size={15} />Open evidence (SEC rows)</button>
         {c.ticker && <Link className="it-link" to={`/insider/company/${encodeURIComponent(c.ticker)}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 12, fontSize: 12.5 }} onClick={(e) => e.stopPropagation()}>Open company page<LuChevronRight size={14} /></Link>}
       </section>
     </div>
@@ -258,7 +259,7 @@ export function EvidenceDrawer({ c, params, onClose }) {
 }
 
 // ---------------------------------------------------------------- mobile card
-export function MobileCard({ c, onEvidence, onOpen }) {
+export function MobileCard({ c, onEvidence, onPrice, onOpen }) {
   const pub = etToIso(c.latestAcceptedAt);
   return (
     <div className="cp-card" role="button" tabIndex={0} onClick={onOpen} onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}>
@@ -282,7 +283,10 @@ export function MobileCard({ c, onEvidence, onOpen }) {
           <RoleChips roles={c.roles} />
           <span className="cp-small">{pub ? `Published ${ago(pub)}` : `Filed ${shortDay(c.latestFilingDate)}`} · {count(c.purchaseTransactions)} purchase{c.purchaseTransactions === 1 ? "" : "s"}</span>
         </div>
-        <button className="cp-expand-btn" aria-label={`Evidence for ${c.ticker || c.name}`} onClick={(e) => { e.stopPropagation(); onEvidence(); }}><LuFileSearch size={15} /></button>
+        <div className="cp-row" style={{ gap: 6 }}>
+          {onPrice && <button className="cp-expand-btn cp-price-card-btn" aria-label={`Price chart and insider purchases for ${c.ticker || c.name}`} onClick={(e) => { e.stopPropagation(); onPrice(); }}><LuChartLine size={15} /></button>}
+          <button className="cp-expand-btn" aria-label={`Evidence for ${c.ticker || c.name}`} onClick={(e) => { e.stopPropagation(); onEvidence(); }}><LuFileSearch size={15} /></button>
+        </div>
       </div>
     </div>
   );

@@ -248,3 +248,51 @@ test("without split factors the vendor's split+dividend-adjusted close is used �
   assert.equal(t.adjustment, "split_and_dividend");
   close(t.stats.changePct, 0.3);
 });
+
+// ---------- company timeline (Companies page; no backtest run) ----------
+test("company track: same pipeline, anchored at the first purchase in the window; licence + validation on the API", async () => {
+  const service = svc({ ...fakeProvider({ SPY, ACME }), licence: "internal" });
+  const t = await service.companyTrack({ cik: "5000", from: "2026-03-01", to: "2026-10-31" });
+  assert.equal(t.scope, "company");
+  assert.equal(t.status, "ok");
+  assert.equal(t.startDate, "2026-03-02", "trade date of the first purchase, not the window start");
+  assert.equal(t.baseline.adjClose, 20, "market close, not the $5 Form 4 price");
+  assert.equal(t.clusters.length, 1);
+  assert.equal(t.clusters[0].publishedAt, "2026-03-04 17:00:00 ET", "earliest SEC acceptance of the window's purchases");
+  assert.equal(t.events.length, 6);
+  close(t.events.find((e) => e.date === "2026-06-01").pctAtEvent, 0.3);
+  assert.ok(t.events.every((e) => e.publishedAt && e.publishedAt >= `${e.date}`), "trade date and SEC publication kept separately");
+  close(t.stats.changePct, 0.3);
+  // window later than the first purchases → anchored at the first purchase inside it
+  const later = await service.companyTrack({ cik: "5000", from: "2026-05-01" });
+  assert.equal(later.startDate, "2026-06-01");
+  assert.equal(later.baseline.adjClose, 26);
+  assert.equal(await service.companyTrack({ cik: "5000", from: "2026-10-01" }), null, "no purchases → null");
+  assert.equal(await service.companyTrack({ cik: "9999", from: "2026-01-01" }), null);
+  // a track() from a run is unchanged by the refactor (same events and stats)
+  const result = await service.run(service.normalize({ from: "2026-01-01", to: "2026-10-31" }).config);
+  const runT = await service.track({ result, signalId: result.signals[0].id });
+  assert.deepEqual(runT.events.map((e) => [e.date, e.pctAtEvent]), t.events.map((e) => [e.date, e.pctAtEvent]));
+
+  const app = express();
+  app.use("/bt", createBacktestRouter({ service, now: () => NOW, log: { log() {}, error() {} } }));
+  const srv = app.listen(0, "127.0.0.1");
+  await new Promise((r) => srv.once("listening", r));
+  try {
+    const base = `http://127.0.0.1:${srv.address().port}/bt/company`;
+    const local = await (await fetch(`${base}/5000/track?from=2026-03-01`)).json();
+    assert.equal(local.status, "ok");
+    assert.ok(local.series.length > 100);
+    const proxied = await (await fetch(`${base}/5000/track?from=2026-03-01`, { headers: { "X-Forwarded-For": "203.0.113.9" } })).json();
+    assert.equal(proxied.status, "price_data_restricted");
+    assert.deepEqual(proxied.series, []);
+    assert.ok(proxied.events.every((e) => !("pctAtEvent" in e) && !("pctAtPublication" in e)), "no price-derived returns for non-local viewers");
+    assert.ok(local.events.some((e) => Number.isFinite(e.pctAtPublication)));
+    assert.equal((await fetch(`${base}/5000/track?from=2026-10-01`)).status, 404);
+    for (const q of ["/5000/track", "/5000/track?from=bad", "/abc/track?from=2026-03-01", "/5000/track?from=2026-05-01&to=2026-04-01", "/5000/track?from[$gt]=x"]) {
+      const r = await fetch(`${base}${q}`);
+      assert.equal(r.status, 400, q);
+      assert.deepEqual(Object.keys(await r.json()), ["error"]);
+    }
+  } finally { srv.close(); }
+});

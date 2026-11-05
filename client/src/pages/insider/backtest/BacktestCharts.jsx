@@ -69,22 +69,29 @@ export function ReturnDistributionChart({ signals, horizon, height = 260 }) {
 // Grey dashed "SEC n" = SEC acceptance date of signal n; blue dashed = backtest entry.
 // Colors: stock #3987e5, benchmark #d95926, purchases #12ae75 — validated together
 // on #10151f (all-pairs CVD ΔE ≥ 8.7); purchases also differ by shape (triangles).
-export function TrackChart({ track, events, height = 340 }) {
+// Company scope (Companies page, track.scope === "company"): no backtest run → no signal
+// snapshot and no backtest entry line; every SEC publication is one kind. onPickEvent(date)
+// (optional) is called when a purchase marker is clicked. compact: one scrolling legend line (phones).
+export function TrackChart({ track, events, height = 340, onPickEvent, compact = false }) {
+  const company = track.scope === "company";
   const series = track.series || [];
   const missing = track.missingSessions || [];
-  const points = eventPoints(events ?? track.events);
+  const evs = events ?? track.events ?? [];
+  const points = eventPoints(evs);
   // SEC publications, plotted at the first session after each acceptance (never earlier).
-  const pubs = publicationPoints(events ?? track.events);
+  const pubs = publicationPoints(company ? evs.map((e) => (e.signalRole === "amendment_of_signal_purchase" ? e : { ...e, signalRole: "subsequent_publication" })) : evs);
   const pubSignal = pubs.filter((g) => g.kind === "signal"), pubLater = pubs.filter((g) => g.kind === "later");
+  const PUB_LATER = company ? "SEC publication (Form 4 accepted)" : "SEC publication · later";
+  const BUY = "Insider purchase (trade date)";
   const spans = clusterSpans(track.clusters, series);
-  const markers = signalMarkers(track.clusters, series);
+  const markers = signalMarkers(track.clusters, series).filter((m) => !company || m.kind !== "entry");
   const hasBench = series.some((p) => p.benchmarkPct != null);
   const byDate = new Map(series.map((p) => [p.date, p]));
   const last = series[series.length - 1];
   const option = {
     ...baseOption,
-    grid: { left: 52, right: 104, top: 44, bottom: 30 },
-    legend: { top: 0, left: 0, itemWidth: 14, itemHeight: 8, textStyle: { color: C.text2, fontSize: 11 }, data: [`${track.symbol} vs baseline`, ...(hasBench ? [`${track.benchmarkSymbol} same period`] : []), "Insider purchase (trade date)", ...(pubSignal.length ? ["SEC publication · in signal"] : []), ...(pubLater.length ? ["SEC publication · later"] : [])] },
+    grid: { left: compact ? 44 : 52, right: compact ? 84 : 104, top: compact ? 36 : 44, bottom: 30 },
+    legend: { top: 0, left: 0, itemWidth: 14, itemHeight: 8, textStyle: { color: C.text2, fontSize: 11 }, ...(compact ? { type: "scroll", pageIconColor: C.text2, pageIconInactiveColor: C.text3, pageTextStyle: { color: C.text3 } } : {}), data: [`${track.symbol} vs baseline`, ...(hasBench ? [`${track.benchmarkSymbol} same period`] : []), BUY, ...(pubSignal.length ? ["SEC publication · in signal"] : []), ...(pubLater.length ? [PUB_LATER] : [])] },
     tooltip: {
       ...baseOption.tooltip, trigger: "axis", axisPointer: { type: "line", lineStyle: { color: C.axis } },
       formatter: (ps) => {
@@ -95,7 +102,7 @@ export function TrackChart({ track, events, height = 340 }) {
         const line = p ? `<div><span style="display:inline-block;width:8px;height:2px;margin-right:6px;vertical-align:middle;background:${STRATEGY}"></span>${track.symbol}: <b>${pct(p.pct)}</b> · close $${p.close}</div>`
           + (p.benchmarkPct != null ? `<div><span style="display:inline-block;width:8px;height:2px;margin-right:6px;vertical-align:middle;background:${BENCH}"></span>${track.benchmarkSymbol}: <b>${pct(p.benchmarkPct)}</b></div>` : "") : "";
         const evs = ev.map((g) => `<div style="margin-top:4px;color:${C.text}">▲ ${g.purchases} purchase${g.purchases === 1 ? "" : "s"} on ${shortDay(g.date)}: ${g.insiders.slice(0, 3).join(", ")}${g.insiders.length > 3 ? " …" : ""}${g.priceBasis && g.priceBasis !== "same_day" ? ` <span style="color:${C.text3}">(vs close of ${shortDay(g.priceDate)})</span>` : ""}</div>`).join("");
-        const pv = pubs.filter((g) => g.x === d).map((g) => `<div style="margin-top:4px;color:${g.kind === "signal" ? C.text : C.text2}">${g.kind === "signal" ? "◆ SEC publication in the signal" : "○ Later SEC publication"}${g.corrections ? ` (${g.corrections} Form 4/A correction${g.corrections === 1 ? "" : "s"})` : ""}: ${g.publishedAt.slice(0, 3).join(", ")}${g.publishedAt.length > 3 ? " …" : ""} · ${g.insiders.slice(0, 3).join(", ")}</div>`).join("");
+        const pv = pubs.filter((g) => g.x === d).map((g) => `<div style="margin-top:4px;color:${g.kind === "signal" ? C.text : C.text2}">${g.kind === "signal" ? "◆ SEC publication in the signal" : company ? "○ SEC publication (Form 4 accepted)" : "○ Later SEC publication"}${g.corrections ? ` (${g.corrections} Form 4/A correction${g.corrections === 1 ? "" : "s"})` : ""}: ${g.publishedAt.slice(0, 3).join(", ")}${g.publishedAt.length > 3 ? " …" : ""} · ${g.insiders.slice(0, 3).join(", ")}</div>`).join("");
         return head + line + evs + pv;
       },
     },
@@ -111,7 +118,7 @@ export function TrackChart({ track, events, height = 340 }) {
           data: [
             { yAxis: 0, lineStyle: { color: C.text3, type: "solid", width: 1 }, label: { formatter: "0 % = baseline", position: "insideEndBottom", color: C.text3, fontSize: 10 } },
             ...markers.map((m) => ({ xAxis: m.date, lineStyle: { color: m.kind === "published" ? C.text2 : C.accent, type: "dashed", width: 1 },
-              label: m.kind === "published" ? { formatter: `SEC ${m.cluster + 1}`, position: "end", color: C.text2, fontSize: 10 } : { show: false } })),
+              label: m.kind === "published" ? { formatter: company ? "1st SEC filing" : `SEC ${m.cluster + 1}`, position: "end", color: C.text2, fontSize: 10 } : { show: false } })),
           ],
         },
         markArea: { silent: true, itemStyle: { color: "rgba(18,174,117,0.08)" }, label: { show: false }, data: spans.map((sp) => [{ xAxis: sp.from }, { xAxis: sp.to }]) },
@@ -122,7 +129,7 @@ export function TrackChart({ track, events, height = 340 }) {
         endLabel: { show: true, formatter: () => `${track.benchmarkSymbol} ${pct(last.benchmarkPct, 1)}`, color: C.text2, fontSize: 11 },
       }] : []),
       {
-        name: "Insider purchase (trade date)", type: "scatter", symbol: "triangle", z: 5,
+        name: BUY, type: "scatter", symbol: "triangle", z: 5, cursor: onPickEvent ? "pointer" : "default",
         symbolSize: (v, prm) => 10 + Math.min(6, (points[prm.dataIndex]?.purchases || 1) - 1) * 2,
         data: points.map((g) => ({ value: [g.x, g.y], itemStyle: { color: C.buy, borderColor: C.surface, borderWidth: 2 } })),
       },
@@ -132,11 +139,12 @@ export function TrackChart({ track, events, height = 340 }) {
         data: pubSignal.map((g) => ({ value: [g.x, g.y] })),
       }] : []),
       ...(pubLater.length ? [{
-        name: "SEC publication · later", type: "scatter", symbol: "emptyCircle", symbolSize: 10, z: 6,
+        name: PUB_LATER, type: "scatter", symbol: "emptyCircle", symbolSize: 10, z: 6,
         itemStyle: { color: C.text2, borderColor: C.text2, borderWidth: 1.5 },
         data: pubLater.map((g) => ({ value: [g.x, g.y] })),
       }] : []),
     ],
   };
-  return <EChart option={option} height={height} ariaLabel={`${track.symbol} change since the first insider purchase on ${track.baseline.date}, insider purchases marked on their transaction dates, SEC publications marked on the first session after acceptance`} />;
+  const onEvents = onPickEvent ? { click: (p) => { if (p.seriesName === BUY && points[p.dataIndex]) onPickEvent(points[p.dataIndex].date); } } : undefined;
+  return <EChart option={option} onEvents={onEvents} height={height} ariaLabel={`${track.symbol} change since the first insider purchase on ${track.baseline.date}, insider purchases marked on their transaction dates, SEC publications marked on the first session after acceptance`} />;
 }

@@ -6,11 +6,11 @@
 // daily indexes behind the window are not all loaded. Rows open the SEC evidence (accessions → sec.gov).
 // Kept from Wave 1: one request per query (useCompanyScreener), session-stored filters, Retry on error,
 // server-side paging ("Show more"), filters in a bottom sheet on phones.
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LuSearch, LuZap, LuUsers, LuBriefcase, LuGem, LuRepeat, LuRadar, LuChevronRight, LuX, LuBookmark,
-  LuSlidersHorizontal, LuInbox, LuRefreshCw, LuTriangleAlert, LuClock,
+  LuSlidersHorizontal, LuInbox, LuRefreshCw, LuTriangleAlert, LuClock, LuChartLine,
 } from "react-icons/lu";
 import api from "../../../lib/api";
 import { useInsider } from "../InsiderContext";
@@ -24,6 +24,9 @@ import {
 import { CLUSTER_DEF, etToIso, holdingsLabel } from "../../../utils/companiesEvidence";
 import { ActivityStrip, ClusterBadge, CompanyLogo, ConfidenceGlyph, EvidenceDrawer, ExpandedRow, MobileCard, PatternCell, RoleChips } from "./evidenceParts";
 import "./companies.css";
+
+// Price & insider purchases (Backtesting's TrackChart + ECharts) — loaded only when opened.
+const PriceDrawer = lazy(() => import("./PriceDrawer.jsx"));
 
 const STORE_KEY = "it.companiesScreen.v2";
 const SAVED_KEY = "it.companiesScreens.saved.v1";
@@ -146,6 +149,7 @@ export default function CompaniesScreener() {
   const [preset, setPreset] = useState(null);
   const [expanded, setExpanded] = useState(() => new Set());
   const [drawer, setDrawer] = useState(null);
+  const [priceFor, setPriceFor] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [saved, setSaved] = useState(() => store.get(SAVED_KEY, []));
@@ -177,6 +181,8 @@ export default function CompaniesScreener() {
   const toggleRow = (k) => setExpanded((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const onSort = (key) => patchUser(f.sort === key ? { sort: key, dir: f.dir === "desc" ? "asc" : "desc" } : { sort: key, dir: "desc" });
   const drawerCo = drawer ? list.find((c) => c.key === drawer) : null;
+  const priceCo = priceFor ? list.find((c) => c.key === priceFor) : null;
+  const closePrice = useCallback(() => setPriceFor(null), []);
   const t = data?.totals;
   const verifiedShare = t?.quality && t.companies ? t.quality.verified / t.companies : null; // older API: no quality totals → "—"
   const firstLoad = loading && !data;
@@ -340,6 +346,7 @@ export default function CompaniesScreener() {
                                   <ConfidenceGlyph status={c.quality?.status} />
                                   {c.ticker ? <Link className="cp-ticker" to={`/insider/company/${encodeURIComponent(c.ticker)}`} onClick={(e) => e.stopPropagation()}>{c.ticker}</Link> : <span className="cp-ticker">—</span>}
                                   <ClusterBadge type={c.clusterType} />
+                                  <button className="cp-price-btn" title="Stock price performance with insider purchases marked" aria-label={`Price chart and insider purchases for ${c.ticker || c.name}`} onClick={(e) => { e.stopPropagation(); setPriceFor(c.key); }}><LuChartLine size={14} /></button>
                                 </div>
                                 <div className="cp-co-name" title={c.name}>{c.name}</div>
                               </div>
@@ -368,14 +375,14 @@ export default function CompaniesScreener() {
                           {f.showSales && <td className="num"><div className="it-num" style={{ color: c.saleValue ? "var(--it-sell)" : "var(--it-text-3)" }}>{c.saleValue ? compactUsd(c.saleValue) : "—"}</div>{c.uniqueSellers > 0 && <div className="cp-small">{count(c.uniqueSellers)} seller{c.uniqueSellers === 1 ? "" : "s"}</div>}</td>}
                           <td><button className="cp-expand-btn" aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} ${c.ticker || c.name}`} onClick={(e) => { e.stopPropagation(); toggleRow(c.key); }}><LuChevronRight size={16} /></button></td>
                         </tr>
-                        {open && <tr className="cp-xrow"><td colSpan={colCount + 1}><ExpandedRow c={c} onEvidence={() => setDrawer(c.key)} /></td></tr>}
+                        {open && <tr className="cp-xrow"><td colSpan={colCount + 1}><ExpandedRow c={c} onEvidence={() => setDrawer(c.key)} onPrice={() => setPriceFor(c.key)} /></td></tr>}
                       </Fragment>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <ul className="cp-cards">{list.map((c) => <li key={c.key}><MobileCard c={c} onEvidence={() => setDrawer(c.key)} onOpen={() => (c.ticker ? navigate(`/insider/company/${encodeURIComponent(c.ticker)}`) : setDrawer(c.key))} /></li>)}</ul>
+            <ul className="cp-cards">{list.map((c) => <li key={c.key}><MobileCard c={c} onEvidence={() => setDrawer(c.key)} onPrice={() => setPriceFor(c.key)} onOpen={() => (c.ticker ? navigate(`/insider/company/${encodeURIComponent(c.ticker)}`) : setDrawer(c.key))} /></li>)}</ul>
             <div className="cp-pager">
               <span className="it-num">{count(list.length)} of {count(data.total)} companies</span>
               {list.length < data.total && (limit < MAX_LIMIT
@@ -415,6 +422,7 @@ export default function CompaniesScreener() {
       )}
 
       {drawerCo && <EvidenceDrawer c={drawerCo} params={q.params} onClose={() => setDrawer(null)} />}
+      {priceCo && <Suspense fallback={null}><PriceDrawer c={priceCo} from={priceCo.firstPurchaseDate || data?.window?.from} to={data?.window?.to} onClose={closePrice} /></Suspense>}
     </div>
   );
 }

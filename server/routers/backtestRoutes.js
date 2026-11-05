@@ -63,7 +63,7 @@ export function redactTrack(t) {
   if (!t || t.status !== "ok") return t;
   return {
     ...t, status: "price_data_restricted", restrictedNote: RESTRICTED_NOTE, baseline: t.baseline ? { date: t.baseline.date, requestedDate: t.baseline.requestedDate } : null,
-    stats: null, series: [], corporateActions: [], current: null, events: (t.events || []).map(({ pctAtEvent, priceDate, ...e }) => e),
+    stats: null, series: [], corporateActions: [], current: null, events: (t.events || []).map(({ pctAtEvent, priceDate, pctAtPublication, ...e }) => e),
   };
 }
 
@@ -141,6 +141,27 @@ export function createBacktestRouter({ service = createBacktestService({ live: l
     } catch (err) {
       log.error(`[BACKTEST_TRACK_FAILED] job=${j.id} error=${String(err?.message || err).slice(0, 200)}`);
       res.status(500).json({ error: "Could not build the tracking timeline" });
+    }
+  });
+
+  // Company price timeline for the Companies page (no backtest run needed): the same
+  // TrackChart pipeline (purchaseEvents → priceTimeline → placeEvents) anchored at the first
+  // code-P purchase in [from, to]. Same licence rule and redaction as the signal track.
+  router.get("/company/:cik/track", async (req, res) => {
+    const cik = String(req.params.cik || "");
+    const iso = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+    const from = iso(req.query.from), to = iso(req.query.to);
+    if (!/^\d{1,10}$/.test(cik) || !from || (req.query.to && !to) || (to && to < from)) return res.status(400).json({ error: "Invalid company or date range" });
+    const t0 = now();
+    try {
+      const t = await service.companyTrack({ cik, from, to });
+      if (!t) return res.status(404).json({ error: "No SEC Form 4 purchases for this company in the selected period" });
+      res.set("Cache-Control", "no-store");
+      res.json(pricesVisible(req, t.prices?.licence) ? t : redactTrack(t));
+      log.log(`[COMPANY_TRACK] cik=${t.issuerCik} from=${from} to=${to || "today"} status=${t.status} events=${t.eventCount} durationMs=${now() - t0}`);
+    } catch (err) {
+      log.error(`[COMPANY_TRACK_FAILED] cik=${cik} error=${String(err?.message || err).slice(0, 200)}`);
+      res.status(500).json({ error: "Could not build the price timeline" });
     }
   });
 
