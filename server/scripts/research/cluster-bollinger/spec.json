@@ -1,0 +1,68 @@
+{
+  "study": "cluster-bollinger: insider cluster buying + Bollinger Bands (20, SMA, 2.5) portfolio backtest",
+  "frozenBefore": "any signal, trade or return of this study was computed. Rules are the user's; the definitions below fill gaps the brief leaves open and are fixed here.",
+  "data": {
+    "sec": ".cache/research/deep2/sec-rows.json (Form 4 store, acceptance 2025-12-01 .. 2026-11-02; Dec 24-31 2025 missing; the Nov 2025 backfill is incomplete and not used)",
+    "prices": ".cache/research/daily-bars.json (Alpaca SIP daily, split-adjusted, 2025-10-01 .. 2026-11-03; only symbols that ever had an insider purchase)",
+    "calendar": "SPY bar dates (= NYSE sessions)"
+  },
+  "purchaseEligibility": [
+    "code P only; trade date >= 2025-12-01",
+    "drop 4/A rows re-reporting a held original; drop exact duplicate rows within a filing",
+    "drop price-anomaly flags, missing price/shares/value",
+    "drop offering/private-placement context, offering words in footnotes, prices outside the trade day's high-low range (+-3%, after allowing standard split factors), trades before listing or within 5 sessions of a new listing (deep5 lib5.rowEligibility)",
+    "drop the issuer if a 424B4 prospectus was filed within 30 days before the trade date (ipo-context cache; covers 645 issuers only)",
+    "drop SPAC / blank-check issuers by name: /acquisition (corp|co|company|inc|ltd|holdings)|blank check|\\bspac\\b|merger corp/i (no SIC 6770 data is cached; heuristic)",
+    "an insider's purchases count only if that insider's value-weighted average price in the candidate set is >= $5 (as reported)"
+  ],
+  "owners": "distinct beneficial owners via deep5 ownerGroups: CIK, joint-filing name groups, identical indirect transactions = one owner (point in time: only filings accepted <= T)",
+  "officer": "role matches /chief|\\bceo\\b|\\bcfo\\b|\\bcoo\\b|\\bcto\\b|president|\\bvp\\b|vice president|treasurer|secretary|general counsel|officer|controller/i (directors and 10% owners alone are not officers)",
+  "signal": {
+    "time": "evaluated at every SEC acceptance stamp T of the issuer, using only rows accepted <= T",
+    "window": "candidate purchases: trade date in [date(T)-14, date(T)]; the qualifying set must have its earliest trade date >= date(T)-5, so effectively trade dates in [date(T)-5, date(T)] (the 5-day rule makes the 14-day window non-binding; recorded, not changed)",
+    "base": ">= 2 distinct owners, >= 1 officer among them, total value >= $250,000",
+    "fires": "at the first T where the base rule (variant A) / base + any tier (variants B, D) holds; then no new signal for that issuer for 30 calendar days",
+    "deltaOwn": {
+      "perLine": "per owner and ownership line (D, or I + nature): pre-purchase holding = sharesOwnedAfter of the line's earliest qualifying row - that row's shares; bought = sum of shares on the line; dOwn = bought / pre",
+      "invalid": "pre <= 0 or missing sharesOwnedAfter -> that line has no valid dOwn (reported as 'new/invalid'); it still counts toward owners and value",
+      "cluster": "pooled over valid lines: sum(bought) / sum(pre). No valid line -> cluster rejected ('no valid dOwn')"
+    },
+    "tiers": {
+      "T1": "value >= 1,500,000 and owners >= 2 and dOwn >= 3%",
+      "T2": "500,000 <= value < 1,500,000 and owners >= 2 and dOwn >= 6%",
+      "T3": "250,000 <= value < 500,000 and owners >= 3 and dOwn >= 10%",
+      "assignment": "the single tier matching the value band"
+    }
+  },
+  "entry": {
+    "time": "official open of the first session whose 09:28 ET cut-off is >= T + 60 s",
+    "history": ">= 40 daily bars strictly before the entry date",
+    "chaseFilter": "variants B and D (and C/D event level): cancel if entry open > 1.07 x the cluster's value-weighted insider price, split-adjusted to the bar scale (implemented as a limit-on-open at 1.07 x VWAP)",
+    "earningsCrashFilter": "BLOCKED: no point-in-time earnings dates cached. Not applied. Proxy sensitivity only (labelled): any one-day close-to-close drop > 15% in the prior 10 sessions, earnings or not",
+    "bands": "SMA20 of closes and population SD over the last 20 completed closes before the entry date; lower/upper = SMA -/+ 2.5 SD"
+  },
+  "exits": {
+    "fixed (A, B)": "close of the 20th session (entry session = session 1); no stop",
+    "bollinger (C, D)": [
+      "take profit: limit sell at the upper band of the last completed candle; fills if high >= limit; if open >= limit, fills at the open",
+      "hard stop: lower band at entry x 0.98; fills if low <= stop; if open <= stop, fills at the open (gap)",
+      "same candle touches both: stop first",
+      "dynamic stop: close < that day's lower band -> sell at next session's open",
+      "time stop: close of the 45th session",
+      "the entry session is covered by the stop and the previous day's upper band as well"
+    ],
+    "delisting": "if bars end, exit at the last available close (flagged)"
+  },
+  "costs": "per side, by 20-session dollar volume: >=50M 5 bps, >=5M 15, >=1M 35, else 75 (spread + slippage + fees; commission $0); stop fills additionally get 25 bps adverse slippage",
+  "portfolio": {
+    "capital": 100000,
+    "A, B, C": "fixed 10% of equity per position",
+    "D": "risk 1.5% of equity; shares = floor(risk / (sizing price - stop)), sizing price = last close before entry (the open is unknown when the order is sent); trade cancelled if the open <= stop",
+    "caps": "position notional <= 20% of equity and <= cash; max 10 open; max 3 new per calendar week (Mon-Sun); same-day candidates ranked by dOwn desc; no leverage",
+    "equity": "cash + positions marked at each close"
+  },
+  "comparisons": "SPY over each trade's exact holding window; 5 matched controls per signal (deep5 method: stocks whose first insider-purchase filing was public before T, matched on dollar volume, prior 30/60d return, volatility, price) run through the same exit rules; SPY buy-and-hold for the portfolio",
+  "split": "train = entries before 2026-06-01, test = entries on/after 2026-06-01 (Jun-Nov prices were seen in earlier studies for other questions: not pristine)",
+  "sensitivity": "D with risk 1%, 1.5%, 3%; D without the 45-session time stop; D with the crash-proxy filter",
+  "stats": "issuer-clustered bootstrap for mean trade net return and for mean difference vs SPY / controls"
+}

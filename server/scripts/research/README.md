@@ -84,3 +84,16 @@ Buyer-sequence research (buyer #k per calendar month and rolling 30 days), +5/10
 - Start with `PROGRESS.md` (stages, restart procedure) and `BRIEF.md`.
 - Outputs and `findings.md` files are in `.cache/research/deep3/<area>/`.
 - Build the report with `node scripts/research/deep3/report/build.mjs`.
+
+## Deep study 4 (learning strategies from individual insider behaviour)
+- Protocol: `deep4/lib4.mjs` (design < 2026-06-15, confirmation to 08-31 after each agent's own freeze, exposed ≥ 09-01 auditor-only), `deep4/BRIEF.md`, `deep4/PROGRESS.md` (restart procedure).
+- Panel: `deep4/panel/` (point-in-time features, outcomes A/B, matched controls, history/strategy/walk-forward libraries).
+- Research: `deep4/behavior/` (profiles, style and track-record rules), `deep4/learn/` (models, walk-forward, price-confirmation rules), `deep4/audit/` (adversarial audit, single exposed run).
+- Report: `node scripts/research/deep4/report/build.mjs` → `.cache/research/deep4/report.html`.
+- Result: no strategy passed; the "+1 point vs matched controls" effect is a control-construction artefact (audit A8): the bar cache contains only insider-traded symbols, so controls are hindsight-selected.
+
+## Deep study 5: insider cluster buying and 180-day peaks (2026-11-05)
+`deep5/`: coverage audit, pre-registration (`prereg.json`, hash in `.cache/research/deep5/prereg.log`), `build.mjs` (rows → clusters on a hindsight and a public clock → 180-day outcomes → point-in-time matched controls), `selfcheck.mjs` (9/9), `analyze.mjs`, `audit/` (independent re-implementation), `report/`. Answer: clusters did not beat similar stocks (−1.3 pts over 180 days) or SPY; all 6 frozen strategies were rejected; waiting for disclosure cost +4.4 pts vs the trade-date close. See `deep5/PROGRESS.md`.
+
+## Cluster + Bollinger Bands portfolio backtest (2026-11-05)
+`cluster-bollinger/`: `spec.json` (rules + definitions, hash in `.cache/research/cluster-bollinger/spec.log` before any computation), `cbLib.mjs`, `run.mjs` (variants A–D, event level + $100k portfolio, matched controls, sensitivities), `selfcheck.mjs` (8/8), `report/`. Result: full strategy −2.2% vs SPY +10.8% (Dec 2025–Nov 2026), PF 0.88, max DD −9.6%; Bollinger exits did not beat a fixed 20-session hold; earnings filter blocked (no earnings data).

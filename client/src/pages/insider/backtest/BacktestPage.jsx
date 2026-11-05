@@ -5,7 +5,7 @@
 // No placeholder or demo performance is ever rendered — without price data the
 // page shows the signals with "Price data required".
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import useBacktest from "../../../hooks/useBacktest";
 import TrackPanel from "./TrackPanel";
 import { Disclaimer, EmptyState, ErrorNote, PageHeader, Panel, Skeleton } from "../components/Common";
@@ -16,6 +16,7 @@ import SavedStrategies from "./SavedStrategies";
 import InfoTip from "./InfoTip";
 import ScrollableTable from "./ScrollableTable";
 import { HorizonPanel, CoveragePanel } from "./HistoricalPanels";
+import MonthlyStudy from "./MonthlyStudy";
 import usePublicationNow, { pricingPending } from "../../../hooks/usePublicationNow";
 import useIpoContext from "../../../hooks/useIpoContext";
 
@@ -575,7 +576,33 @@ function Methodology({ m }) {
   );
 }
 
+// Backtesting has two modes: the user strategy builder (default) and the monthly per-buyer
+// study. The mode is kept in the URL (?mode=monthly) so a link opens the same view.
 export default function BacktestPage() {
+  const [params, setParams] = useSearchParams();
+  const mode = params.get("mode") === "monthly" ? "monthly" : "builder";
+  const setMode = (m) => setParams((p) => { const n = new URLSearchParams(p); if (m === "monthly") n.set("mode", "monthly"); else n.delete("mode"); return n; }, { replace: true });
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Backtesting mode">
+        {[["builder", "Strategy builder"], ["monthly", "Monthly buyer study"]].map(([k, l]) => (
+          <button type="button" role="tab" key={k} className="it-chip" aria-selected={mode === k} aria-pressed={mode === k} style={mode === k ? chipOn : undefined} onClick={() => setMode(k)}>{l}</button>
+        ))}
+      </div>
+      {mode === "monthly" ? (
+        <>
+          <PageHeader title="Backtesting — monthly buyer study"
+            description="Buyers whose purchases at one company, published in one calendar month, pass a dollar threshold — entered at the first open after SEC publication and tested with fixed and take-profit exits. Research only."
+            badge={<span className="it-badge it-badge-warn">Historical simulation — not live signals</span>} />
+          <MonthlyStudy />
+          <Disclaimer />
+        </>
+      ) : <StrategyBuilder />}
+    </div>
+  );
+}
+
+function StrategyBuilder() {
   const [f, set, reset, load] = useForm();
   const comparisons = useComparisons();
   const req = useMemo(() => toRunRequest(f), [f]);

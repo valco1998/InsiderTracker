@@ -22,7 +22,12 @@ import { createBacktestPriceService } from "./backtestPrices.js";
 import { sessionOf, etParts } from "./entrySelection.js";
 import { createIpoContextService } from "./ipoContext.js";
 import { horizonReturns, FIXED_HORIZONS } from "./horizonReturns.js";
-import { entrySessionFor } from "./sessionCalendar.js";
+import { entrySessionFor, isSession, previousSession } from "./sessionCalendar.js";
+import { detectMonthlySignals, fxNeeds, STUDY_DEFAULTS, PURCHASE_TYPES, PURCHASE_TYPE_LABELS } from "./monthlyStudy.js";
+import { evaluateSignal, gridSummary, ruleLabel, TP_GRID, HOLD_DAYS, FOCUS_TARGETS, COST_SCENARIOS_BPS, MOO_CUTOFF, PRICE_SCALE_BAND } from "./exitRules.js";
+import { ownerProfile as buildOwnerProfile, ownersList, pointInTimeSelection, DEFAULT_TRACK_RULE, RANK_MIN } from "./ownerProfile.js";
+import { createFxReferenceService } from "./fxReference.js";
+import { createPriorDisclosureService } from "./priorDisclosure.js";
 import { STRATEGY_EXECUTION_DEFAULTS, ENTRY_SESSIONS, availableAtIso, entrySearchStart, strategyReturn, strategySummary, assessReliability } from "./strategyReturns.js";
 
 const STRATEGY_BENCHMARK = "SPY";
@@ -106,6 +111,77 @@ export function normalizeRunConfig(body = {}, nowMs = Date.now()) {
   return { config: { from, to: to > today ? today : to, ...sig.config, ...out, entrySession, delistingPolicy, equityHorizon } };
 }
 
+// ---------------- Monthly per-buyer purchase study ----------------
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+export const STUDY_METHODOLOGY = {
+  signal: "One signal per economic buyer, issuer and calendar month: the first SEC acceptance time (ET) at which the buyer's cumulative Form 4 code-P purchase value at that issuer — counted only from filings accepted in that month and only from what was public at that moment — exceeds the threshold (default USD 1,000,000). Purchases traded before the month count when their filing was published in it. Joint filers and confirmed duplicate reports by related filers are one buyer (economic layer); every legal reporting owner (CIK) is kept. Form 4/A supersedes an original only from its acceptance; a Form 4/A correcting a purchase published in an earlier month is not a new purchase.",
+  value: "Value = shares × reported price. Not counted (kept and shown with the reason): missing price, price anomaly, unidentifiable foreign currency, foreign currency without a reference rate, corrections of earlier months. A price stated in a foreign currency is converted to USD with the ECB reference rate of the trade date (api.frankfurter.app; the rate date used is stored). A footnote stating that the price column holds the aggregate price is honoured.",
+  types: "No purchase is excluded for its buyer or purchase type. Each purchase is classified from the filing text (open market, 10b5-1 plan, offering, private placement, exchange of assets between trusts/entities, transfer, not stated). Code P alone does not prove an open-market purchase; exchanges and transfers are labelled as not necessarily new money.",
+  entry: `Entry = the official open of the first NYSE session whose opening auction can still be joined after publication: SEC acceptance + latency (default 60 s) must be at or before ${MOO_CUTOFF} ET on a session day, otherwise the next session. Weekends, holidays and daylight-saving time are handled by the NYSE calendar. The entry session is day 1 for fixed exits and day 0 for days-to-peak / days-to-target.`,
+  exits: `Fixed exits: close of day 1–5. Take profit: ${TP_GRID.length} targets from 1 % to 20 % in 0.5 % steps × horizons 1–5 (${TP_GRID.length * HOLD_DAYS.length} combinations), no stop. With daily bars a target is a theoretical touch: the day's high reaching the target sells at the target; an open above the target (day 2+) sells at that open; otherwise the close of the last day. A 0.5 % touch buffer is reported as a sensitivity. A stop is never part of these results.`,
+  samples: "Every rule of horizon H is compared on the same sample: priced signals whose first H sessions closed by the cutoff. Signals still inside their window are 'pending' and excluded from every rule of that horizon (counted). Equal weight per signal; a consolidated view keeps one row per stock and entry date. An average return per trade is not a monthly portfolio return.",
+  security: "Returns are computed only when the listed series matches the reported security: a security title naming another class/local series/non-common security, or an insider price outside 0.5×–2× the series' raw close on the trade date, is 'security uncertain' (N/A with reason). Missing tickers or price series are N/A with reason — never zero.",
+  returns: "Four separate measures: (a) insider mark-to-market from the reported price (split-adjusted; not realised); (b) return from the post-publication entry (the strategy basis); (c) maximum run-up in hindsight (not a strategy); (d) fixed-rule returns. All before costs ('gross'); cost scenarios of 10/25/50 bps per side are shown separately. No taxes. Dividends not included. Benchmark: SPY over the same sessions.",
+  disclosure: "Possible earlier public disclosure: the issuer's 8-K/6-K/424B/13D/13G/S-1/F-1/S-3/F-3/425 filings accepted between the first trade date and the Form 4 (SEC submissions index; content not read). Press releases outside EDGAR are not detected.",
+  prices: "Alpaca SIP daily bars (split-adjusted; raw bars for the split factor), cached separately for this study. Licence: internal use only.",
+};
+
+// Last session whose close is final at `nowMs` (16:20 ET margin).
+function lastFinalSession(nowMs) {
+  const p = etParts(new Date(nowMs).toISOString());
+  return isSession(p.date) && p.time >= "16:20:00" ? p.date : previousSession(p.date);
+}
+
+export function normalizeStudyConfig(body = {}, nowMs = Date.now()) {
+  const today = easternToday(nowMs);
+  const lastFinal = lastFinalSession(nowMs);
+  let months = body.months;
+  if (typeof months === "string") months = months.split(",").map((s) => s.trim()).filter(Boolean);
+  if (months === undefined || months === null || (Array.isArray(months) && !months.length)) {
+    const d = new Date(`${today.slice(0, 7)}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() - 1);
+    months = [d.toISOString().slice(0, 7)];
+  }
+  if (!Array.isArray(months) || months.length > 36 || months.some((m) => !MONTH_RE.test(String(m)))) return { error: "months must be a list of up to 36 YYYY-MM values" };
+  months = [...new Set(months.map(String))].sort();
+  if (months.at(-1) > today.slice(0, 7)) return { error: "months cannot be in the future" };
+  const num = (v, lo, hi, def, name) => {
+    if (v === undefined || v === null || v === "") return { v: def };
+    const n = Number(v);
+    return Number.isFinite(n) && n >= lo && n <= hi ? { v: n } : { error: `${name} must be a number from ${lo} to ${hi}` };
+  };
+  const th = num(body.thresholdUsd, 1, 1e12, STUDY_DEFAULTS.thresholdUsd, "thresholdUsd"); if (th.error) return th;
+  const lat = num(body.latencySeconds, 0, 3600, 60, "latencySeconds"); if (lat.error) return lat;
+  const cutoff = body.cutoff ? String(body.cutoff) : lastFinal;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cutoff)) return { error: "cutoff must be YYYY-MM-DD" };
+  let types = body.types;
+  if (typeof types === "string") types = types.split(",").map((s) => s.trim()).filter(Boolean);
+  if (types !== undefined && types !== null && (!Array.isArray(types) || types.some((t) => !PURCHASE_TYPES.includes(t)))) return { error: `types must be a list of: ${PURCHASE_TYPES.join(", ")}` };
+  const bool = (v, def) => (v === undefined || v === null || v === "" ? def : v === true || v === "true" || v === 1 || v === "1");
+  return {
+    config: {
+      months, thresholdUsd: th.v, latencySeconds: lat.v,
+      cutoff: cutoff > lastFinal ? lastFinal : cutoff,
+      types: types?.length ? [...new Set(types)].sort() : null,
+      newCapitalOnly: bool(body.newCapitalOnly, false),
+      priorDisclosure: bool(body.priorDisclosure, true),
+    },
+  };
+}
+
+const symbolOf = (t) => { const s = String(t || "").trim().toUpperCase().replace(/-/g, "."); return /^[A-Z][A-Z0-9.]{0,9}$/.test(s) ? s : null; };
+const addDaysIso = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+// Signal → API row (the full 195-rule grid stays server-side unless full = true).
+function studyRow({ sig, ev, disclosure }, { full = false } = {}) {
+  const { purchases, ...s } = sig;
+  const e = ev ? (full ? ev : (({ tp, tpBuffered, ...rest }) => rest)(ev)) : null;
+  return { ...s, purchases, evaluation: e, priorDisclosure: disclosure || null };
+}
+const passesTypes = (sig, cfg) => {
+  if (cfg.newCapitalOnly && !(sig.newCapitalShare > 0.5)) return false;
+  if (cfg.types && !sig.purchaseTypes.some((t) => cfg.types.includes(t))) return false;
+  return true;
+};
+
 export function createBacktestService({
   storeDir = DEFAULT_STORE_DIR,
   loadStore = () => loadHistoryStore(storeDir),
@@ -114,6 +190,8 @@ export function createBacktestService({
   quotes = createQuoteService(),
   prices = createBacktestPriceService({ tiingo: quotes }),
   ipo = createIpoContextService(),
+  fxRates = createFxReferenceService(),
+  disclosures = createPriorDisclosureService(),
   snapshotMinRebuildMs = Number(process.env.BACKTEST_SNAPSHOT_MIN_REBUILD_MS ?? 30_000),
   now = () => Date.now(),
 } = {}) {
@@ -585,5 +663,106 @@ export function createBacktestService({
     return { ...r, tracks: await trackSummaries(r), runMs: now() - started };
   }
 
-  return { status, run, track, current, publicationNow, eventStudy, ipoContext, coverageByMonth, normalize: (b) => normalizeRunConfig(b, now()) };
+  // ---- Monthly per-buyer study (monthlyStudy.js + exitRules.js) ----
+  const studyCache = new Map(); // config + data version + cutoff → evaluated study (core, all types)
+  async function studyCore(cfg, { onProgress = () => {} } = {}) {
+    const ctx = dataset();
+    const key = JSON.stringify([cfg.months, cfg.thresholdUsd, cfg.latencySeconds, cfg.cutoff, cfg.priorDisclosure, ctx.key]);
+    if (studyCache.has(key)) return studyCache.get(key);
+    const t0 = now();
+    onProgress({ stage: "signals" });
+    const rows = ctx.snap.economic;
+    const fxTable = await fxRates.getRates(fxNeeds(rows, cfg.months));
+    const det = detectMonthlySignals({
+      rows, acceptedAtByAccession: ctx.dataset.acceptedAtByAccession, months: cfg.months, thresholdUsd: cfg.thresholdUsd,
+      reportOwners: (rowId) => ctx.snap.rawById.get(rowId)?.owners, reportRow: (rowId) => ctx.snap.rawById.get(rowId),
+      fx: fxRates.lookupFrom(fxTable),
+    });
+    for (const s of det.signals) s.symbol = symbolOf(s.ticker);
+    onProgress({ stage: "prices", signals: det.signals.length });
+    const syms = [...new Set(det.signals.map((s) => s.symbol).filter(Boolean))];
+    const firstTrade = det.signals.reduce((m, s) => (s.tradeDateFrom < m ? s.tradeDateFrom : m), `${cfg.months[0]}-01`);
+    const from = addDaysIso(firstTrade, -10);
+    let split = {}, raw = {}, priceError = null;
+    try {
+      split = await prices.getDailyBars([...syms, STRATEGY_BENCHMARK], { from, adjustment: "split", through: cfg.cutoff });
+      raw = await prices.getDailyBars(syms, { from, adjustment: "raw", through: cfg.cutoff });
+    } catch (err) { priceError = "price_source_failed"; console.warn(`[MONTHLY_STUDY_PRICES] error=${String(err?.message || err).slice(0, 160)}`); }
+    const items = det.signals.map((sig) => ({
+      sig,
+      ev: evaluateSignal(sig, { bars: sig.symbol ? split[sig.symbol] : null, rawBars: sig.symbol ? raw[sig.symbol] : null, spyBars: split[STRATEGY_BENCHMARK] || null, cutoff: cfg.cutoff, latencySeconds: cfg.latencySeconds }),
+    }));
+    for (const it of items) if (it.ev.status === "na" && it.ev.naReason === "no_price_series" && priceError) it.ev.naReason = priceError;
+    if (cfg.priorDisclosure) {
+      onProgress({ stage: "disclosures" });
+      // Window: from the earliest trade date of the purchases in the filing(s) that crossed the
+      // threshold (not of every purchase in the month — a late filing can reach back years).
+      const fromDayOf = (sig) => sig.purchases.filter((p) => sig.crossingAccessions.includes(p.accessionNo)).map((p) => p.transactionDate).sort()[0] || sig.tradeDateFrom;
+      const res = await disclosures.check(items.map((it) => ({ id: it.sig.id, issuerCik: it.sig.issuerCik, fromDay: fromDayOf(it.sig), publishedAt: it.sig.publishedAt, accessionNo: it.sig.crossingAccessions[0] })));
+      for (const it of items) it.disclosure = res[it.sig.id] || null;
+    }
+    const first = `${cfg.months[0]}-01`, lastM = cfg.months.at(-1);
+    const end = new Date(Date.parse(`${lastM}-01T00:00:00Z`)); end.setUTCMonth(end.getUTCMonth() + 1); end.setUTCDate(0);
+    const core = {
+      generatedAt: new Date(now()).toISOString(), items, examined: det.examined, stats: det.stats,
+      coverage: monthlyCoverage({ from: first, to: end.toISOString().slice(0, 10), store: ctx.store, live: ctx.live, today: easternToday(now()) }),
+      prices: { provider: "alpaca_sip_daily_ohlc", adjustment: "split (raw for split factors)", licence: "internal", benchmark: STRATEGY_BENCHMARK, benchmarkAvailable: !!split[STRATEGY_BENCHMARK], error: priceError, symbolsRequested: syms.length, symbolsWithBars: syms.filter((s) => split[s]?.size).length },
+      fx: [...fxTable].map(([k, v]) => ({ key: k, ...(v || { rate: null }) })),
+      runMs: now() - t0,
+    };
+    studyCache.set(key, core);
+    while (studyCache.size > 6) studyCache.delete(studyCache.keys().next().value);
+    console.log(`[MONTHLY_STUDY] months=${cfg.months.join(",")} threshold=${cfg.thresholdUsd} signals=${items.length} priced=${items.filter((i) => i.ev.status === "ok").length} cutoff=${cfg.cutoff} durationMs=${core.runMs}`);
+    return core;
+  }
+
+  // Public study result (config from normalizeStudyConfig). full = include every signal's
+  // 195-rule grid and the examined-purchases audit list (CLI report).
+  async function monthlyStudy(cfg, { full = false, onProgress } = {}) {
+    const core = await studyCore(cfg, { onProgress });
+    const items = core.items.map((it) => ({ ...it, filtered: passesTypes(it.sig, cfg) }));
+    const inScope = items.filter((it) => it.filtered);
+    const perMonth = Object.fromEntries(cfg.months.map((m) => [m, gridSummary(inScope.filter((it) => it.sig.month === m), { view: "signal" })]));
+    return {
+      generatedAt: core.generatedAt, config: cfg, methodology: STUDY_METHODOLOGY,
+      purchaseTypes: PURCHASE_TYPES.map((t) => ({ key: t, label: PURCHASE_TYPE_LABELS[t] })),
+      grid: { targets: TP_GRID, horizons: HOLD_DAYS, focusTargets: FOCUS_TARGETS, costScenariosBps: COST_SCENARIOS_BPS, priceScaleBand: PRICE_SCALE_BAND },
+      coverage: core.coverage, prices: core.prices, fx: core.fx, stats: core.stats,
+      counts: { signals: items.length, inFilter: inScope.length },
+      summary: { signal: gridSummary(inScope, { view: "signal" }), consolidated: gridSummary(inScope, { view: "consolidated" }) },
+      perMonth,
+      selection: pointInTimeSelection(inScope, { rule: DEFAULT_TRACK_RULE }),
+      signals: inScope.map((it) => studyRow(it, { full })),
+      examined: full ? core.examined : undefined,
+      runMs: core.runMs,
+    };
+  }
+
+  // Owners: track records over every month held (default rule, threshold and latency).
+  function allMonthsConfig(body = {}) {
+    const store = loadStore();
+    const days = [...store.days.keys()].sort();
+    const months = [];
+    if (days.length) { let m = days[0].slice(0, 7); const last = easternToday(now()).slice(0, 7); while (m <= last) { months.push(m); const d = new Date(`${m}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); m = d.toISOString().slice(0, 7); } }
+    return normalizeStudyConfig({ ...body, months, priorDisclosure: false }, now());
+  }
+  async function owners(filters = {}, body = {}) {
+    const n = allMonthsConfig(body);
+    if (n.error) return n;
+    const core = await studyCore(n.config);
+    return { config: n.config, rankMin: RANK_MIN, rule: { ...DEFAULT_TRACK_RULE, label: ruleLabel(DEFAULT_TRACK_RULE) }, owners: ownersList(core.items, filters), generatedAt: core.generatedAt };
+  }
+  async function ownerProfile(cik, body = {}) {
+    const n = allMonthsConfig(body);
+    if (n.error) return n;
+    const core = await studyCore(n.config);
+    const ctx = dataset();
+    const p = buildOwnerProfile({ cik, rawRows: [...ctx.snap.rawById.values()], items: core.items });
+    return p ? { config: n.config, rankMin: RANK_MIN, rule: { ...DEFAULT_TRACK_RULE, label: ruleLabel(DEFAULT_TRACK_RULE) }, methodology: STUDY_METHODOLOGY, ...p } : null;
+  }
+
+  return {
+    status, run, track, current, publicationNow, eventStudy, ipoContext, coverageByMonth, normalize: (b) => normalizeRunConfig(b, now()),
+    monthlyStudy, normalizeStudy: (b) => normalizeStudyConfig(b, now()), owners, ownerProfile,
+  };
 }

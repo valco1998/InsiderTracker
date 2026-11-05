@@ -1,0 +1,446 @@
+<style>
+.ctrl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.ctrl button { font: 500 12.5px/1 var(--body); padding: 7px 10px; border-radius: 6px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink-2); cursor: pointer; min-height: 32px; }
+.ctrl button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.ctrl select, .ctrl input { font: 13px var(--body); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); max-width: 100%; min-height: 32px; }
+.casegrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 16px; }
+@media (max-width: 760px) { .casegrid { grid-template-columns: 1fr; } }
+.chartbox { position: relative; min-width: 0; }
+.qbox { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; margin-bottom: 12px; }
+.qbox b { display: block; }
+.clock { font: 600 10.5px/1 var(--mono); letter-spacing: .05em; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; border: 1px solid currentColor; }
+.clock.c1 { color: var(--warn); } .clock.c2 { color: var(--accent); }
+.wl { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.wl button { all: unset; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 5px 0; border-bottom: 1px solid var(--rule); font-size: 13px; }
+.wl button:hover, .wl button:focus-visible { color: var(--accent); }
+th.sort { cursor: pointer; } th.sort:hover { color: var(--accent); }
+.tblwrap { max-height: 520px; overflow: auto; }
+.tblwrap thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+</style>
+
+<div class="wrap">
+<header style="display:flex;flex-direction:column;gap:10px">
+  <div class="eyebrow">InsiderTracker · Deep study 5 · SEC Form 4 purchases Dec 2025 – Nov 2026, prices to 3 Nov 2026</div>
+  <h1>What happens in the six months after insiders buy together?</h1>
+  <p class="lede">We found every case where two or more company insiders bought the same stock within a short window for more than $250,000 combined. We then followed each stock for 180 days, from the purchase date in hindsight and from the moment the filings became public, and compared it with similar stocks and with SPY.</p>
+</header>
+
+<section class="verdict-box">
+  <b class="big">Cluster stocks often rose at some point, but no more than similar stocks did, and less than SPY over the same six months.</b>
+  <p>Half of the clusters touched +20% at some point within 180 days, and the median peak was about +24%. Similar stocks chosen the same day ended the 180 days at about the same place (−1.3 points, not significant). They also peaked higher and reached +20% more often, but that is because cluster stocks became calmer after the purchases, not because insider buying capped the upside. The 6.6-point shortfall against SPY is shared by every stock with insider filings in this period, so it is not specific to clusters. Bigger purchases did not help. More insiders gave a weak positive hint that did not survive the multiple-testing correction. The clearest finding is that the public sees the filings after part of the move: buying at the trade-date close instead of after disclosure would have added about 4.4 points over 180 days, most of it in the few days between the trades and the filing. All six frozen strategies were rejected. The sample is 108 public events in one market period (Dec 2025 – Nov 2026), so this is not strong evidence against clusters in general. It is enough evidence not to trade them now.</p>
+</section>
+
+<section>
+  <div class="kv" id="kpis"></div>
+  <p class="note" style="margin-top:10px"><span class="clock c2">Clock 2 · public</span> results start at the official open after the SEC filings that completed the cluster became public, plus 60 seconds. <span class="clock c1">Clock 1 · hindsight</span> results start at the close of the trade date that completed the cluster, before anyone outside the company knew. Peaks are the highest daily <i>high</i> reached. A touch is not a profit you could have locked in, because nobody knows in advance which day is the peak.</p>
+</section>
+
+<section>
+  <h2>Data coverage</h2>
+  <p>Only clusters whose 180-day window ended by 3 Nov 2026 (the last price bar) count as complete. That means public entry dates from 4 Dec 2025 to 7 May 2026. Younger clusters are used only at shorter horizons.</p>
+  <div class="panel scroll"><table id="covTable"></table></div>
+  <p class="note">Excluded purchase rows (before clustering): <span id="exclList"></span></p>
+</section>
+
+<section>
+  <h2>Cluster A, B and C compared</h2>
+  <div class="ctrl" id="dashCtrl"></div>
+  <div class="panel scroll"><table id="dashTable"></table></div>
+  <p class="note">Net = after a liquidity-based trading cost per side (5–100 bps). Similar stocks = 5 stocks matched on the same entry day by dollar volume, prior 30- and 60-day return, volatility and price. They are drawn from stocks that already had an insider purchase filing, so the selection uses no future information. "Union" counts each company episode once even when it qualified for several categories.</p>
+</section>
+
+<section>
+  <h2>How high did they go, and when?</h2>
+  <div class="ctrl" id="distCtrl"></div>
+  <div class="panel chartbox" id="gainBox"><h3 style="margin-top:0">Highest gain within 180 days</h3><svg id="gainSvg" role="img" aria-label="Histogram of maximum 180-day gains, clusters versus similar stocks"></svg>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Clusters</span><span><i style="background:var(--base)"></i>Similar stocks</span></div></div>
+  <div class="panel chartbox" id="peakBox" style="margin-top:14px"><h3 style="margin-top:0">Days from entry to the 180-day high</h3><svg id="peakSvg" role="img" aria-label="Histogram of days to peak"></svg>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Clusters</span><span><i style="background:var(--base)"></i>Similar stocks</span></div>
+    <p class="note" style="margin-top:8px">Even for a random price path, the highest point most often falls near the start or the end of the window. Both groups show that shape, so the timing of the peak is not something specific to insider clusters.</p></div>
+</section>
+
+<section>
+  <h2>How often each gain level was reached, day by day</h2>
+  <div class="ctrl" id="curveCtrl"></div>
+  <div class="panel chartbox" id="curveBox"><svg id="curveSvg" role="img" aria-label="Cumulative share of events that touched the selected gain"></svg>
+    <div class="legend"><span><i class="line" style="background:var(--s1)"></i>Clusters</span><span><i class="line" style="background:var(--base)"></i>Similar stocks</span></div></div>
+</section>
+
+<section>
+  <h2>Month by month</h2>
+  <p>Each month's clusters (public clock, union, full 180 days) against similar stocks and against SPY. Months with few events swing widely.</p>
+  <div class="panel chartbox" id="monthBox"><svg id="monthSvg" role="img" aria-label="Monthly 180-day results"></svg>
+    <div class="legend"><span><i style="background:var(--s1)"></i>vs similar stocks</span><span><i style="background:var(--s2)"></i>vs SPY</span></div></div>
+  <div class="panel scroll" style="margin-top:12px"><table id="monthTable"></table></div>
+</section>
+
+<section>
+  <h2>Do bigger or broader clusters do better?</h2>
+  <div class="ctrl" id="scatCtrl"></div>
+  <div class="panel chartbox" id="scatBox"><svg id="scatSvg" role="img" aria-label="Cluster size or investment versus 180-day result relative to similar stocks"></svg>
+    <div class="legend"><span><i style="background:var(--s1);border-radius:50%"></i>One cluster (public clock, full 180 days)</span></div></div>
+  <p class="note" id="scatNote"></p>
+</section>
+
+<section>
+  <h2>What a public investor could actually capture</h2>
+  <p>The same events seen two ways. In hindsight, from the trade-date close, the average 180-day return was higher. After disclosure, buyers came in after part of the move.</p>
+  <div class="panel scroll"><table id="clockTable"></table></div>
+  <div class="panel chartbox" id="horBox" style="margin-top:14px"><h3 style="margin-top:0">Public entry vs similar stocks, by holding period (all events old enough)</h3><svg id="horSvg" role="img" aria-label="Difference versus similar stocks by holding period, with 90% intervals"></svg>
+    <div class="legend"><span><i style="background:var(--s1);border-radius:50%"></i>Clusters minus similar stocks (90% interval)</span><span><i style="background:var(--s2);border-radius:50%"></i>Clusters minus SPY</span></div></div>
+</section>
+
+<section>
+  <h2>Pre-registered tests</h2>
+  <p>Every test below was written down, and its file hash logged, before any outcome was computed. q is the Benjamini–Hochberg adjusted value across all of them; q &lt; 0.10 counts as a finding.</p>
+  <div class="panel scroll tblwrap"><table id="testTable"></table></div>
+</section>
+
+<section>
+  <h2>Frozen strategies</h2>
+  <p>These rules were fixed in advance and exits were never chosen from the observed peak. Each was measured on Dec–Feb entries (design), then Mar–early May entries (confirmation, 180 days), then later entries at 90 days (extension). The periods overlap in calendar time and share one market, so a pass would only have justified paper trading.</p>
+  <div class="panel scroll"><table id="stratTable"></table></div>
+</section>
+
+<section>
+  <h2>Individual stock timelines</h2>
+  <div class="ctrl" id="tlCtrl"></div>
+  <div class="casegrid">
+    <div class="panel chartbox" id="tlBox"><svg id="tlSvg" role="img" aria-label="Price timeline with purchases, SEC filings, entry and peak"></svg>
+      <div class="legend"><span><i class="line" style="background:var(--s1)"></i>Close</span><span><i style="background:var(--s3)"></i>Insider purchase (trade date)</span><span><i class="line" style="background:var(--warn)"></i>Cluster public (SEC)</span><span><i style="background:var(--up);border-radius:50%"></i>Public entry</span><span><i style="background:var(--s2);border-radius:50%"></i>180-day high</span><span><i style="background:var(--ink-3);border-radius:50%"></i>Day 180</span></div></div>
+    <div class="panel" id="tlInfo"></div>
+  </div>
+  <h3>Biggest peaks and worst outcomes (public clock, full 180 days)</h3>
+  <div class="wl" id="wl"></div>
+</section>
+
+<section>
+  <h2>Every event</h2>
+  <div class="ctrl"><label for="q" class="muted">Search</label><input id="q" type="search" placeholder="ticker, company, A/B/C" style="min-width:220px"><span class="muted" id="qCount"></span>
+    <label class="muted"><input type="checkbox" id="onlyFull" checked> full 180 days only</label></div>
+  <div class="panel scroll tblwrap"><table id="evTable"></table></div>
+  <p class="note">Public clock, one row per company episode. Rows with a blank or partial 180-day column are not old enough yet. "vs similar" = 180-day net minus the mean of 5 matched stocks.</p>
+</section>
+
+<section>
+  <h2>Checks and independent audit</h2>
+  <div class="panel" id="checks"></div>
+</section>
+
+<section>
+  <h2>Answers</h2>
+  <div id="answers"></div>
+</section>
+
+<section>
+  <h2>Limits and the data that would change the answer</h2>
+  <ul>
+    <li><b>One market period.</b> All complete windows fall between Dec 2025 and Nov 2026, which is about 1.9 non-overlapping 180-day periods. SPY gained about 12% over the average window, so a broad rally can hide or create effects.</li>
+    <li><b>Comparison universe.</b> Prices are cached only for the 2,428 tickers that had an insider purchase at some point, not the whole market. Similar stocks come from tickers whose first purchase filing was already public, which removes the look-ahead flaw found in study 4. This group still differs from the whole market, so the SPY comparison is the cleaner benchmark for "beat the market".</li>
+    <li><b>No market cap or sector.</b> Size is approximated by dollar volume and price, and sector matching was not possible.</li>
+    <li><b>Survivorship.</b> 20 cluster tickers have no cached prices (delisted, funds, OTC) and are left out. Three series end inside their window and carry their last close.</li>
+    <li><b>Prices are split-adjusted only.</b> Dividends are not included, which understates the return of high-yield funds and banks a little.</li>
+  </ul>
+  <div class="panel" style="margin-top:10px">
+    <b>Proposed data, not downloaded and awaiting your approval:</b>
+    <ol>
+      <li><b>SEC Form 4 history for 2016–2025</b> (the SEC's free quarterly insider-transaction data sets). This would give roughly 40 quarters of clusters across several market regimes, enough for a real holdout. The bulk files may give only filing dates, not exact acceptance times; that needs checking before relying on them for the public clock.</li>
+      <li><b>Daily prices for every listed stock, including delisted ones, for the same years.</b> This allows unbiased similar-stock matching over the whole market. The current Alpaca account covers listed symbols; delisted names would need a source that keeps them.</li>
+      <li><b>Shares outstanding and SIC sector codes from SEC data (free).</b> These allow true market-cap and sector matching, and the "purchase vs company size" question.</li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <h2>Files</h2>
+  <p class="note">Scripts: <code>server/scripts/research/deep5/</code> (coverage, prereg.json, lib5, build, selfcheck, analyze, report). Outputs: <code>server/.cache/research/deep5/</code>: clusters.json, events.csv, union-clock1.csv, union-clock2.csv, stats.json, tests.csv, frozen-strategies.json, selfcheck.json, coverage/, audit/. Prereg sha256 <code id="sha"></code>.</p>
+</section>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; };
+const txt = (svg, x, y, s, a = {}) => { const t = el("text", { x, y, "font-size": 11, fill: css("--ink-3"), ...a }, svg); t.textContent = s; return t; };
+const pct = (x, d = 1) => (x == null ? "—" : (x > 0 ? "+" : "") + (x * 100).toFixed(d) + "%");
+const pc0 = (x, d = 0) => (x == null ? "—" : (x * 100).toFixed(d) + "%");
+const pts = (x, d = 1) => (x == null ? "—" : (x > 0 ? "+" : "") + (x * 100).toFixed(d) + " pts");
+const usd = (x) => (x == null ? "—" : x >= 1e6 ? "$" + (x / 1e6).toFixed(x >= 1e7 ? 0 : 1) + "M" : "$" + Math.round(x / 1e3) + "k");
+const cls = (x) => (x == null ? "" : x > 0 ? "up" : x < 0 ? "down" : "");
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const mLabel = (m) => MON[+m.slice(5, 7) - 1] + " " + m.slice(2, 4);
+const CAT = { A: "A · 2+ same day", B: "B · 3+ in 2 days", C: "C · 5+ in 7 days", U: "All (union)" };
+const TH = [10, 20, 30, 50, 100];
+function tip(box) { let t = box.querySelector(".tip"); if (!t) { t = document.createElement("div"); t.className = "tip"; t.hidden = true; box.appendChild(t); } return t; }
+function showTip(box, evt, html) { const t = tip(box); t.innerHTML = html; t.hidden = false; const r = box.getBoundingClientRect(); let x = evt.clientX - r.left + 12, y = evt.clientY - r.top + 12; if (x + 260 > r.width) x = Math.max(4, x - 280); t.style.left = x + "px"; t.style.top = y + "px"; }
+function hideTip(box) { tip(box).hidden = true; }
+function frame(boxId, svgId, H) { const box = document.getElementById(boxId), svg = document.getElementById(svgId); svg.innerHTML = ""; const W = Math.max(300, box.clientWidth - 32); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%"); return { box, svg, W, H }; }
+function gridY(svg, y, lo, hi, step, x0, x1, fmt) { for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9; v += step) { const yy = y(v); el("line", { x1: x0, x2: x1, y1: yy, y2: yy, stroke: Math.abs(v) < 1e-12 ? css("--ink-3") : css("--grid") }, svg); txt(svg, x0 - 6, yy + 4, fmt(v), { "text-anchor": "end" }); } }
+function buttons(id, opts, cur, on) { const c = document.getElementById(id); c.innerHTML = opts.map(([v, l]) => `<button type="button" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join(""); c.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { c.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b)); on(b.dataset.v); })); }
+
+// ---------- KPIs ----------
+const U2 = DATA.desc["2U"], U1 = DATA.desc["1U"];
+const tst = Object.fromEntries(DATA.tests.map((t) => [t.id, t]));
+document.getElementById("kpis").innerHTML = [
+  [U2.n, `public cluster events with a full 180 days (${U2.issuers} companies)`],
+  [pc0(U2.maxGain.median, 1), "median highest gain within 180 days"],
+  [pc0(U2.hitHigh[20]), `touched +20% (similar stocks ${pc0(U2.controls.hit20)})`],
+  [Math.round(U2.daysToMax.median) + " days", "median time to the 180-day high"],
+  [pts(tst["P1-U"].est), "180-day net vs similar stocks"],
+  [pts(tst["P2-U"].est), "180-day net vs SPY"],
+  [pts(tst["K1"].est), "lost by waiting for the SEC filing (hindsight − public)"],
+].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("");
+document.getElementById("sha").textContent = DATA.preregSha;
+
+// ---------- coverage ----------
+(() => {
+  const c = DATA.coverage, cl = DATA.clusters;
+  const row = (k, v) => `<tr><td>${k}</td><td class="w">${v}</td></tr>`;
+  const cat = (clock, k) => { const x = cl[clock][k]; return `${x.n} found · ${x.entry.ok || 0} priced · ${(x.outcome.full_180d || 0) + (x.outcome.full_180d_series_ended || 0)} full 180 days · ${x.outcome.partial || 0} partial · ${x.gap} in the Dec gap · no ticker ${x.entry.no_ticker || 0} · no prices ${x.entry.no_bars_for_symbol || 0}`; };
+  document.getElementById("covTable").innerHTML = `<tr><th>Item</th><th>Coverage</th></tr>` +
+    row("SEC filings (acceptance)", `${c.sec.first} → ${c.sec.last}; missing business days ${c.sec.missing.join(", ")} (clusters touching that gap are excluded)`) +
+    row("Purchase trade dates", `${c.sec.purchaseRows.toLocaleString()} code-P rows; trades before ${c.sec.first} can't form clusters (earlier filings unknown)`) +
+    row("Daily prices", `${c.bars.first} → ${c.bars.last}, split-adjusted, ${c.bars.symbols.toLocaleString()} symbols: only stocks that ever had an insider purchase`) +
+    row("Full 180-day window", `entry on or before ${c.maturity.latestStartWithFull180d}`) +
+    ["A", "B", "C"].map((k) => row(`Cluster ${k}, public clock`, cat(2, k))).join("") +
+    row("Main sample (public, full, gap-free)", `A ${DATA.counts["2A"]} · B ${DATA.counts["2B"]} · C ${DATA.counts["2C"]} · union ${DATA.counts["2U"]} (hindsight clock: union ${DATA.counts["1U"]})`);
+  const ex = DATA.rows.excluded; const nm = { trade_before_sec_coverage: "trade before SEC coverage", price_outside_trade_date_range: "price outside that day's trading range (not an open-market print)", price_outside_range_no_split_factor_fits: "price fits no split-adjusted range", offering_or_private_context: "offering / private placement in the filing", "4A_rereport_of_held_original": "4/A re-reporting a held original", trade_within_5_sessions_of_listing: "within 5 sessions of a new listing (IPO allocation)", no_price_or_value: "no price or value", trade_before_symbol_listed: "before the symbol listed", price_anomaly_flag: "price anomaly flag", offering_keyword_in_footnote: "offering words in footnotes", exact_duplicate_row_in_filing: "exact duplicate row" };
+  document.getElementById("exclList").textContent = Object.entries(ex).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${nm[k] || k} ${v}`).join(" · ") + `. Eligible: ${DATA.rows.eligible.toLocaleString()} of ${DATA.rows.purchaseRows.toLocaleString()}.`;
+})();
+
+// ---------- dashboard ----------
+let dashClock = "2";
+function drawDash() {
+  const rows = ["A", "B", "C", "U"].map((k) => [k, DATA.desc[dashClock + k]]);
+  const line = (label, f, cl) => `<tr><td>${label}</td>${rows.map(([k, d]) => { const v = d.n ? f(d) : "—"; return `<td class="n ${cl ? cl(d) : ""}">${v}</td>`; }).join("")}</tr>`;
+  const sub = (s) => `<tr><td colspan="5" style="padding-top:14px"><span class="eyebrow">${s}</span></td></tr>`;
+  document.getElementById("dashTable").innerHTML = `<tr><th></th>${rows.map(([k]) => `<th class="n">${CAT[k]}</th>`).join("")}</tr>` +
+    line("Independent events", (d) => d.n) + line("Companies", (d) => d.issuers) + line("Combined purchase: mean / median", (d) => `${usd(d.usdMean)} / ${usd(d.usdMedian)}`) + line("Insiders (median)", (d) => d.ownersMedian) +
+    sub("Highest daily high within 180 days (a touch, not a profit)") +
+    line("Mean / median", (d) => `${pc0(d.maxGain.mean, 1)} / ${pc0(d.maxGain.median, 1)}`) + line("25th / 50th / 75th / 90th percentile", (d) => [d.maxGain.p25, d.maxGain.p50, d.maxGain.p75, d.maxGain.p90].map((x) => pc0(x)).join(" / ")) +
+    line("Highest close: median / 90th", (d) => `${pc0(d.maxCloseGain.median, 1)} / ${pc0(d.maxCloseGain.p90)}`) +
+    line("Days to the high: mean / median", (d) => `${Math.round(d.daysToMax.mean)} / ${Math.round(d.daysToMax.median)}`) +
+    TH.map((t) => line(`Touched +${t}% (median days to first touch)`, (d) => `${pc0(d.hitHigh[t])} <span class="muted">(${d.medDaysToHit[t] ?? "—"}d)</span>`)).join("") +
+    sub("Holding 180 days") +
+    line("Median 180-day return (gross)", (d) => pct(d.ret[180].median), (d) => cls(d.ret[180].median)) + line("Mean 180-day return, net of costs", (d) => pct(d.ret[180].netMean), (d) => cls(d.ret[180].netMean)) +
+    line("SPY over the same windows", (d) => pct(d.ret[180].spyMean)) + line("Net minus SPY (mean)", (d) => pts(d.ret[180].xMean), (d) => cls(d.ret[180].xMean)) +
+    line("Similar stocks: 180-day net (mean)", (d) => (d.controls ? pct(d.controls.n180) : "—")) + line("Similar stocks: highest gain (mean)", (d) => (d.controls ? pc0(d.controls.maxGainMean, 1) : "—")) + line("Similar stocks: touched +20%", (d) => (d.controls ? pc0(d.controls.hit20) : "—")) +
+    line("Win rate (net > 0)", (d) => pc0(d.winRate180)) +
+    sub("Downside") +
+    line("Lowest low vs entry: median / 10th pct", (d) => `${pct(d.minLowRet.median)} / ${pct(d.minLowRet.p10)}`) + line("Worst close-to-close drawdown: median", (d) => pct(d.closeDrawdown.median)) +
+    line("Fell 15% below entry before the peak / after / never", (d) => `${d.sigDD.peak_after_drawdown || 0} / ${d.sigDD.peak_before_drawdown || 0} / ${d.sigDD.no_drawdown_15 || 0}`) +
+    line("Worst 180-day result", (d) => (d.worst[0] ? `${esc(d.worst[0].ticker)} ${pct(d.worst[0].r180, 0)}` : "—"), () => "down");
+}
+buttons("dashCtrl", [["2", "Public clock (after SEC filing)"], ["1", "Hindsight clock (trade date)"]], dashClock, (v) => { dashClock = v; drawDash(); });
+
+// ---------- histograms ----------
+let distCat = "2U";
+function hist(boxId, svgId, h, labels, fmtTip) {
+  const { box, svg, W, H } = frame(boxId, svgId, 240); const m = { l: 44, r: 8, t: 10, b: 34 };
+  const hi = Math.max(0.05, ...h.ev, ...h.ct) * 1.1; const y = (v) => m.t + (hi - v) / hi * (H - m.t - m.b);
+  gridY(svg, y, 0, hi, hi > 0.3 ? 0.1 : 0.05, m.l, W - m.r, (v) => Math.round(v * 100) + "%");
+  const n = h.ev.length, bw = (W - m.l - m.r) / n, w = Math.max(3, (bw - 6) / 2);
+  h.ev.forEach((v, i) => {
+    const x0 = m.l + i * bw + 2;
+    el("rect", { x: x0, y: y(v), width: w, height: Math.max(0, y(0) - y(v)), rx: 2, fill: css("--s1") }, svg);
+    el("rect", { x: x0 + w + 2, y: y(h.ct[i]), width: w, height: Math.max(0, y(0) - y(h.ct[i])), rx: 2, fill: css("--base") }, svg);
+    if (n <= 12 || i % 2 === 0) txt(svg, m.l + i * bw + bw / 2, H - m.b + 15, labels[i], { "text-anchor": "middle", "font-size": 10.5 });
+    const hit = el("rect", { x: m.l + i * bw, y: m.t, width: bw, height: H - m.t - m.b, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (e) => showTip(box, e, `<b>${fmtTip(i)}</b><br>Clusters ${pc0(v, 1)}<br>Similar stocks ${pc0(h.ct[i], 1)}`)); hit.addEventListener("mouseleave", () => hideTip(box));
+  });
+}
+function drawDist() {
+  const c = DATA.curve[distCat]; const g = c.maxGainHist; const lab = (e) => (e >= 100 ? "∞" : Math.round(e * 100) + "%");
+  hist("gainBox", "gainSvg", g, g.edges.slice(0, -1).map((e, i) => lab(e)), (i) => `${lab(g.edges[i])} to ${lab(g.edges[i + 1])}`);
+  const p = c.peakHist; hist("peakBox", "peakSvg", p, p.bins.map((b) => b + "d"), (i) => `Day ${p.bins[i]}–${p.bins[i] + 9}`);
+}
+const curveOpts = [["2A", "A"], ["2B", "B"], ["2C", "C"], ["2U", "All · public"], ["1U", "All · hindsight"]];
+buttons("distCtrl", curveOpts, distCat, (v) => { distCat = v; drawDist(); });
+
+// ---------- cumulative curves ----------
+let curveCat = "2U", curveT = "20";
+function drawCurve() {
+  const { box, svg, W, H } = frame("curveBox", "curveSvg", 280); const m = { l: 44, r: 12, t: 12, b: 32 };
+  const c = DATA.curve[curveCat], ev = c.ev[curveT], ct = c.ct[curveT];
+  const hi = Math.min(1, Math.max(0.2, ...ev.map((p) => p[1]), ...ct.map((p) => p[1] ?? 0)) * 1.08);
+  const x = (d) => m.l + d / 180 * (W - m.l - m.r), y = (v) => m.t + (hi - v) / hi * (H - m.t - m.b);
+  gridY(svg, y, 0, hi, hi > 0.5 ? 0.2 : 0.1, m.l, W - m.r, (v) => Math.round(v * 100) + "%");
+  [0, 30, 60, 90, 120, 150, 180].forEach((d) => txt(svg, x(d), H - m.b + 16, d + "d", { "text-anchor": "middle" }));
+  const path = (pts, color, dash) => el("path", { d: pts.map((p, i) => (i ? "L" : "M") + x(p[0]) + " " + y(p[1] ?? 0)).join(" "), fill: "none", stroke: color, "stroke-width": 2, ...(dash ? { "stroke-dasharray": "5 4" } : {}) }, svg);
+  path(ct, css("--base"), true); path(ev, css("--s1"));
+  const last = ev.at(-1), lastC = ct.at(-1);
+  txt(svg, x(180) - 4, y(last[1]) - 6, pc0(last[1]), { "text-anchor": "end", fill: css("--ink") });
+  const vline = el("line", { y1: m.t, y2: H - m.b, stroke: css("--ink-3"), "stroke-dasharray": "2 3", visibility: "hidden" }, svg);
+  const hit = el("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
+  hit.addEventListener("mousemove", (e) => { const r = svg.getBoundingClientRect(); const d = Math.max(0, Math.min(180, ((e.clientX - r.left) * W / r.width - m.l) / (W - m.l - m.r) * 180)); const i = ev.findIndex((p) => p[0] >= d); const k = Math.max(0, i); vline.setAttribute("x1", x(ev[k][0])); vline.setAttribute("x2", x(ev[k][0])); vline.setAttribute("visibility", "visible");
+    showTip(box, e, `<b>By day ${ev[k][0]}</b><br>Clusters touched +${curveT}%: <b>${pc0(ev[k][1])}</b><br>Similar stocks: <b>${pc0(ct[k][1])}</b>`); });
+  hit.addEventListener("mouseleave", () => { hideTip(box); vline.setAttribute("visibility", "hidden"); });
+}
+document.getElementById("curveCtrl").innerHTML = `<span id="ccA" style="display:contents"></span><span class="muted" style="margin-left:8px">gain</span><span id="ccB" style="display:contents"></span>`;
+(() => { const a = document.createElement("div"); a.className = "ctrl"; a.id = "curveCat"; a.style.margin = 0; const b = document.createElement("div"); b.className = "ctrl"; b.id = "curveTh"; b.style.margin = 0; const c = document.getElementById("curveCtrl"); c.innerHTML = ""; c.append(a, b);
+  buttons("curveCat", curveOpts, curveCat, (v) => { curveCat = v; drawCurve(); }); buttons("curveTh", TH.map((t) => [String(t), "+" + t + "%"]), curveT, (v) => { curveT = v; drawCurve(); }); })();
+
+// ---------- months ----------
+function drawMonths() {
+  const rows = DATA.months["2U"]; const { box, svg, W, H } = frame("monthBox", "monthSvg", 260); const m = { l: 48, r: 8, t: 12, b: 34 };
+  const vals = rows.flatMap((r) => [r.vsCtl, r.x180]).filter((v) => v != null); const lo = Math.min(-0.1, Math.min(...vals) * 1.1), hi = Math.max(0.1, Math.max(...vals) * 1.1);
+  const y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  gridY(svg, y, lo, hi, 0.1, m.l, W - m.r, (v) => Math.round(v * 100) + "%");
+  const bw = (W - m.l - m.r) / rows.length, w = Math.max(4, (bw - 14) / 2);
+  rows.forEach((r, i) => { const x0 = m.l + i * bw + 5; const bar = (v, xx, col) => { if (v == null) return; el("rect", { x: xx, y: Math.min(y(0), y(v)), width: w, height: Math.max(1, Math.abs(y(v) - y(0))), rx: 2, fill: col }, svg); };
+    bar(r.vsCtl, x0, css("--s1")); bar(r.x180, x0 + w + 2, css("--s2"));
+    txt(svg, m.l + i * bw + bw / 2, H - m.b + 15, mLabel(r.month), { "text-anchor": "middle", fill: css("--ink-2") }); txt(svg, m.l + i * bw + bw / 2, H - m.b + 28, "n " + r.n, { "text-anchor": "middle", "font-size": 10 });
+    const hit = el("rect", { x: m.l + i * bw, y: m.t, width: bw, height: H - m.t - m.b, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (e) => showTip(box, e, `<b>${mLabel(r.month)}</b> · ${r.n} events<br>vs similar stocks <b>${pts(r.vsCtl)}</b><br>vs SPY <b>${pts(r.x180)}</b><br>median peak ${pc0(r.maxGainMed)} (similar ${pc0(r.ctlMaxGainMed)})`)); hit.addEventListener("mouseleave", () => hideTip(box)); });
+  document.getElementById("monthTable").innerHTML = `<tr><th>Entry month</th><th class="n">Events</th><th class="n">Median 180d</th><th class="n">Net mean</th><th class="n">SPY</th><th class="n">vs SPY</th><th class="n">vs similar</th><th class="n">Median peak</th><th class="n">Similar peak</th><th class="n">+20% touched</th><th class="n">Similar +20%</th></tr>` +
+    rows.map((r) => `<tr><td>${mLabel(r.month)}</td><td class="n">${r.n}</td><td class="n ${cls(r.r180)}">${pct(r.r180)}</td><td class="n ${cls(r.n180)}">${pct(r.n180)}</td><td class="n">${pct(r.spy180)}</td><td class="n ${cls(r.x180)}">${pts(r.x180)}</td><td class="n ${cls(r.vsCtl)}">${pts(r.vsCtl)}</td><td class="n">${pc0(r.maxGainMed)}</td><td class="n">${pc0(r.ctlMaxGainMed)}</td><td class="n">${pc0(r.hit20)}</td><td class="n">${pc0(r.ctlHit20)}</td></tr>`).join("");
+}
+
+// ---------- scatter ----------
+let scatX = "owners";
+const mainEv = DATA.events.filter((e) => e.full180 && !e.gap && e.ctl180 != null);
+function drawScat() {
+  const { box, svg, W, H } = frame("scatBox", "scatSvg", 300); const m = { l: 48, r: 12, t: 12, b: 34 };
+  const fx = scatX === "owners" ? (e) => e.owners : (e) => Math.log10(e.usd);
+  const pts_ = mainEv.map((e) => ({ e, x: fx(e), y: e.n180 - e.ctl180 }));
+  const xs = pts_.map((p) => p.x), ys = pts_.map((p) => Math.max(-1, Math.min(2, p.y)));
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), lo = Math.min(-0.6, ...ys), hi = Math.max(0.6, ...ys);
+  const x = (v) => m.l + (v - x0) / (x1 - x0 || 1) * (W - m.l - m.r), y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  gridY(svg, y, lo, hi, 0.5, m.l, W - m.r, (v) => Math.round(v * 100) + "%");
+  const ticks = scatX === "owners" ? [...new Set(xs)].sort((a, b) => a - b).filter((v, i, a) => a.length < 12 || i % 2 === 0) : [5.5, 6, 6.5, 7, 7.5].filter((v) => v >= x0 && v <= x1);
+  ticks.forEach((v) => txt(svg, x(v), H - m.b + 16, scatX === "owners" ? v : usd(10 ** v), { "text-anchor": "middle" }));
+  txt(svg, W - m.r, H - 4, scatX === "owners" ? "distinct insiders" : "combined purchase (log)", { "text-anchor": "end", "font-size": 10.5 });
+  const jit = (e) => (scatX === "owners" ? ((e.id.charCodeAt(e.id.length - 1) % 7) - 3) * 2.2 : 0);
+  pts_.forEach((p) => { const c = el("circle", { cx: x(p.x) + jit(p.e), cy: y(Math.max(-1, Math.min(2, p.y))), r: 5, fill: css("--s1"), "fill-opacity": 0.7, stroke: css("--panel"), "stroke-width": 1.5 }, svg);
+    c.addEventListener("mousemove", (e) => showTip(box, e, `<b>${esc(p.e.ticker)}</b> ${esc(p.e.issuer)}<br>${p.e.owners} insiders · ${usd(p.e.usd)} · ${p.e.cats}<br>180d net ${pct(p.e.n180)} · similar ${pct(p.e.ctl180)}<br>difference <b>${pts(p.y)}</b>${p.y > 2 || p.y < -1 ? " (clipped on chart)" : ""}`)); c.addEventListener("mouseleave", () => hideTip(box)); });
+  const t = scatX === "owners" ? DATA.tests.find((t) => t.id === "D2") : DATA.tests.find((t) => t.id === "D1");
+  document.getElementById("scatNote").textContent = `Rank correlation ${t.est.toFixed(2)} (90% interval ${t.lo90.toFixed(2)} to ${t.hi90.toFixed(2)}, p ${t.p.toFixed(2)}, q ${t.q.toFixed(2)}). Vertical axis: 180-day net return minus the mean of 5 similar stocks, clipped to −100%…+200%.`;
+}
+buttons("scatCtrl", [["owners", "Number of insiders"], ["usd", "Combined purchase"]], scatX, (v) => { scatX = v; drawScat(); });
+
+// ---------- clocks ----------
+(() => {
+  const s = DATA.sens, k1 = tst["K1"];
+  const r = (a, b, c, d) => `<tr><td class="w">${a}</td><td class="n">${b}</td><td class="n">${c}</td><td class="w muted">${d}</td></tr>`;
+  document.getElementById("clockTable").innerHTML = `<tr><th>Measure (union, full 180 days)</th><th class="n"><span class="clock c1">hindsight</span></th><th class="n"><span class="clock c2">public</span></th><th>Note</th></tr>` +
+    r("Events", U1.n, U2.n, "Same company episodes seen from each clock; counts differ slightly because late filings change when a cluster qualifies") +
+    r("Median highest gain", pc0(U1.maxGain.median, 1), pc0(U2.maxGain.median, 1), "") +
+    r("Touched +20% / +50%", `${pc0(U1.hitHigh[20])} / ${pc0(U1.hitHigh[50])}`, `${pc0(U2.hitHigh[20])} / ${pc0(U2.hitHigh[50])}`, "") +
+    r("Median 180-day return", pct(U1.ret[180].median), pct(U2.ret[180].median), "") +
+    r("Mean 180-day net vs SPY", pts(U1.ret[180].xMean), pts(U2.ret[180].xMean), "") +
+    r("Mean 180-day net vs similar stocks", pts(s.clock1vsControls.est), pts(tst["P1-U"].est), "Similar stocks matched on each clock's own entry day") +
+    r("Same events: hindsight minus public 180-day return", "", pts(k1.est), `90% interval ${pts(k1.lo90)} to ${pts(k1.hi90)}, q ${k1.q.toFixed(3)}. Most of it is the move between the trade-date close and the public entry open`) +
+    r("Public entry at the first close instead of the next open", "", `${pct(s.firstCloseEntry.meanGrossFirstClose)} vs ${pct(s.firstCloseEntry.meanGrossOpen)}`, "Mean gross 180-day return, first-close entry vs open entry");
+  const hz = Object.entries(s.partialFollowUp).map(([D, v]) => ({ D: +D, ...v }));
+  const { box, svg, W, H } = frame("horBox", "horSvg", 240); const m = { l: 48, r: 12, t: 12, b: 34 };
+  const lo = Math.min(-0.1, ...hz.map((h) => h.lo90 ?? 0), ...hz.map((h) => h.spy ?? 0)), hi = Math.max(0.06, ...hz.map((h) => h.hi90 ?? 0));
+  const y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b), bw = (W - m.l - m.r) / hz.length;
+  gridY(svg, y, lo, hi, 0.05, m.l, W - m.r, (v) => Math.round(v * 100) + "%");
+  hz.forEach((h, i) => { const cx = m.l + i * bw + bw / 2;
+    el("line", { x1: cx - 6, x2: cx - 6, y1: y(h.lo90), y2: y(h.hi90), stroke: css("--s1"), "stroke-width": 2 }, svg);
+    el("circle", { cx: cx - 6, cy: y(h.est), r: 5, fill: css("--s1"), stroke: css("--panel"), "stroke-width": 2 }, svg);
+    if (h.spy != null) el("circle", { cx: cx + 8, cy: y(h.spy), r: 5, fill: css("--s2"), stroke: css("--panel"), "stroke-width": 2 }, svg);
+    txt(svg, cx, H - m.b + 15, h.D + "d", { "text-anchor": "middle", fill: css("--ink-2") }); txt(svg, cx, H - m.b + 28, "n " + h.n, { "text-anchor": "middle", "font-size": 10 });
+    const hit = el("rect", { x: m.l + i * bw, y: m.t, width: bw, height: H - m.t - m.b, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (e) => showTip(box, e, `<b>${h.D} days</b> · ${h.n} events<br>vs similar <b>${pts(h.est)}</b> (90% ${pts(h.lo90)} to ${pts(h.hi90)})<br>vs SPY <b>${pts(h.spy)}</b>`)); hit.addEventListener("mouseleave", () => hideTip(box)); });
+})();
+
+// ---------- tests & strategies ----------
+(() => {
+  const fam = { primary: "Primary", dose: "Size", subgroup: "Subgroup", timing: "Peak timing", clocks: "Clocks", strategy: "Strategy (confirm)" };
+  const names = { G1: "CEO or CFO buying", G2: "a 10% owner buying", G3: "all on one trade date", G4: "stock down ≥20% over 60 days", G5: "lowest-third liquidity", G6: "fund-like issuer", G7: "SPY above its 50-day average", G8: "filed > 7 days after the trade", G9: "10b5-1 plan purchase", G10: "top-third combined purchase" };
+  const fmt = (t) => (t.family === "dose" ? (t.est == null ? "—" : t.est.toFixed(2)) : t.id === "T1" ? (t.est == null ? "—" : (t.est > 0 ? "+" : "") + t.est.toFixed(0) + " d") : pts(t.est));
+  const ci = (t) => (t.lo90 == null ? "" : t.family === "dose" ? `${t.lo90.toFixed(2)} … ${t.hi90.toFixed(2)}` : t.id === "T1" ? `${t.lo90.toFixed(0)} … ${t.hi90.toFixed(0)} d` : `${(t.lo90 * 100).toFixed(1)} … ${(t.hi90 * 100).toFixed(1)}`);
+  document.getElementById("testTable").innerHTML = `<thead><tr><th>Test</th><th>Group</th><th>What</th><th class="n">n</th><th class="n">Estimate</th><th class="n">90% interval</th><th class="n">p</th><th class="n">q (BH)</th></tr></thead><tbody>` +
+    DATA.tests.map((t) => `<tr><td class="mono">${t.id}</td><td>${fam[t.family]}</td><td class="w">${esc(names[t.id] ? `${names[t.id]}: ${t.nYes ?? ""} yes vs ${t.nNo ?? ""} no` : t.what)}${t.p == null && t.family === "subgroup" ? ' <span class="badge warning">insufficient data</span>' : ""}</td><td class="n">${t.n ?? ""}</td><td class="n ${t.family === "dose" ? "" : cls(t.est)}">${fmt(t)}</td><td class="n muted">${ci(t)}</td><td class="n">${t.p == null ? "—" : t.p.toFixed(3)}</td><td class="n">${t.q == null ? "—" : t.q < 0.1 ? `<b>${t.q.toFixed(3)}</b>` : t.q.toFixed(3)}</td></tr>`).join("") + "</tbody>";
+  const S = DATA.strat;
+  document.getElementById("stratTable").innerHTML = `<tr><th>Rule</th><th class="w">Definition</th><th class="n">Design n · vs similar</th><th class="n">Confirm n · net · vs similar · vs SPY</th><th class="n">Confirm 90% (vs similar)</th><th class="n">Months +</th><th class="n">Extension 90d n · vs similar</th><th>Verdict</th></tr>` +
+    Object.entries(S).map(([id, s]) => `<tr><td class="mono">${id}</td><td class="w">${esc(s.rule)}${s.chosen ? ` <span class="muted">(chosen: ${esc(s.chosen)})</span>` : ""}</td><td class="n">${s.design.n} · <span class="${cls(s.design.vsCtl)}">${pts(s.design.vsCtl)}</span></td><td class="n">${s.confirm.n} · ${pct(s.confirm.net)} · <span class="${cls(s.confirm.vsCtl)}">${pts(s.confirm.vsCtl)}</span> · <span class="${cls(s.confirm.vsSpy)}">${pts(s.confirm.vsSpy)}</span></td><td class="n muted">${(s.confirm.vsCtlLo90 * 100).toFixed(1)} … ${(s.confirm.vsCtlHi90 * 100).toFixed(1)}</td><td class="n">${s.confirm.monthsPositive}/${s.confirm.months.length}</td><td class="n">${s.extension90.n} · <span class="${cls(s.extension90.vsCtl)}">${pts(s.extension90.vsCtl)}</span></td><td><span class="badge ${/REJECTED/.test(s.verdict) ? "rejected" : /INSUFF/.test(s.verdict) ? "warning" : "promising"}">${esc(s.verdict.split(" (")[0])}</span></td></tr>`).join("");
+})();
+
+// ---------- timelines ----------
+const TL = DATA.tl; let tlIdx = TL.reduce((b, t, i) => (t.maxGain > TL[b].maxGain ? i : b), 0);
+function drawTlCtrl() {
+  const c = document.getElementById("tlCtrl"); const sorted = TL.map((t, i) => [t, i]).sort((a, b) => (a[0].ticker < b[0].ticker ? -1 : 1));
+  c.innerHTML = `<label for="tlSel" class="muted">Event</label><select id="tlSel">${sorted.map(([t, i]) => `<option value="${i}" ${i === tlIdx ? "selected" : ""}>${esc(t.ticker)} · ${t.entryDate} · peak ${pc0(t.maxGain)} · 180d ${pct(t.r180, 0)}</option>`).join("")}</select>`;
+  c.querySelector("select").addEventListener("change", (e) => { tlIdx = +e.target.value; drawTl(); });
+}
+function drawTl() {
+  const k = TL[tlIdx]; const { box, svg, W, H } = frame("tlBox", "tlSvg", 320); const m = { l: 54, r: 10, t: 14, b: 40 }; const s = k.series;
+  if (!s.length) { txt(svg, W / 2, H / 2, "No cached bars", { "text-anchor": "middle" }); return; }
+  const lo = Math.min(...s.map((b) => b[3])), hi = Math.max(...s.map((b) => b[2])); const ly = Math.log;
+  const y = (v) => m.t + (ly(hi) - ly(v)) / (ly(hi) - ly(lo) || 1) * (H - m.t - m.b - 14); const dx = (W - m.l - m.r) / s.length, x = (i) => m.l + (i + 0.5) * dx;
+  const idxOf = (d) => { let i = s.findIndex((b) => b[0] >= d); return i < 0 ? s.length - 1 : i; };
+  [lo, Math.sqrt(lo * hi), hi].forEach((v) => { el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: css("--grid") }, svg); txt(svg, m.l - 6, y(v) + 4, v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toPrecision(2), { "text-anchor": "end" }); });
+  s.forEach((b, i) => el("line", { x1: x(i), x2: x(i), y1: y(b[2]), y2: y(b[3]), stroke: css("--base"), "stroke-opacity": 0.6, "stroke-width": Math.max(1, dx * 0.5) }, svg));
+  el("path", { d: s.map((b, i) => (i ? "L" : "M") + x(i) + " " + y(b[4])).join(" "), fill: "none", stroke: css("--s1"), "stroke-width": 2 }, svg);
+  const iE = idxOf(k.entryDate), iP = idxOf(k.maxDate), iEnd = Math.min(s.length - 1, idxOf(new Date(Date.parse(k.entryDate) + 180 * 864e5).toISOString().slice(0, 10)) - (s[idxOf(new Date(Date.parse(k.entryDate) + 180 * 864e5).toISOString().slice(0, 10))][0] > new Date(Date.parse(k.entryDate) + 180 * 864e5).toISOString().slice(0, 10) ? 1 : 0));
+  el("rect", { x: x(iE) - dx / 2, y: m.t, width: x(iEnd) - x(iE) + dx, height: H - m.t - m.b - 14, fill: css("--s1"), opacity: 0.05 }, svg);
+  const iT = idxOf(k.T.slice(0, 10)); el("line", { x1: x(iT), x2: x(iT), y1: m.t, y2: H - m.b - 14, stroke: css("--warn"), "stroke-width": 2, "stroke-dasharray": "4 3" }, svg);
+  const pd = [...new Set(k.purchases.map((p) => p[0]))]; pd.forEach((d) => { const i = idxOf(d); el("path", { d: `M${x(i)} ${H - m.b - 2} l-6 9 h12 z`, fill: css("--s3") }, svg); });
+  el("circle", { cx: x(iE), cy: y(s[iE][1]), r: 5.5, fill: css("--up"), stroke: css("--panel"), "stroke-width": 2 }, svg);
+  el("circle", { cx: x(iP), cy: y(s[iP][2]), r: 5.5, fill: css("--s2"), stroke: css("--panel"), "stroke-width": 2 }, svg);
+  el("circle", { cx: x(iEnd), cy: y(s[iEnd][4]), r: 5, fill: css("--ink-3"), stroke: css("--panel"), "stroke-width": 2 }, svg);
+  [0, iE, iP, iEnd].forEach((i, j, a) => { if (a.indexOf(i) !== j) return; txt(svg, Math.min(W - m.r - 24, Math.max(m.l + 24, x(i))), H - 6, s[i][0].slice(2), { "text-anchor": "middle", "font-size": 10 }); });
+  const hit = el("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
+  hit.addEventListener("mousemove", (e) => { const r = svg.getBoundingClientRect(); const i = Math.min(s.length - 1, Math.max(0, Math.floor(((e.clientX - r.left) * W / r.width - m.l) / dx))); const b = s[i]; const buys = k.purchases.filter((p) => p[0] === b[0]);
+    showTip(box, e, `<b>${b[0]}</b> · close <b>${b[4]}</b><br>high ${b[2]} · low ${b[3]}<br>vs public entry ${pct(b[4] / k.entry - 1)}${buys.length ? "<br>" + buys.map((p) => `▲ ${esc(p[2])} ${usd(p[4])}`).join("<br>") : ""}${b[0] === k.T.slice(0, 10) ? "<br><b>cluster became public</b>" : ""}`); });
+  hit.addEventListener("mouseleave", () => hideTip(box));
+  document.getElementById("tlInfo").innerHTML = `<div class="eyebrow">${esc(k.cats)} · ${k.fund ? "fund-like issuer" : "operating company"}</div><h3 style="margin:6px 0;text-transform:none;font-size:15px;color:var(--ink)">${esc(k.ticker)}: ${esc(k.issuer)}</h3>
+    <dl class="q"><dt>Insiders · combined</dt><dd>${k.owners} · ${usd(k.usd)}</dd><dt>Completed (trade date)</dt><dd>${k.completion ?? "—"}</dd><dt>Public (SEC)</dt><dd>${esc(k.T)} ET</dd><dt>Public entry</dt><dd>${k.entryDate} open ${k.entry}</dd>
+    <dt>180-day high</dt><dd>${pct(k.maxGain)} on ${k.maxDate} (day ${k.daysToMax})</dd><dt>Lowest low</dt><dd>${pct(k.minLowRet)}</dd><dt>180-day net</dt><dd class="${cls(k.n180)}">${pct(k.n180)}</dd><dt>Similar stocks</dt><dd>${pct(k.ctl)}</dd><dt>vs SPY</dt><dd class="${cls(k.x180)}">${pts(k.x180)}</dd></dl>
+    <h3>Purchases</h3><div style="font-size:12.5px">${k.purchases.map((p) => `<div>${p[0]} · ${esc(p[2]).slice(0, 38)} <span class="muted">(${esc((p[3] || "").slice(0, 28))})</span> ${usd(p[4])} <span class="muted">filed ${esc(p[1].slice(5, 16))}</span></div>`).join("")}</div>`;
+}
+(() => {
+  const by = (f, n) => TL.map((t, i) => [t, i]).sort((a, b) => f(b[0]) - f(a[0])).slice(0, n);
+  const list = (title, arr, val) => `<div><h3 style="margin-top:0">${title}</h3>${arr.map(([t, i]) => `<button type="button" data-i="${i}"><span>${esc(t.ticker)} <span class="muted">${t.entryDate}</span></span><span class="mono">${val(t)}</span></button>`).join("")}</div>`;
+  document.getElementById("wl").innerHTML = list("Highest 180-day peaks", by((t) => t.maxGain, 8), (t) => pc0(t.maxGain)) + list("Best 180-day net vs similar", by((t) => t.n180 - (t.ctl ?? 0), 8), (t) => pts(t.n180 - t.ctl)) + list("Worst 180-day returns", by((t) => -t.r180, 8), (t) => pct(t.r180, 0));
+  document.getElementById("wl").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { tlIdx = +b.dataset.i; drawTlCtrl(); drawTl(); document.getElementById("tlBox").scrollIntoView({ behavior: "smooth", block: "center" }); }));
+})();
+
+// ---------- event table ----------
+let sortK = "maxGain", sortD = -1;
+const COLS = [["ticker", "Ticker"], ["issuer", "Company"], ["cats", "Type"], ["owners", "Insiders"], ["usd", "Combined"], ["T", "Public (ET)"], ["entryDate", "Entry"], ["maxGain", "Max gain"], ["daysToMax", "Days to max"], ["r180", "180d return"], ["n180", "180d net"], ["vsCtl", "vs similar"], ["x180", "vs SPY"], ["minLowRet", "Lowest"]];
+function drawEv() {
+  const q = document.getElementById("q").value.trim().toLowerCase(), only = document.getElementById("onlyFull").checked;
+  let rows = DATA.events.filter((e) => !e.gap && (!only || e.full180)).map((e) => ({ ...e, vsCtl: e.n180 != null && e.ctl180 != null ? e.n180 - e.ctl180 : null }));
+  if (q) rows = rows.filter((e) => `${e.ticker} ${e.issuer} ${e.cats}`.toLowerCase().includes(q));
+  rows.sort((a, b) => { const x = a[sortK], y = b[sortK]; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * sortD; });
+  document.getElementById("qCount").textContent = rows.length + " events";
+  const f = { usd, maxGain: (v) => pc0(v), r180: (v) => pct(v), n180: (v) => pct(v), vsCtl: (v) => pts(v), x180: (v) => pts(v), minLowRet: (v) => pct(v, 0), T: (v) => esc(String(v).slice(0, 16)), issuer: (v) => esc(String(v).slice(0, 34)) };
+  const num = new Set(["owners", "usd", "maxGain", "daysToMax", "r180", "n180", "vsCtl", "x180", "minLowRet"]);
+  document.getElementById("evTable").innerHTML = `<thead><tr>${COLS.map(([k, l]) => `<th class="sort ${num.has(k) ? "n" : ""}" data-k="${k}">${l}${sortK === k ? (sortD > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr></thead><tbody>` +
+    rows.map((e) => `<tr>${COLS.map(([k]) => { const v = e[k]; const s = v == null ? "—" : f[k] ? f[k](v) : esc(v); return `<td class="${num.has(k) ? "n" : ""} ${["r180", "n180", "vsCtl", "x180"].includes(k) ? cls(v) : ""}">${s}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
+  document.querySelectorAll("#evTable th.sort").forEach((th) => th.addEventListener("click", () => { const k = th.dataset.k; if (sortK === k) sortD = -sortD; else { sortK = k; sortD = -1; } drawEv(); }));
+}
+document.getElementById("q").addEventListener("input", drawEv); document.getElementById("onlyFull").addEventListener("change", drawEv);
+
+// ---------- checks, audit, answers ----------
+(() => {
+  const a = DATA.audit;
+  document.getElementById("checks").innerHTML = `<h3 style="margin-top:0">Self-checks (${DATA.selfcheck.filter((c) => c.pass).length}/${DATA.selfcheck.length} pass)</h3><ul>${DATA.selfcheck.map((c) => `<li>${c.pass ? "✔" : "✘"} ${esc(c.name)}</li>`).join("")}</ul>` +
+    (a ? `<h3>Independent audit</h3><p>${esc(a.summary)}</p><div class="scroll"><table><tr><th>Claim</th><th>Verdict</th><th>Evidence</th></tr>${a.rows.map((r) => `<tr><td class="w">${esc(r.claim)}</td><td><span class="badge ${/REFUTED/.test(r.verdict) ? "rejected" : /CAVEAT|CANNOT/.test(r.verdict) ? "warning" : "robust"}">${esc(r.verdict)}</span></td><td class="w">${esc(r.evidence)}</td></tr>`).join("")}</table></div>` : `<p class="muted">Independent audit pending.</p>`);
+  const S = DATA.desc; const best = ["A", "B", "C"].sort((x, y) => S["2" + y].maxGain.median - S["2" + x].maxGain.median)[0]; const fast = ["A", "B", "C"].sort((x, y) => S["2" + x].daysToMax.median - S["2" + y].daysToMax.median)[0];
+  const Q = [
+    ["Which category reached the highest peaks?", `Cluster ${best}: median peak ${pc0(S["2" + best].maxGain.median, 1)} (A ${pc0(S["2A"].maxGain.median, 1)}, B ${pc0(S["2B"].maxGain.median, 1)}, C ${pc0(S["2C"].maxGain.median, 1)}). C has only ${S["2C"].n} events, and its peaks were still below similar stocks (${pts(tst["P4-C"].est)}).`],
+    ["Which reached its peak fastest?", `Cluster ${fast}: median ${Math.round(S["2" + fast].daysToMax.median)} days (A ${Math.round(S["2A"].daysToMax.median)}, B ${Math.round(S["2B"].daysToMax.median)}, C ${Math.round(S["2C"].daysToMax.median)}). The differences are small next to the spread within each group.`],
+    ["How often were +10/20/30/50/100% reached?", ["A", "B", "C"].map((k) => `${k}: ${TH.map((t) => pc0(S["2" + k].hitHigh[t])).join(" / ")}`).join(" · ") + `. Similar stocks touched +20% ${pc0(S["2U"].controls.hit20)} of the time, vs ${pc0(S["2U"].hitHigh[20])} for clusters.`],
+    ["Median time to peak?", `${Math.round(S["2U"].daysToMax.median)} days for all clusters, about the same as similar stocks (difference ${tst["T1"].est.toFixed(0)} days, p ${tst["T1"].p.toFixed(2)}). Peaks bunch near the start and end of the window for both groups. A random walk with each stock's own drift and volatility gives about 93 days, so the timing is not specific to insider clusters.`],
+    ["Do clusters beat matched stocks and SPY?", `No. 180-day net vs similar stocks ${pts(tst["P1-U"].est)} (p ${tst["P1-U"].p.toFixed(2)}); vs SPY ${pts(tst["P2-U"].est)}. Peaks were lower than similar stocks' (${pts(tst["P4-U"].est)}, q ${tst["P4-U"].q.toFixed(2)}; Cluster A alone ${pts(tst["P4-A"].est)}, q ${tst["P4-A"].q.toFixed(3)}, which passes the correction). The audit traced this to volatility: cluster stocks were 15% calmer than their matches after entry, so it means smaller swings, not lost upside. The SPY shortfall is shared by all insider-filer stocks (they returned 5.8% vs SPY 12.4%), so it is a feature of that group of stocks, not of clusters.`],
+    ["Does a larger combined investment help?", `No. Rank correlation with the 180-day result vs similar stocks ${tst["D1"].est.toFixed(2)} (q ${tst["D1"].q.toFixed(2)}); the top third by size did ${pts(tst["G10"].est)} relative to the rest. Size relative to trading volume: ${tst["D3"].est.toFixed(2)}.`],
+    ["Do more insiders help?", `A weak positive hint: rank correlation ${tst["D2"].est.toFixed(2)} (p ${tst["D2"].p.toFixed(2)}, q ${tst["D2"].q.toFixed(2)}). It does not survive correction, and Cluster C (5+ insiders) is only ${S["2C"].n} events.`],
+    ["Consistent across months?", `No. vs similar stocks by entry month: ${DATA.months["2U"].map((m) => `${mLabel(m.month)} ${pts(m.vsCtl, 0)} (n ${m.n})`).join(", ")}. Signs change from month to month, and every month lagged SPY except ${DATA.months["2U"].filter((m) => m.x180 > 0).map((m) => mLabel(m.month)).join(", ") || "none"}.`],
+    ["What could a public investor capture?", `The average public 180-day net return was ${pct(S["2U"].ret[180].netMean)}, while SPY returned ${pct(S["2U"].ret[180].spyMean)} over the same windows. Waiting for the SEC filing cost ${pts(tst["K1"].est)} vs the trade-date close (q ${tst["K1"].q.toFixed(2)}), mostly in the days between the trades and the filing. The 180-day peaks are not capturable: a fixed +20% take-profit (S4) did ${pts(DATA.strat.S4.confirm.vsCtl)} vs similar stocks in confirmation.`],
+    ["Enough evidence for a prospective trading test?", `No, not for these rules. All six frozen strategies were rejected. If the multi-year SEC history and full-market prices are approved, the scripts can be re-run unchanged, and a cluster rule could be tested properly across several market regimes before any paper trading.`],
+  ];
+  document.getElementById("answers").innerHTML = Q.map(([q, a], i) => `<div class="qbox"><b>${i + 1}. ${q}</b>${a}</div>`).join("");
+})();
+
+function all() { drawDist(); drawCurve(); drawMonths(); drawScat(); drawTl(); }
+drawDash(); drawTlCtrl(); drawEv(); all();
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(all, 150); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", all);
+new MutationObserver(all).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>

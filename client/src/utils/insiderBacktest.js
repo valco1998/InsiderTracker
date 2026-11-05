@@ -399,3 +399,46 @@ export function comparableRuns(list = [], range) {
   return { same, other: list.filter((x) => !same.includes(x)) };
 }
 export const OVERFITTING_WARNING = "Comparing many settings on the same historical data and keeping the best one overfits: the winner usually looks better than it will perform. Treat differences as hypotheses, prefer simple settings, and confirm on a period you did not use for choosing.";
+
+// ---- Monthly per-buyer study (POST /insider/backtest/monthly-study, /owners, /owner/:cik) ----
+export const STUDY_NA_TEXT = {
+  no_ticker: "No listed ticker in the filing (private fund, BDC, unlisted security)",
+  no_symbol: "Ticker not usable as a price symbol",
+  no_price_series: "No daily price series for this symbol (mutual fund, foreign listing, delisted)",
+  no_entry_bar: "No trading bar on the entry day",
+  price_scale_mismatch: "Insider price is far from the listed series (ADR ratio, other class, currency or non-market price) — no return computed",
+  price_source_failed: "Price source unavailable during the run",
+  invalid_publication_time: "Invalid SEC acceptance time",
+  entry_after_cutoff: "Entry after the price cutoff",
+};
+export const studyNaText = (r) => STUDY_NA_TEXT[r] || (String(r || "").startsWith("security_") ? `Reported security may not match the listed series (${String(r).slice(9).replace(/_/g, " ")})` : r || "Not available");
+export const PURCHASE_TYPE_SHORT = {
+  open_market: "Open market", plan_10b5_1: "10b5-1 plan", offering: "Offering", private_placement: "Private placement",
+  trust_or_asset_exchange: "Trust/asset exchange", transfer: "Transfer", unknown: "Not stated",
+};
+export const VALUE_EXCLUDED_TEXT = {
+  missing_price: "No price reported", price_anomaly: "Price anomaly", currency_unknown: "Foreign currency not identified",
+  fx_unavailable: "No reference FX rate", correction_of_earlier_month: "Form 4/A correcting an earlier month",
+};
+export const DISCLOSURE_TEXT = { possible: "Possible earlier SEC disclosure", none: "None found on EDGAR", unknown: "Not determined" };
+export const STUDY_PRESETS = [
+  { label: "Oct 2026", months: ["2026-10"] },
+  { label: "Dec 2025 – Sep 2026", months: ["2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"] },
+  { label: "All held months", months: ["2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"] },
+];
+export const THRESHOLD_PRESETS = [1_000_000, 10_000_000];
+export function monthLabel(m) {
+  const [y, mo] = String(m || "").split("-").map(Number);
+  return y && mo ? new Date(Date.UTC(y, mo - 1, 1)).toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }) : m;
+}
+// Form → POST body (server validates again).
+export function studyRequest(f) {
+  const months = [...new Set(f.months)].filter((m) => /^\d{4}-\d{2}$/.test(m)).sort();
+  if (!months.length) return { error: "Choose at least one month." };
+  const thresholdUsd = Number(f.thresholdUsd);
+  if (!(thresholdUsd > 0)) return { error: "The threshold must be a positive dollar amount." };
+  const latencySeconds = Number(f.latencySeconds);
+  if (!(latencySeconds >= 0 && latencySeconds <= 3600)) return { error: "Latency must be 0–3600 seconds." };
+  // Earlier-disclosure lookups cost one SEC request per issuer: on by default for short runs only.
+  return { body: { months, thresholdUsd, latencySeconds, types: f.types.length ? f.types : undefined, newCapitalOnly: f.newCapitalOnly || undefined, priorDisclosure: f.priorDisclosure ?? months.length <= 2 } };
+}

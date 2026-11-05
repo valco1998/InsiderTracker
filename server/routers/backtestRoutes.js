@@ -209,6 +209,73 @@ export function createBacktestRouter({ service = createBacktestService({ live: l
     }
   });
 
+  // ---- MONTHLY PER-BUYER STUDY (monthlyStudy.js / exitRules.js / ownerProfile.js) ----
+  // POST /monthly-study { months[], thresholdUsd, latencySeconds, cutoff, types[], newCapitalOnly, priorDisclosure }
+  // GET  /owners?q&ticker&role&minUsd&from&to&type    leaderboard of buyers (economic groups)
+  // GET  /owner/:cik                                   reporting-owner profile + track record
+  // Price-derived values follow the same licence guard as the runs above.
+  const studyInflight = new Map(); // config key → promise (identical requests share one computation)
+  const shared = (key, fn) => {
+    if (studyInflight.has(key)) return studyInflight.get(key);
+    const p = fn().finally(() => studyInflight.delete(key));
+    studyInflight.set(key, p);
+    return p;
+  };
+  const STUDY_LICENCE = "internal";
+  const redactStudyRow = ({ evaluation, ...s }) => ({ ...s, evaluation: evaluation ? { status: evaluation.status === "ok" ? "price_data_restricted" : evaluation.status, naReason: evaluation.naReason, timing: evaluation.timing, entryDate: evaluation.entryDate ?? null } : null });
+  const redactTrackRecord = (t) => (t ? { signals: t.signals, matured: t.matured, pending: t.pending, issuers: t.issuers, from: t.from, to: t.to, valueUsdAtSignals: t.valueUsdAtSignals, rankEligible: t.rankEligible, sampleNote: t.sampleNote, status: "price_data_restricted",
+    signalsList: (t.signalsList || []).map(({ closes, tp4, tp65, ...x }) => x) } : t);
+
+  router.post("/monthly-study", async (req, res) => {
+    const n = service.normalizeStudy(req.body || {});
+    if (n.error) return res.status(400).json({ error: n.error });
+    const t0 = now();
+    try {
+      const r = await shared(JSON.stringify(n.config), () => service.monthlyStudy(n.config));
+      res.set("Cache-Control", "no-store");
+      log.log(`[MONTHLY_STUDY_API] months=${n.config.months.join(",")} signals=${r.counts.signals} durationMs=${now() - t0}`);
+      if (pricesVisible(req, STUDY_LICENCE)) return res.json(r);
+      res.json({ ...r, status: "price_data_restricted", restrictedNote: RESTRICTED_NOTE, summary: null, perMonth: null, selection: null, signals: r.signals.map(redactStudyRow) });
+    } catch (err) {
+      log.error(`[MONTHLY_STUDY_FAILED] error=${String(err?.message || err).slice(0, 200)}`);
+      res.status(500).json({ error: "Could not compute the monthly study" });
+    }
+  });
+
+  const str = (v, max = 80) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  router.get("/owners", async (req, res) => {
+    const q = req.query || {};
+    const filters = { q: str(q.q), ticker: str(q.ticker, 12), role: str(q.role, 30), minUsd: str(q.minUsd, 15), from: str(q.from, 10), to: str(q.to, 10), type: str(q.type, 40) };
+    if (filters.minUsd && !(Number(filters.minUsd) >= 0)) return res.status(400).json({ error: "minUsd must be a number" });
+    for (const k of ["from", "to"]) if (filters[k] && !DATE_RE.test(filters[k])) return res.status(400).json({ error: `${k} must be YYYY-MM-DD` });
+    try {
+      const r = await shared(`owners|${JSON.stringify(filters)}`, () => service.owners(filters));
+      if (r.error) return res.status(400).json({ error: r.error });
+      res.set("Cache-Control", "no-store");
+      if (pricesVisible(req, STUDY_LICENCE)) return res.json(r);
+      res.json({ ...r, restrictedNote: RESTRICTED_NOTE, owners: r.owners.map((o) => ({ group: o.group, primaryCik: o.primaryCik, name: o.name, kind: o.kind, owners: o.owners, tickers: o.tickers, signals: o.signals, matured: o.matured, issuers: o.issuers, from: o.from, to: o.to, valueUsdAtSignals: o.valueUsdAtSignals, rankEligible: o.rankEligible, sampleNote: o.sampleNote, status: "price_data_restricted" })) });
+    } catch (err) {
+      log.error(`[OWNERS_FAILED] error=${String(err?.message || err).slice(0, 200)}`);
+      res.status(500).json({ error: "Could not build the buyer list" });
+    }
+  });
+
+  router.get("/owner/:cik", async (req, res) => {
+    const cik = String(req.params.cik || "");
+    if (!/^\d{1,10}$/.test(cik)) return res.status(400).json({ error: "cik must be 1–10 digits" });
+    try {
+      const p = await shared(`owner|${Number(cik)}`, () => service.ownerProfile(cik));
+      if (!p) return res.status(404).json({ error: "No stored filings for this reporting owner" });
+      if (p.error) return res.status(400).json({ error: p.error });
+      res.set("Cache-Control", "no-store");
+      if (pricesVisible(req, STUDY_LICENCE)) return res.json(p);
+      res.json({ ...p, restrictedNote: RESTRICTED_NOTE, trackRecord: redactTrackRecord(p.trackRecord), groupTrackRecord: p.groupTrackRecord ? redactTrackRecord(p.groupTrackRecord) : null });
+    } catch (err) {
+      log.error(`[OWNER_PROFILE_FAILED] cik=${cik} error=${String(err?.message || err).slice(0, 200)}`);
+      res.status(500).json({ error: "Could not build the owner profile" });
+    }
+  });
+
   router.get("/run/:id/track/:signalId/current", async (req, res) => {
     const j = jobs.get(String(req.params.id));
     if (!j) return res.status(404).json({ error: "Unknown or expired backtest job" });

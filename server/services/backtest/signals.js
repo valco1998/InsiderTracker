@@ -222,21 +222,17 @@ export function groupVersions(r, acceptedAtByAccession, reportRow) {
   }));
 }
 
-// rows: economic rows. range: publication dates { from, to } (inclusive, ET).
-// reportOwners(rowId) → reporting owners of one raw report; links joint filers across
-// confirmed duplicate reports (identityRowAt). reportRow(rowId) → the raw report row, for
-// point-in-time versions of duplicate groups (groupVersions). → { signals, stats }
-export function detectSignals({ rows, acceptedAtByAccession = new Map(), config = DEFAULTS, range = {}, reportOwners = null, reportRow = null }) {
-  const cfg = { ...DEFAULTS, ...config };
-  const stats = { rowsWithoutAcceptance: 0, purchasesConsidered: 0, purchasesUnreliableValue: 0, staleClusters: 0, issuers: 0, purchasesOverFilingDelay: 0, versionedGroups: 0 };
-  const overDelay = new Set(); // row ids excluded by the optional filing-delay filter (counted once)
-
-  // 1. Point-in-time metadata per row; group by issuer. Each item is valid from knownAt
-  // until validUntil (an amendment's acceptance, or the next version of a duplicate group);
-  // firstKnownAt = when that transaction first became public (filing delay, "public at").
+// Point-in-time metadata per P/S row, grouped by issuer CIK (number). Each item
+// { r, knownAt, validUntil, firstKnownAt } is valid from knownAt until validUntil (an
+// amendment's acceptance, or the next version of a duplicate group); firstKnownAt = when
+// that transaction first became public (filing delay, "public at"). Shared by
+// detectSignals and the monthly per-buyer study (monthlyStudy.js). stats is updated in place.
+export function pointInTimeItems({ rows, acceptedAtByAccession = new Map(), reportRow = null, stats = {} }) {
   const byIssuer = new Map();
   const push = (k, item) => (byIssuer.get(k) || byIssuer.set(k, []).get(k)).push(item);
   const minStamp = (a, b) => (a && b ? (a < b ? a : b) : a || b || null);
+  stats.rowsWithoutAcceptance ??= 0;
+  stats.versionedGroups ??= 0;
   for (const r of rows) {
     if (r.code !== "P" && r.code !== "S") continue;
     if (!DATE_RE.test(r.transactionDate || "")) continue;
@@ -256,6 +252,20 @@ export function detectSignals({ rows, acceptedAtByAccession = new Map(), config 
       }
     }
   }
+  return byIssuer;
+}
+
+// rows: economic rows. range: publication dates { from, to } (inclusive, ET).
+// reportOwners(rowId) → reporting owners of one raw report; links joint filers across
+// confirmed duplicate reports (identityRowAt). reportRow(rowId) → the raw report row, for
+// point-in-time versions of duplicate groups (groupVersions). → { signals, stats }
+export function detectSignals({ rows, acceptedAtByAccession = new Map(), config = DEFAULTS, range = {}, reportOwners = null, reportRow = null }) {
+  const cfg = { ...DEFAULTS, ...config };
+  const stats = { rowsWithoutAcceptance: 0, purchasesConsidered: 0, purchasesUnreliableValue: 0, staleClusters: 0, issuers: 0, purchasesOverFilingDelay: 0, versionedGroups: 0 };
+  const overDelay = new Set(); // row ids excluded by the optional filing-delay filter (counted once)
+
+  // 1. Point-in-time metadata per row, grouped by issuer (pointInTimeItems).
+  const byIssuer = pointInTimeItems({ rows, acceptedAtByAccession, reportRow, stats });
 
   const signals = [];
   for (const [cik, items] of byIssuer) {

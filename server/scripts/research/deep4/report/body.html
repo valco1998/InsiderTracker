@@ -1,0 +1,321 @@
+<style>
+.seg { font: 600 10.5px/1 var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+.seg.design { color: var(--s1); } .seg.confirm { color: var(--s3); } .seg.exposed { color: var(--warn); }
+.ctrl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.ctrl button { font: 500 12.5px/1 var(--body); padding: 7px 10px; border-radius: 6px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink-2); cursor: pointer; }
+.ctrl button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.ctrl select, .ctrl input { font: 13px var(--body); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); max-width: 100%; }
+.casegrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 280px); gap: 16px; }
+@media (max-width: 760px) { .casegrid { grid-template-columns: 1fr; } }
+.chartbox { position: relative; min-width: 0; }
+.qbox { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; }
+</style>
+
+<div class="wrap">
+<header style="display:flex;flex-direction:column;gap:10px">
+  <div class="eyebrow">InsiderTracker · Deep study 4 · SEC Form 4 purchases, Dec 2025 – Oct 2026</div>
+  <h1>Can a trading strategy be learned from how individual insiders buy?</h1>
+  <p class="lede">We rebuilt every insider's buying history using only what was public at each filing, tested 23 frozen strategies built from buying style, track record, learned models and price confirmation, and had an independent auditor try to break the results.</p>
+</header>
+
+<section class="verdict-box">
+  <b class="big">No. Nothing learned from insider behaviour beat SPY after costs once tested on months it had not seen.</b>
+  <p>Insiders do have repeatable buying styles, and models can rank 30-day returns. But the ranking comes from ordinary price patterns that work just as well on stocks with no insider buying. Every frozen rule lost money in June–August and again in September. The apparent advantage over similar non-insider stocks turned out to be a side effect of how those comparison stocks were chosen. No strategy is worth paper trading.</p>
+</section>
+
+<section>
+  <div class="kv">
+    <div><b>9,221</b><span>purchase filings Dec–Aug, plus 895 in Sep–Nov</span></div>
+    <div><b>4,580</b><span>distinct insiders, 2,292 companies</span></div>
+    <div><b>23</b><span>strategies frozen before testing</span></div>
+    <div><b>0</b><span>passed in June–August or September</span></div>
+    <div><b>1,494</b><span>registered tests across studies 2–4</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>How it was tested</h2>
+  <p>Each purchase is entered at the official open of the first session after the SEC published the filing (plus 60 seconds), and held to the close 30 calendar days later. Costs are 5–100 bps per side by liquidity, and every result is net of costs and compared with SPY. Features use only filings accepted earlier and prices from before the entry day. An insider's track record counts only outcomes that had already finished.</p>
+  <div class="scroll"><table>
+    <tr><th>Period</th><th>Published</th><th>Use</th></tr>
+    <tr><td><span class="seg design">Design</span></td><td>Dec 2025 – 14 Jun 2026</td><td class="w">Finding ideas, choosing rules, training models (only outcomes that ended before 15 Jun)</td></tr>
+    <tr><td><span class="seg confirm">Confirmation</span></td><td>15 Jun – 31 Aug 2026</td><td class="w">Each agent froze its rules with file hashes, then ran them here once</td></tr>
+    <tr><td><span class="seg exposed">Previously seen</span></td><td>1 Sep – 2 Oct 2026 (later entries not yet 30 days old)</td><td class="w">Run once by the auditor. Earlier studies already looked at this period, so it is not a clean test.</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <h2>Month by month: the public trader, the insider and similar stocks</h2>
+  <p>30-day return minus SPY after costs, per month of entry. Bars show what a public trader got; the dots show the insider's own paper gain from their reported price (unrealised), which includes the jump at the open that a public trader cannot capture.</p>
+  <div class="panel chartbox" id="monthsBox"><svg id="monthsSvg" role="img" aria-label="Monthly 30-day returns versus SPY"></svg>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Public trader, insider purchases</span><span><i style="background:var(--base)"></i>Similar stocks, no insider buying</span><span><i style="background:var(--s2);border-radius:50%"></i>Insider's own paper gain</span></div>
+  </div>
+  <div class="scroll" style="margin-top:10px"><table id="monthsTable"></table></div>
+</section>
+
+<section>
+  <h2>Every strategy, in every period</h2>
+  <p>Mean 30-day return minus SPY per independent trade, after costs. 20 equal positions, at most one per company, no stop. The previously seen column uses only entries whose 30 days had finished by 3 Nov.</p>
+  <div class="scroll"><table id="stratTable"></table></div>
+  <p class="note">Family A picks purchases by the insider's past buying style. Family B waits for a price condition. Family C picks insiders by their past results. Models use 38 features re-trained each month. In September almost every rule lost 5–15% (the two exceptions had 5 and 25 trades), while SPY gained 0.4%; the whole universe of small and mid caps fell that month, which is why one period alone decides nothing. All failed in June–August too.</p>
+</section>
+
+<section>
+  <h2>What the models learned is not about insiders</h2>
+  <p>Rank correlation (IC) between each month's model prediction and the realised 30-day return. Each month's model was trained only on outcomes that had finished before that month began.</p>
+  <div class="panel chartbox" id="wfBox"><svg id="wfSvg" role="img" aria-label="Walk-forward rank correlation by month"></svg>
+    <div class="legend"><span><i class="line" style="background:var(--s1)"></i>Insider + price features</span><span><i class="line" style="background:var(--s2)"></i>Price features, trained on insider purchases</span><span><i class="line" style="background:var(--s3)"></i>Price features, trained on stocks with no insider buying</span><span><i class="line" style="background:var(--base)"></i>Insider features only</span></div>
+  </div>
+  <ul class="findings" style="margin-top:12px">
+    <li><span class="tag fact">Fact</span>The model trained only on non-insider stocks ranked insider purchases as well as it ranked its own stocks in every period (Sep–Oct: 0.38 on insider purchases, 0.35 on others). Its best fifth beat the rest by 7.8 points on insider purchases and 7.9 on the others.</li>
+    <li><span class="tag neg">Failed</span>Models that learned from insider purchases looked good in design (0.13) and fell to about zero or below in June–August and September. Adding insider-specific interaction terms made the pooled model significantly worse.</li>
+    <li><span class="tag fact">Fact</span>The chance of touching +10% is mostly volatility (AUC 0.71–0.76 from price features alone; insider features add nothing). The purchases most likely to touch +10% had the worst 30-day returns in June–August.</li>
+    <li><span class="tag conc">Stable</span>The one consistent insider signal is negative: repeat buyers, 10b5-1 plan purchases and stocks that had already risen between trade and filing do worse, as studies 2 and 3 also found.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Why "insiders beat similar stocks" did not hold up</h2>
+  <p>Insider purchases looked about 1 point better than matched non-insider stocks over 30 days. The auditor found the comparison stocks were chosen with hindsight: the price cache holds only companies where insiders bought at some point, and the rule "no insider purchase within 20 sessions" means every comparison stock had its own insider purchase coming 21 or more sessions later. Stocks drift down before insiders buy them, so the comparison group was dragged down.</p>
+  <div class="panel chartbox"><svg id="mechSvg" role="img" aria-label="Comparison stock 30-day return by distance to its next insider purchase"></svg>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Design</span><span><i style="background:var(--s3)"></i>Confirmation</span></div>
+  </div>
+  <p class="note">With comparison stocks chosen only from information available at the time, the difference was −1.8 points in design (t −2.5), +0.5 in confirmation and +1.0 in September, none of it a usable advantage. Measured from the last close before the filing, insider purchases are 2.6 points ahead in both periods: the news is priced in the opening jump, as study 2 found.</p>
+</section>
+
+<section>
+  <h2>Insider buying styles</h2>
+  <p>Ten observable styles were defined from price conditions at each purchase before any outcome was looked at. Of 2,360 insiders, 568 bought at least twice, and 87% of repeat buys were the same company within days. A style "repeats" if an insider's earlier purchase episodes predict the style of their next one, compared with shuffled labels within the same month.</p>
+  <div class="scroll"><table id="consTable"></table></div>
+  <p class="note">Near-low, deep-drawdown, contrarian and following-other-insiders styles repeat (and did again in later periods). But at a different company bought at least 14 days later most of it vanishes, so the style mostly describes the stock rather than a habit the person carries. None of the styles picked purchases that beat SPY.</p>
+  <h3>Profiles of insiders with a distinct style</h3>
+  <div class="ctrl"><label for="profFilter" class="muted">Filter</label><input id="profFilter" type="search" placeholder="name, ticker or style"></div>
+  <div class="scroll" style="max-height:420px;overflow-y:auto"><table id="profTable"></table></div>
+  <p class="note" id="profNote"></p>
+</section>
+
+<section>
+  <h2>Winners and losers</h2>
+  <p>The ten best and ten worst trades of the baseline (every open-market purchase) in design and in confirmation. Price chart from 40 sessions before entry to 3 sessions after exit; split-adjusted daily bars.</p>
+  <div class="ctrl" id="caseCtrl"></div>
+  <div class="casegrid">
+    <div class="panel chartbox" id="caseBox"><svg id="caseSvg" role="img" aria-label="Price path of the selected trade"></svg>
+      <div class="legend"><span><i style="background:var(--base)"></i>Daily range</span><span><i class="line" style="background:var(--s1)"></i>Close</span><span><i class="line" style="background:var(--up)"></i>Entry → exit</span></div></div>
+    <div class="panel" id="caseInfo" style="font-size:13.5px"></div>
+  </div>
+  <p class="note">Both tails are mostly volatile small caps. Winners were rebounds or squeezes after deep falls; losers often followed a run-up or opened with a large jump, and late-August director purchases after 40–78% drawdowns kept falling. The same picture appears in the matched stocks, which is why selection rules on these traits did not work.</p>
+</section>
+
+<section>
+  <h2>Independent audit</h2>
+  <div class="scroll"><table>
+    <tr><th>Check</th><th>Result</th><th class="w">Effect</th></tr>
+    <tr><td>SEC timing and entry rule</td><td><span class="badge robust">clean</span></td><td class="w">Independent rebuild: 0 mismatches over 9,221 filings; no feature uses prices from the entry day or later</td></tr>
+    <tr><td>Feature leakage</td><td><span class="badge robust">clean</span></td><td class="w">700 purchases and 500 comparison days recomputed: 0 differences</td></tr>
+    <tr><td>Reproduction</td><td><span class="badge robust">exact</span></td><td class="w">Panel, 23 walk-forward runs and both confirmation runs reproduced value for value</td></tr>
+    <tr><td>Insider identity</td><td><span class="badge warning">minor</span></td><td class="w">61 filings linked to a person using a later filing; no strategy changes by more than 1 trade</td></tr>
+    <tr><td>Splits and bad prices</td><td><span class="badge warning">minor</span></td><td class="w">137 purchases with an inferred split distort only the insider's paper gain; excluding bad bars changes results by 0.1 point</td></tr>
+    <tr><td>Model buy threshold</td><td><span class="badge warning">medium</span></td><td class="w">Picked 26–56% of purchases in design months but 0.4–17% in confirmation: unstable</td></tr>
+    <tr><td>Comparison stocks</td><td><span class="badge failed">high</span></td><td class="w">Chosen with hindsight (see above); the "+1 point vs similar stocks" claim is refuted</td></tr>
+    <tr><td>Multiple testing</td><td><span class="badge robust">done</span></td><td class="w">341 deep-4 results, all registered before computing. 67 of 201 design tests pass a 10% false-discovery cut, none of them a profitable long rule</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <h2>The answer</h2>
+  <div class="qbox">
+    <p><b>Can we learn a repeatable trading strategy from the historical purchasing behaviour of individual insiders?</b> Not with this data. Three families of hypotheses failed, for different reasons:</p>
+    <ul>
+      <li><b>Buying style</b> (family A): styles repeat, but they describe the stock's state, and stocks in the same state without insiders behave the same.</li>
+      <li><b>Track record</b> (family C): only 18.5% of design purchases had even one finished past outcome for that insider, and past results did not predict the next one (correlation 0.02).</li>
+      <li><b>Learned models and price checks</b> (family B and models): the predictive part is generic price behaviour, and whatever was insider-specific in design reversed later.</li>
+    </ul>
+    <p>The information in an insider purchase is real, but it shows up in the opening jump, before a public trader can buy.</p>
+  </div>
+  <h3>Data that could change the conclusion</h3>
+  <ol>
+    <li><b>Multi-year point-in-time Form 4 history</b> (for example 2015–2025) with daily bars, so each insider has enough finished outcomes for a track record to be measurable. History here starts in December 2025.</li>
+    <li><b>Daily bars for the whole listed market</b>, so comparison stocks are not drawn only from companies insiders bought.</li>
+    <li><b>Minute bars after the filing</b>, to see whether any of the opening jump can be captured before the open.</li>
+  </ol>
+  <p class="note">None of these has been downloaded; each needs your approval.</p>
+</section>
+
+<section>
+  <h2>Files</h2>
+  <p class="note">Code: <code>server/scripts/research/deep4/</code> (panel, behavior, learn, audit, report). Results: <code>server/.cache/research/deep4/</code>, with a findings.md per area, event-level CSVs, frozen-rules.json and the registry. Rebuild this page with <code>node scripts/research/deep4/report/build.mjs</code>.</p>
+</section>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; };
+const pct = (x, d = 1) => (x == null ? "—" : (x > 0 ? "+" : "") + (x * 100).toFixed(d) + "%");
+const pp = (x, d = 1) => (x == null ? "—" : (x > 0 ? "+" : "") + x.toFixed(d) + "%");
+const cls = (x) => (x == null ? "" : x > 0 ? "up" : x < 0 ? "down" : "");
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const mLabel = (m) => MON[+m.slice(5, 7) - 1] + " " + m.slice(2, 4);
+const segName = { design: "Design", confirm: "Confirmation", exposed: "Previously seen" };
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function tip(box) { let t = box.querySelector(".tip"); if (!t) { t = document.createElement("div"); t.className = "tip"; t.hidden = true; box.appendChild(t); } return t; }
+function showTip(box, evt, html) { const t = tip(box); t.innerHTML = html; t.hidden = false; const r = box.getBoundingClientRect(); let x = evt.clientX - r.left + 12, y = evt.clientY - r.top + 12; if (x + 260 > r.width) x = Math.max(4, x - 280); t.style.left = x + "px"; t.style.top = y + "px"; }
+function hideTip(box) { tip(box).hidden = true; }
+
+function axisY(svg, y, lo, hi, step, x0, x1, fmt) {
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) {
+    const yy = y(v); el("line", { x1: x0, x2: x1, y1: yy, y2: yy, stroke: v === 0 ? css("--ink-3") : css("--grid"), "stroke-width": v === 0 ? 1 : 1 }, svg);
+    const t = el("text", { x: x0 - 6, y: yy + 4, "text-anchor": "end", "font-size": 11, fill: css("--ink-3") }, svg); t.textContent = fmt(v);
+  }
+}
+
+// ---- months chart ----
+function drawMonths() {
+  const box = document.getElementById("monthsBox"), svg = document.getElementById("monthsSvg"); svg.innerHTML = "";
+  const W = Math.max(340, box.clientWidth - 32), H = 300, m = { l: 48, r: 10, t: 22, b: 40 };
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%");
+  const rows = DATA.months; const vals = rows.flatMap((r) => [r.b, r.ctl, r.a]).filter((v) => v != null);
+  const lo = Math.min(-0.1, Math.floor(Math.min(...vals) * 50) / 50), hi = Math.max(0.04, Math.ceil(Math.max(...vals) * 50) / 50);
+  const y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  axisY(svg, y, lo, hi, 0.02, m.l, W - m.r, (v) => Math.round(v * 100) + "%");
+  const bw = (W - m.l - m.r) / rows.length;
+  rows.forEach((r, i) => {
+    const x0 = m.l + i * bw, w = Math.max(4, (bw - 10) / 2 - 1);
+    if (i === 0 || rows[i - 1].seg !== r.seg) { const t = el("text", { x: x0 + 2, y: 12, "font-size": 10.5, fill: css(r.seg === "design" ? "--s1" : r.seg === "confirm" ? "--s3" : "--warn"), "font-weight": 600 }, svg); t.textContent = segName[r.seg].toUpperCase(); if (i > 0) el("line", { x1: x0, x2: x0, y1: m.t - 6, y2: H - m.b, stroke: css("--rule"), "stroke-dasharray": "3 3" }, svg); }
+    const bar = (v, xx, color) => { if (v == null) return; const y0 = y(0), y1 = y(v); const top = Math.min(y0, y1), h = Math.max(1, Math.abs(y1 - y0)); el("rect", { x: xx, y: top, width: w, height: h, rx: 2, fill: color }, svg); };
+    bar(r.b, x0 + 5, css("--s1")); bar(r.ctl, x0 + 5 + w + 2, css("--base"));
+    if (r.a != null) el("circle", { cx: x0 + bw / 2, cy: y(r.a), r: 4.5, fill: css("--s2"), stroke: css("--panel"), "stroke-width": 2 }, svg);
+    const t = el("text", { x: x0 + bw / 2, y: H - m.b + 16, "text-anchor": "middle", "font-size": 11, fill: css("--ink-2") }, svg); t.textContent = mLabel(r.month);
+    const hit = el("rect", { x: x0, y: m.t, width: bw, height: H - m.t - m.b, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (e) => showTip(box, e, `<b>${mLabel(r.month)}</b> · ${segName[r.seg]}<br>Public trader <b>${pct(r.b)}</b> (median ${pct(r.bMed)})<br>Similar stocks <b>${pct(r.ctl)}</b><br>Insider's paper gain <b>${pct(r.a)}</b><br>n ${r.n}${r.censored ? ` · ${r.censored} not yet 30 days old` : ""}`));
+    hit.addEventListener("mouseleave", () => hideTip(box));
+  });
+  const tb = document.getElementById("monthsTable");
+  tb.innerHTML = `<tr><th>Month</th><th>Period</th><th class="n">Purchases</th><th class="n">Public trader</th><th class="n">Median</th><th class="n">Similar stocks</th><th class="n">Insider's paper gain</th></tr>` +
+    DATA.months.map((r) => `<tr><td>${mLabel(r.month)}</td><td><span class="seg ${r.seg}">${segName[r.seg]}</span></td><td class="n">${r.n}${r.censored ? ` <span class="muted">(+${r.censored} pending)</span>` : ""}</td><td class="n ${cls(r.b)}">${pct(r.b)}</td><td class="n ${cls(r.bMed)}">${pct(r.bMed)}</td><td class="n ${cls(r.ctl)}">${pct(r.ctl)}</td><td class="n ${cls(r.a)}">${pct(r.a)}</td></tr>`).join("");
+}
+
+// ---- strategy table ----
+function drawStrat() {
+  const badge = (v) => `<span class="badge ${v === "REJECTED" ? "rejected" : "warning"}">${v}</span>`;
+  const cell = (v, t) => (v == null ? `<td class="n muted">${t || "—"}</td>` : `<td class="n ${cls(v)}">${pp(v, 2)}</td>`);
+  document.getElementById("stratTable").innerHTML = `<tr><th>Rule</th><th>Family</th><th>What it buys</th><th class="n">Design</th><th class="n">Confirmation</th><th class="n">Previously seen</th><th class="n">Trades (seen)</th><th>Verdict</th></tr>` +
+    DATA.strategies.rows.map((r) => `<tr><td class="mono">${r.id}</td><td>${r.fam}</td><td class="w">${r.rule}</td>${cell(r.design, r.designTxt)}${cell(r.confirm, r.confirmTxt)}${cell(r.exposed, r.exposedTxt)}<td class="n">${r.nE ?? "25–71"}</td><td>${badge(r.verdict)}</td></tr>`).join("");
+}
+
+// ---- walk-forward IC chart ----
+function drawWf() {
+  const box = document.getElementById("wfBox"), svg = document.getElementById("wfSvg"); svg.innerHTML = "";
+  const W = Math.max(340, box.clientWidth - 32), H = 280, m = { l: 44, r: 12, t: 22, b: 40 };
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%");
+  const months = [...new Set(DATA.wf.map((r) => r.month))].sort(); const cols = [...months, "exp"];
+  const x = (i) => m.l + (i + 0.5) * (W - m.l - m.r) / cols.length;
+  const lo = -0.25, hi = 0.4; const y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  axisY(svg, y, lo, hi, 0.1, m.l, W - m.r, (v) => v.toFixed(1));
+  const series = [["M4", "--s1"], ["M3", "--s2"], ["M3c", "--s3"], ["M2", "--base"]];
+  for (const [model, color] of series) {
+    const pts = months.map((mo, i) => { const r = DATA.wf.find((w) => w.model === model && w.month === mo); return r ? [x(i), y(r.ic), r] : null; }).filter(Boolean);
+    pts.push([x(cols.length - 1), y(DATA.wfExposed[model]), { month: "Sep–Oct", ic: DATA.wfExposed[model], seg: "exposed", model }]);
+    el("path", { d: pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" "), fill: "none", stroke: css(color), "stroke-width": 2 }, svg);
+    for (const p of pts) el("circle", { cx: p[0], cy: p[1], r: 4, fill: css(color), stroke: css("--panel"), "stroke-width": 2 }, svg);
+  }
+  cols.forEach((c, i) => {
+    const t = el("text", { x: x(i), y: H - m.b + 16, "text-anchor": "middle", "font-size": 11, fill: css("--ink-2") }, svg); t.textContent = c === "exp" ? "Sep–Oct" : mLabel(c);
+    const seg = c === "exp" ? "exposed" : (DATA.wf.find((w) => w.month === c) || {}).seg;
+    const prev = i === 0 ? null : cols[i - 1] === "exp" ? "exposed" : (DATA.wf.find((w) => w.month === cols[i - 1]) || {}).seg;
+    if (seg !== prev) { const s = el("text", { x: x(i) - (W - m.l - m.r) / cols.length / 2 + 3, y: 12, "font-size": 10.5, "font-weight": 600, fill: css(seg === "design" ? "--s1" : seg === "confirm" ? "--s3" : "--warn") }, svg); s.textContent = segName[seg].toUpperCase(); }
+    const hit = el("rect", { x: x(i) - (W - m.l - m.r) / cols.length / 2, y: m.t, width: (W - m.l - m.r) / cols.length, height: H - m.t - m.b, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (e) => {
+      const get = (mod) => (c === "exp" ? DATA.wfExposed[mod] : (DATA.wf.find((w) => w.model === mod && w.month === c) || {}).ic);
+      const ctl = c === "exp" ? DATA.wfExposed.M3cOnControls : (DATA.wf.find((w) => w.model === "M3c" && w.month === c) || {}).icCtl;
+      const f = (v) => (v == null ? "—" : v.toFixed(3));
+      showTip(box, e, `<b>${c === "exp" ? "Sep–Oct" : mLabel(c)}</b><br>Insider + price <b>${f(get("M4"))}</b><br>Price, trained on insider buys <b>${f(get("M3"))}</b><br>Price, trained on non-insider stocks <b>${f(get("M3c"))}</b> (on those stocks ${f(ctl)})<br>Insider features only <b>${f(get("M2"))}</b>`);
+    });
+    hit.addEventListener("mouseleave", () => hideTip(box));
+  });
+}
+
+// ---- control mechanism ----
+function drawMech() {
+  const svg = document.getElementById("mechSvg"); svg.innerHTML = "";
+  const box = svg.parentElement; const W = Math.max(340, box.clientWidth - 32), H = 240, m = { l: 48, r: 10, t: 14, b: 44 };
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%");
+  const cats = ["21-30 sessions", "31-45", "46-80", ">80", "none visible"]; const labels = ["21–30", "31–45", "46–80", "> 80", "none seen"];
+  const lo = -0.08, hi = 0.01; const y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  axisY(svg, y, lo, hi, 0.02, m.l, W - m.r, (v) => Math.round(v * 100) + "%");
+  const bw = (W - m.l - m.r) / cats.length;
+  cats.forEach((c, i) => {
+    [["design", "--s1"], ["confirm", "--s3"]].forEach(([seg, color], k) => {
+      const v = DATA.mech[seg]?.[c]; if (!v) return; const w = (bw - 16) / 2; const xx = m.l + i * bw + 6 + k * (w + 2);
+      const top = Math.min(y(0), y(v.total30)); el("rect", { x: xx, y: top, width: w, height: Math.max(1, Math.abs(y(v.total30) - y(0))), rx: 2, fill: css(color) }, svg);
+      const t = el("text", { x: xx + w / 2, y: (v.total30 < 0 ? y(v.total30) + 13 : y(v.total30) - 4), "text-anchor": "middle", "font-size": 10, fill: css("--ink-2") }, svg); t.textContent = pct(v.total30);
+    });
+    const t = el("text", { x: m.l + i * bw + bw / 2, y: H - m.b + 16, "text-anchor": "middle", "font-size": 11, fill: css("--ink-2") }, svg); t.textContent = labels[i];
+  });
+  const t = el("text", { x: m.l + (W - m.l - m.r) / 2, y: H - 6, "text-anchor": "middle", "font-size": 11, fill: css("--ink-3") }, svg); t.textContent = "Sessions until the comparison stock's own next insider purchase";
+}
+
+// ---- consistency + profiles ----
+function drawProfiles() {
+  const names = { DIP: "Buys after a sharp 20-day fall", LOW: "Buys near the 60-day low", DEEP: "Buys in a deep drawdown", RECOV: "Buys during a recovery", MOM: "Buys on momentum or a breakout", CONTRA: "Any contrarian condition", FOLLOW: "Follows other insiders' buying", ESCAL: "Escalates purchase size", AVGDOWN: "Averages down", SIMPRICE: "Repeats at a similar price" };
+  document.getElementById("consTable").innerHTML = `<tr><th>Style</th><th class="n">Episodes</th><th class="n">Insiders</th><th class="n">Repeat strength (r)</th><th class="n">p</th><th>Repeats?</th></tr>` +
+    DATA.cons.map((c) => `<tr><td>${names[c.label] || c.label}</td><td class="n">${c.units}</td><td class="n">${c.persons}</td><td class="n">${c.r == null ? "—" : c.r.toFixed(2)}</td><td class="n">${c.p == null ? "—" : c.p < 0.001 ? "<0.001" : c.p.toFixed(3)}</td><td>${c.q != null && c.q < 0.1 ? '<span class="badge robust">yes</span>' : '<span class="badge warning">no</span>'}</td></tr>`).join("");
+  const render = (f) => {
+    const q = f.trim().toLowerCase(); const rows = DATA.prof.filter((p) => !q || [p.name, p.tickers, p.tags, p.roles].join(" ").toLowerCase().includes(q));
+    document.getElementById("profTable").innerHTML = `<tr><th>Insider</th><th>Companies</th><th>Role</th><th class="n">Buys</th><th class="n">Episodes</th><th>Style tags</th><th>First → last</th><th class="n">Total $</th></tr>` +
+      rows.map((p) => `<tr><td>${esc(p.name)}</td><td class="w mono">${esc(p.tickers)}</td><td>${esc(p.roles)}</td><td class="n">${p.n}</td><td class="n">${p.ep}</td><td class="w">${esc(p.tags)}</td><td class="mono">${p.first} → ${p.last}</td><td class="n">${p.usd == null ? "—" : "$" + Math.round(p.usd).toLocaleString()}</td></tr>`).join("") || `<tr><td colspan="8" class="muted">No profile matches that filter.</td></tr>`;
+  };
+  const inp = document.getElementById("profFilter"); inp.addEventListener("input", () => render(inp.value)); render("");
+  document.getElementById("profNote").textContent = `Showing the ${DATA.prof.length} insiders with a distinct style and the most purchase episodes, out of ${DATA.profCount} profiles. All profiles are in behavior/profiles.csv. History before December 2025 is unknown.`;
+}
+
+// ---- cases ----
+let caseIdx = 0, caseSeg = "design";
+function drawCaseCtrl() {
+  const c = document.getElementById("caseCtrl");
+  c.innerHTML = ["design", "confirm"].map((s) => `<button type="button" data-seg="${s}" aria-pressed="${s === caseSeg}">${segName[s]}</button>`).join("") +
+    `<label for="caseSel" class="muted">Trade</label><select id="caseSel">${DATA.cases.map((k, i) => k.seg === caseSeg ? `<option value="${i}" ${i === caseIdx ? "selected" : ""}>${k.kind === "winners" ? "▲" : "▼"} ${esc(k.ticker)} ${pct(k.xsNet, 0)} · ${k.entryDate}</option>` : "").join("")}</select>`;
+  c.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { caseSeg = b.dataset.seg; caseIdx = DATA.cases.findIndex((k) => k.seg === caseSeg); drawCaseCtrl(); drawCase(); }));
+  c.querySelector("select").addEventListener("change", (e) => { caseIdx = +e.target.value; drawCase(); });
+}
+function drawCase() {
+  const k = DATA.cases[caseIdx]; const box = document.getElementById("caseBox"), svg = document.getElementById("caseSvg"); svg.innerHTML = "";
+  const W = Math.max(300, box.clientWidth - 32), H = 280, m = { l: 52, r: 10, t: 12, b: 30 };
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%");
+  const s = k.series;
+  if (!s.length) { const t = el("text", { x: W / 2, y: H / 2, "text-anchor": "middle", fill: css("--ink-3"), "font-size": 12 }, svg); t.textContent = "No cached bars for this symbol"; }
+  else {
+    const lo = Math.min(...s.map((b) => b[3])), hi = Math.max(...s.map((b) => b[2]));
+    const ly = (v) => Math.log(v), y = (v) => m.t + (ly(hi) - ly(v)) / (ly(hi) - ly(lo) || 1) * (H - m.t - m.b);
+    const ticks = [lo, Math.sqrt(lo * hi), hi];
+    for (const v of ticks) { el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: css("--grid") }, svg); const t = el("text", { x: m.l - 6, y: y(v) + 4, "text-anchor": "end", "font-size": 11, fill: css("--ink-3") }, svg); t.textContent = v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toPrecision(2); }
+    const dx = (W - m.l - m.r) / s.length; const x = (i) => m.l + (i + 0.5) * dx;
+    s.forEach((b, i) => el("line", { x1: x(i), x2: x(i), y1: y(b[2]), y2: y(b[3]), stroke: css("--base"), "stroke-width": Math.max(1, dx * 0.5) }, svg));
+    el("path", { d: s.map((b, i) => (i ? "L" : "M") + x(i) + " " + y(b[4])).join(" "), fill: "none", stroke: css("--s1"), "stroke-width": 2 }, svg);
+    const iE = s.findIndex((b) => b[0] >= k.entryDate), iX = s.findIndex((b) => b[0] >= k.exitDate);
+    if (iE >= 0 && iX >= 0) {
+      el("rect", { x: x(iE) - dx / 2, y: m.t, width: x(iX) - x(iE) + dx, height: H - m.t - m.b, fill: css("--up"), opacity: 0.08 }, svg);
+      el("line", { x1: x(iE), x2: x(iX), y1: y(s[iE][1]), y2: y(s[iX][4]), stroke: css("--up"), "stroke-width": 2, "stroke-dasharray": "4 3" }, svg);
+      el("circle", { cx: x(iE), cy: y(s[iE][1]), r: 5, fill: css("--up"), stroke: css("--panel"), "stroke-width": 2 }, svg);
+      el("circle", { cx: x(iX), cy: y(s[iX][4]), r: 5, fill: css(k.xsNet >= 0 ? "--up" : "--down"), stroke: css("--panel"), "stroke-width": 2 }, svg);
+    }
+    [0, iE, s.length - 1].filter((i) => i >= 0).forEach((i) => { const t = el("text", { x: Math.min(W - m.r - 30, Math.max(m.l + 30, x(i))), y: H - 10, "text-anchor": "middle", "font-size": 10.5, fill: css("--ink-3") }, svg); t.textContent = s[i][0].slice(5); });
+    const hit = el("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (e) => { const r = svg.getBoundingClientRect(); const i = Math.min(s.length - 1, Math.max(0, Math.floor(((e.clientX - r.left) * W / r.width - m.l) / dx))); const b = s[i]; showTip(box, e, `<b>${b[0]}</b><br>Open ${b[1]} · High ${b[2]}<br>Low ${b[3]} · Close <b>${b[4]}</b>`); });
+    hit.addEventListener("mouseleave", () => hideTip(box));
+  }
+  const c = k.ctx || {}, p = k.path || {};
+  document.getElementById("caseInfo").innerHTML = `<div class="eyebrow">${k.kind === "winners" ? "Winner" : "Loser"} · ${segName[k.seg]}</div>
+    <h3 style="margin:6px 0">${esc(k.ticker)}: ${pct(k.xsNet)} vs SPY</h3>
+    <dl class="q"><dt>Insider</dt><dd>${esc(k.insider)} (${esc(k.role)})</dd><dt>Bought</dt><dd>$${Math.round(k.usd || 0).toLocaleString()} on ${k.tradeDate}</dd><dt>Filed</dt><dd>${esc(k.published)} ET</dd><dt>Entry → exit</dt><dd>${k.entryDate} → ${k.exitDate}</dd>
+    <dt>Opening jump</dt><dd>${pct(p.gapEntry)}</dd><dt>20-day move before</dt><dd>${pct(c.r20)}</dd><dt>From 60-day high</dt><dd>${pct(c.dHi60)}</dd><dt>Daily volatility</dt><dd>${pct(c.vol20)}</dd><dt>Best / worst in 30 days</dt><dd>${pct(p.mfe30, 0)} / ${pct(p.mae30, 0)}</dd><dt>Other insiders buying</dt><dd>${c.oBuyers30Om ?? "—"}</dd></dl>`;
+}
+
+function all() { drawMonths(); drawWf(); drawMech(); drawCase(); }
+drawStrat(); drawProfiles(); drawCaseCtrl(); all();
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(all, 150); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", all);
+new MutationObserver(all).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>

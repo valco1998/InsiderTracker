@@ -1,0 +1,15 @@
+{
+  "summary": "An independent agent re-implemented eligibility, both clocks, outcomes and controls without importing the study code. Every count, owner, USD amount, entry, outcome and control symbol matched exactly (to 1e-9). It hand-checked the timing of 60 random events and 40 events × 29 outcome fields with 0 mismatches, and attacked the rules and the comparison group.",
+  "rows": [
+    { "claim": "Sample and cluster construction", "verdict": "CONFIRMED", "evidence": "Same 316/181/63 (hindsight) and 317/184/65 (public) clusters, 0 one-sided; same 108 main events (a1)" },
+    { "claim": "Median peak 23.6%, ~100 days to peak, touch rates", "verdict": "CONFIRMED", "evidence": "40 events × 29 fields recomputed, 0 mismatches (a4). A random walk with each event's own drift and volatility gives a median of 93 days (79–111), so the timing is generic (a7)" },
+    { "claim": "180-day net vs similar stocks −1.3 pts", "verdict": "CONFIRMED", "evidence": "−1.3 to −2.1 under every rule variant, never significant; events minus the unmatched pool = 0.0 pts (a2, a5)" },
+    { "claim": "180-day net vs SPY −6.6 pts", "verdict": "CONFIRMED WITH CAVEAT", "evidence": "Fully a universe effect: equal-weighted insider-filer stocks returned 5.8% vs SPY 12.4% and IWM 12.3% over the same windows (a5)" },
+    { "claim": "Peak 12.7 pts below similar stocks; +20% touched 10 pts less often", "verdict": "CONFIRMED WITH CAVEAT", "evidence": "After entry, cluster stocks were 15% less volatile than their matches (p < .001); at equal post-entry volatility the gap is −4.8 (p .37). Drops to −9.5 (p .12) if the price-range filter is off (a2, a6)" },
+    { "claim": "Hindsight minus public +4.4 pts (K1)", "verdict": "CONFIRMED", "evidence": "+4.1 of it is the move from the completion-day close to the public entry open; positive in 85% of events, median lag 3 days (a7)" },
+    { "claim": "\"Only K1 survives correction\"", "verdict": "REFUTED (corrected)", "evidence": "P4-A (Cluster A peak vs similar stocks, q .095) also passes q < .10. The report wording has been corrected." },
+    { "claim": "Comparison stocks free of future-selection bias", "verdict": "CONFIRMED", "evidence": "34.2% of matched controls vs 34.0% of the pool have their next insider purchase within 60 days. Selecting on the future would have biased results (2.3% vs 10.3%) (a5)" },
+    { "claim": "All frozen strategies rejected", "verdict": "CONFIRMED", "evidence": "S1–S3 recomputed independently (a8)" },
+    { "claim": "Minor defects", "verdict": "NOTED", "evidence": "T1 compares event medians with per-event control means (with all 535 control paths: −3 days, not +3; same conclusion). 3 hindsight-clock entries use the previous trading day's close; immaterial." }
+  ]
+}

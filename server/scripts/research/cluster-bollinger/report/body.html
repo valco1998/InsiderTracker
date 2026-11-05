@@ -1,0 +1,233 @@
+<style>
+.ctrl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.ctrl input { font: 13px var(--body); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); min-height: 32px; }
+.chartbox { position: relative; min-width: 0; }
+.qbox { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; margin-bottom: 12px; } .qbox b { display: block; }
+.tblwrap { max-height: 520px; overflow: auto; } .tblwrap thead th { position: sticky; top: 0; background: var(--panel); }
+.blocked { color: var(--warn); font-weight: 600; }
+</style>
+<div class="wrap">
+<header style="display:flex;flex-direction:column;gap:10px">
+  <div class="eyebrow">InsiderTracker · research · SEC Form 4 purchases Dec 2025 – Nov 2026 · daily prices to 3 Nov 2026</div>
+  <h1>Insider clusters with Bollinger Band exits: a portfolio backtest</h1>
+  <p class="lede">Clusters of two or more insiders buying (at least one an officer, $250k or more), entered at the next open after the SEC filings went public. Exits use 20-day, 2.5-standard-deviation Bollinger Bands, with 1.5% risk per trade. Rules and every open definition were fixed and hashed before anything was computed.</p>
+</header>
+
+<section class="verdict-box">
+  <b class="big">The full strategy lost 2.2% over 11 months while SPY gained 10.8%. It is not profitable after realistic costs.</b>
+  <p id="verdictText"></p>
+</section>
+
+<section><div class="kv" id="kpis"></div></section>
+
+<section>
+  <h2>Four variants on the same signals</h2>
+  <p>Per-trade results take every signal with no capacity limit. Portfolio results start from $100,000, with at most 10 positions and 3 new ones per week, and same-day signals ranked by ΔOwn. A, B and C put 10% of equity in each position; D sizes each position so that hitting the stop loses 1.5% of equity.</p>
+  <div class="panel scroll"><table id="varTable"></table></div>
+  <p class="note">Similar stocks: for every signal, 5 stocks matched on dollar volume, prior 30- and 60-day return, volatility and price, entered the same morning and closed with the same exit rules. They come only from stocks whose earlier insider-purchase filings were already public, so no future information picks them. These are still stocks with insider filings, not the whole market. Interval = 90% issuer-clustered bootstrap.</p>
+</section>
+
+<section>
+  <h2>Equity curves</h2>
+  <div class="panel chartbox" id="eqBox"><svg id="eqSvg" role="img" aria-label="Portfolio equity curves for variants A to D and SPY"></svg>
+    <div class="legend" id="eqLegend"></div></div>
+</section>
+
+<section>
+  <h2>Which tier works best?</h2>
+  <div class="panel scroll"><table id="tierTable"></table></div>
+  <p class="note">Tier 1 ($1.5M+, ΔOwn ≥ 3%) was the only tier with consistently positive per-trade results, but with 30–36 trades per variant none of the tier differences are statistically reliable.</p>
+</section>
+
+<section>
+  <h2>Full strategy (D): month by month</h2>
+  <div class="panel chartbox" id="monBox"><svg id="monSvg" role="img" aria-label="Monthly portfolio returns for strategy D"></svg>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Strategy D monthly return</span></div></div>
+  <div class="panel scroll" style="margin-top:12px"><table id="qTable"></table></div>
+</section>
+
+<section>
+  <h2>Sensitivity</h2>
+  <div class="panel scroll"><table id="sensTable"></table></div>
+  <p class="note">These checks test the frozen rules; none is used to pick a better rule. The crash check is a <b>proxy</b>: it excludes any stock that fell more than 15% in a day over the prior 10 sessions, whether or not earnings caused it, because we have no earnings dates.</p>
+</section>
+
+<section>
+  <h2>Signal funnel and exclusions</h2>
+  <div class="panel scroll"><table id="funnelTable"></table></div>
+  <p class="note" id="rowExcl"></p>
+</section>
+
+<section>
+  <h2>Trade log: full strategy (D)</h2>
+  <div class="ctrl"><label for="q" class="muted">Search</label><input id="q" type="search" placeholder="ticker, tier, exit reason"><span class="muted" id="qn"></span></div>
+  <div class="panel scroll tblwrap"><table id="logTable"></table></div>
+  <p class="note">Insider price is the cluster's value-weighted purchase price, split-adjusted to the chart scale. Public = the SEC acceptance time (ET) of the filing that completed the signal. P&amp;L is after costs.</p>
+</section>
+
+<section>
+  <h2>Data coverage and what is blocked</h2>
+  <ul>
+    <li><b>SEC filings:</b> 1 Dec 2025 → 2 Nov 2026, with 24–31 Dec 2025 missing. <span class="blocked">The November 2025 backfill is not finished</span>: it started 5 Nov 2026 and was on day 1 of 18. It was not used and not touched.</li>
+    <li><b>Prices:</b> Alpaca daily bars, split-adjusted, 1 Oct 2025 → 3 Nov 2026, covering only the 2,428 tickers that ever had an insider purchase. Dividends are not included. Tickers with no price history are counted in the funnel. No traded stock delisted during a trade; positions still open on 3 Nov are marked at that day's close and counted separately.</li>
+    <li><span class="blocked">Earnings-crash filter: blocked.</span> No point-in-time earnings dates are cached, so the filter was not applied; a labelled proxy is in the sensitivity table.</li>
+    <li><b>SPAC / blank-check exclusion:</b> issuer-name rule only (no SIC 6770 data cached); 5 rows removed. The IPO/offering check also uses a 424B4 prospectus list that covers only 645 issuers; 15 rows removed.</li>
+    <li><b>Costs:</b> spread, slippage and fees by liquidity, 5 / 15 / 35 / 75 bps per side, plus 25 bps extra on stop fills. Gaps through a stop fill at the open.</li>
+    <li><b>Train/test:</b> entries before 1 Jun 2026 are train, later ones test. Nothing was tuned. June–November prices were looked at in earlier studies for other questions, so the test period is not pristine.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Definitions fixed before running</h2>
+  <ul>
+    <li><b>Signal time:</b> at each SEC acceptance, only filings accepted by then count. Purchases must be within 5 calendar days before that filing. Because of this rule, the 14-day window never comes into play. After a signal, the same company can't signal again for 30 days.</li>
+    <li><b>Distinct insiders:</b> reporting CIK. Joint filers, and two people reporting the same indirect holding, count as one. An insider counts only if their average price is at least $5.</li>
+    <li><b>Officer:</b> any C-level, President, VP, Treasurer, Secretary, General Counsel, Controller or "officer" title. Directors and 10% owners alone don't count.</li>
+    <li><b>ΔOwn:</b> for each insider and holding line, the holding before buying = shares owned after minus shares bought (taking the lowest such value on that line). Cluster ΔOwn = total shares bought ÷ total shares held before, over lines with a positive prior holding. Lines with no prior holding are invalid and left out of ΔOwn, but still count toward insiders and value.</li>
+    <li><b>Bollinger Bands:</b> 20-day simple moving average ± 2.5 standard deviations of closes (population SD), using completed days only. Stop = lower band on the day before entry × 0.98.</li>
+    <li><b>Order of checks each day:</b> pending dynamic exit at the open, then stop (gap fills at the open), then take-profit at the previous day's upper band (gap fills at the open), then the dynamic-stop check on the close, then the 45-session time stop at the close. If both the stop and the take-profit are touched on the same day, the stop is assumed to come first. The fixed exit for A and B is the close of the 20th session.</li>
+    <li><b>Portfolio sizing:</b> shares are sized from the previous close, because the opening price isn't known when the order is placed. The order is cancelled if the stock opens at or below the stop, or more than 7% above the insiders' price (D). Each position is capped at 20% of equity and by available cash, with no leverage. Entries use cash available before that day's exits.</li>
+  </ul>
+  <p class="note mono" id="spec"></p>
+</section>
+
+<section><h2>Checks</h2><div class="panel" id="checks"></div></section>
+<section><h2>Answers</h2><div id="answers"></div></section>
+<section><h2>Files</h2><p class="note">Scripts: <code>server/scripts/research/cluster-bollinger/</code> (spec.json, cbLib.mjs, run.mjs, selfcheck.mjs, report/). Outputs: <code>server/.cache/research/cluster-bollinger/</code> (results.json, signals.json, event-trades.csv, portfolio-D-trades.csv, selfcheck.json, spec.log, report.html).</p></section>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const NS = "http://www.w3.org/2000/svg";
+const el = (t, a = {}, p) => { const e = document.createElementNS(NS, t); for (const [k, v] of Object.entries(a)) e.setAttribute(k, v); if (p) p.appendChild(e); return e; };
+const txt = (svg, x, y, s, a = {}) => { const t = el("text", { x, y, "font-size": 11, fill: css("--ink-3"), ...a }, svg); t.textContent = s; return t; };
+const pct = (x, d = 1) => (x == null ? "—" : (x > 0 ? "+" : "") + (x * 100).toFixed(d) + "%");
+const pc = (x, d = 0) => (x == null ? "—" : (x * 100).toFixed(d) + "%");
+const pts = (x, d = 1) => (x == null ? "—" : (x > 0 ? "+" : "") + (x * 100).toFixed(d) + " pts");
+const usd = (x) => (x == null ? "—" : (x < 0 ? "−$" : "$") + Math.abs(Math.round(x)).toLocaleString());
+const cls = (x) => (x == null ? "" : x > 0 ? "up" : x < 0 ? "down" : "");
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const f2 = (x) => (x == null ? "—" : x.toFixed(2));
+function tip(box) { let t = box.querySelector(".tip"); if (!t) { t = document.createElement("div"); t.className = "tip"; t.hidden = true; box.appendChild(t); } return t; }
+function showTip(box, e, html) { const t = tip(box); t.innerHTML = html; t.hidden = false; const r = box.getBoundingClientRect(); let x = e.clientX - r.left + 12, y = e.clientY - r.top + 12; if (x + 260 > r.width) x = Math.max(4, x - 280); t.style.left = x + "px"; t.style.top = y + "px"; }
+function hideTip(box) { tip(box).hidden = true; }
+const V = ["A", "B", "C", "D"]; const P = DATA.pf, E = DATA.ev;
+const VN = { A: "A · clusters, fixed exit", B: "B · + tiers, fixed exit", C: "C · clusters + Bollinger", D: "D · full strategy" };
+
+// verdict + KPIs
+const d = P.D, de = E.D.all;
+document.getElementById("verdictText").textContent = `Per trade, the full strategy averaged ${pct(de.expectancy, 2)} after costs over ${de.n} trades (90% interval ${pct(de.meanCI.lo90)} to ${pct(de.meanCI.hi90)}), with a ${pc(de.winRate)} win rate and a profit factor of ${f2(de.profitFactor)}. In the portfolio it made ${d.trades} trades and returned ${pct(d.totalReturn)} with a maximum drawdown of ${pct(d.maxDrawdown)}; SPY returned ${pct(d.spyReturn)} over the same dates. Simple clusters with a fixed 20-session hold (A) did better than any Bollinger version, both per trade (${pct(E.A.all.expectancy, 2)}) and as a portfolio (${pct(P.A.totalReturn)}), but also trailed SPY. Every confidence interval includes zero, the sample is one 11-month period, and the earnings filter could not be applied.`;
+document.getElementById("kpis").innerHTML = [[pct(d.totalReturn), `D portfolio return, ${d.start} → ${d.end}`], [pct(d.spyReturn), "SPY over the same dates"], [pct(d.maxDrawdown), "D max drawdown (SPY " + pct(d.spyMaxDrawdown) + ")"], [pc(d.winRate), `D win rate, ${d.trades} closed trades`], [f2(d.profitFactor), "D profit factor ($)"], [usd(d.expectancyUsd), "D expectancy per trade"], [String(d.holdMedian), "D median holding, sessions"]].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("");
+
+// variants table
+(() => {
+  const row = (lab, f, c) => `<tr><td>${lab}</td>${V.map((k) => `<td class="n ${c ? c(k) : ""}">${f(k)}</td>`).join("")}</tr>`;
+  const sub = (s) => `<tr><td colspan="5" style="padding-top:14px"><span class="eyebrow">${s}</span></td></tr>`;
+  document.getElementById("varTable").innerHTML = `<tr><th></th>${V.map((k) => `<th class="n">${VN[k]}</th>`).join("")}</tr>` +
+    row("Signals", (k) => E[k].signals) + row("Cancelled before entry", (k) => Object.entries(E[k].cancelled).map(([a, b]) => `${b} ${a.replace(/_/g, " ")}`).join("<br>") || "0") +
+    sub("Per trade (every signal)") +
+    row("Closed trades (+ still open)", (k) => `${E[k].all.n} (+${E[k].all.openAtEnd})`) + row("Win rate", (k) => pc(E[k].all.winRate)) + row("Average winner / loser", (k) => `${pct(E[k].all.avgWin)} / ${pct(E[k].all.avgLoss)}`) +
+    row("Profit factor", (k) => f2(E[k].all.profitFactor)) + row("Expectancy (mean net)", (k) => pct(E[k].all.expectancy, 2), (k) => cls(E[k].all.expectancy)) + row("90% interval", (k) => `${pct(E[k].all.meanCI.lo90)} … ${pct(E[k].all.meanCI.hi90)}`) +
+    row("Median net", (k) => pct(E[k].all.median, 2)) + row("Holding, mean / median sessions", (k) => `${E[k].all.holdMean.toFixed(1)} / ${E[k].all.holdMedian}`) +
+    row("vs SPY, same window", (k) => pts(E[k].all.xSpy.est), (k) => cls(E[k].all.xSpy.est)) +
+    row("vs similar stocks, same exits", (k) => `${pts(E[k].all.xCtl.est)}<br><span class="muted">${pts(E[k].all.xCtl.lo90)} … ${pts(E[k].all.xCtl.hi90)}</span>`, (k) => cls(E[k].all.xCtl.est)) +
+    row("Train (before Jun): n · mean", (k) => `${E[k].train.n} · ${pct(E[k].train.expectancy, 2)}`) + row("Test (Jun → Nov): n · mean", (k) => `${E[k].test.n} · ${pct(E[k].test.expectancy, 2)}`, (k) => cls(E[k].test.expectancy)) +
+    row("Exit reasons", (k) => Object.entries(E[k].all.reasons).map(([a, b]) => `${b} ${a.replace(/_/g, " ")}`).join("<br>")) +
+    sub("Portfolio ($100,000)") +
+    row("Trades taken (+ open at end)", (k) => `${P[k].trades} (+${P[k].openAtEnd})`) + row("Total return", (k) => pct(P[k].totalReturn), (k) => cls(P[k].totalReturn)) + row("Annualised (11 months, indicative)", (k) => pct(P[k].annualized)) +
+    row("Max drawdown", (k) => pct(P[k].maxDrawdown)) + row("Win rate", (k) => pc(P[k].winRate)) + row("Average winner / loser ($)", (k) => `${usd(P[k].avgWinUsd)} / ${usd(P[k].avgLossUsd)}`) + row("Profit factor ($)", (k) => f2(P[k].profitFactor)) +
+    row("Expectancy per trade", (k) => usd(P[k].expectancyUsd), (k) => cls(P[k].expectancyUsd)) + row("SPY, same dates", (k) => pct(P[k].spyReturn)) +
+    row("Signals skipped by limits", (k) => Object.entries(P[k].rejects).map(([a, b]) => `${b} ${a.replace(/_/g, " ")}`).join("<br>"));
+})();
+
+// equity chart
+function drawEq() {
+  const box = document.getElementById("eqBox"), svg = document.getElementById("eqSvg"); svg.innerHTML = "";
+  const W = Math.max(300, box.clientWidth - 32), H = 320, m = { l: 62, r: 64, t: 12, b: 30 }; svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%");
+  const col = { A: css("--s2"), B: css("--warn"), C: css("--s3"), D: css("--s1"), SPY: css("--base") };
+  const days = DATA.curves.D.map((c) => c[0]); const ser = { ...Object.fromEntries(V.map((k) => [k, new Map(DATA.curves[k].map((c) => [c[0], c[1]]))])), SPY: new Map(DATA.curves.D.map((c) => [c[0], c[2]])) };
+  const all = Object.values(ser).flatMap((m) => [...m.values()]); const lo = Math.min(...all) * 0.98, hi = Math.max(...all) * 1.01;
+  const x = (i) => m.l + i / (days.length - 1) * (W - m.l - m.r), y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  for (let v = Math.ceil(lo / 5000) * 5000; v <= hi; v += 5000) { el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: v === 100000 ? css("--ink-3") : css("--grid") }, svg); txt(svg, m.l - 6, y(v) + 4, "$" + v / 1000 + "k", { "text-anchor": "end" }); }
+  days.forEach((dd, i) => { if (dd.slice(8) <= "07" && (i === 0 || days[i - 1].slice(5, 7) !== dd.slice(5, 7))) txt(svg, x(i), H - 10, dd.slice(2, 7), { "text-anchor": "middle" }); });
+  for (const k of ["SPY", "A", "B", "C", "D"]) {
+    let dpath = "", started = false; days.forEach((dd, i) => { const v = ser[k].get(dd); if (v == null) return; dpath += (started ? "L" : "M") + x(i) + " " + y(v); started = true; });
+    el("path", { d: dpath, fill: "none", stroke: col[k], "stroke-width": k === "D" ? 2.5 : 2, ...(k === "SPY" ? { "stroke-dasharray": "5 4" } : {}) }, svg);
+    const last = [...ser[k].values()].at(-1); txt(svg, W - m.r + 6, y(last) + 4, k + " " + pct(last / 100000 - 1, 0), { fill: css("--ink-2"), "font-size": 10.5 });
+  }
+  const vl = el("line", { y1: m.t, y2: H - m.b, stroke: css("--ink-3"), "stroke-dasharray": "2 3", visibility: "hidden" }, svg);
+  const hit = el("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
+  hit.addEventListener("mousemove", (e) => { const r = svg.getBoundingClientRect(); const i = Math.max(0, Math.min(days.length - 1, Math.round(((e.clientX - r.left) * W / r.width - m.l) / (W - m.l - m.r) * (days.length - 1)))); vl.setAttribute("x1", x(i)); vl.setAttribute("x2", x(i)); vl.setAttribute("visibility", "visible");
+    showTip(box, e, `<b>${days[i]}</b><br>` + ["D", "A", "B", "C", "SPY"].map((k) => `${k === "SPY" ? "SPY" : VN[k]}: <b>${usd(ser[k].get(days[i]))}</b>`).join("<br>")); });
+  hit.addEventListener("mouseleave", () => { hideTip(box); vl.setAttribute("visibility", "hidden"); });
+  document.getElementById("eqLegend").innerHTML = ["D", "A", "B", "C", "SPY"].map((k) => `<span><i class="line" style="background:${col[k]}"></i>${k === "SPY" ? "SPY buy and hold" : VN[k]}</span>`).join("");
+}
+
+// tiers
+(() => {
+  const rows = ["T1", "T2", "T3"].map((t) => `<tr><td>${{ T1: "Tier 1 · $1.5M+, ΔOwn ≥ 3%", T2: "Tier 2 · $500k–1.5M, ΔOwn ≥ 6%", T3: "Tier 3 · $250–500k, 3+ insiders, ΔOwn ≥ 10%" }[t]}</td>` +
+    ["B", "D"].map((k) => { const e = E[k].byTier[t]; return `<td class="n">${e.n}</td><td class="n ${cls(e.expectancy)}">${pct(e.expectancy, 2)}</td><td class="n">${pc(e.winRate)}</td><td class="n">${f2(e.profitFactor)}</td><td class="n ${cls(e.xCtl?.est)}">${pts(e.xCtl?.est)}</td>`; }).join("") +
+    `<td class="n">${P.D.byTier[t].n}</td><td class="n ${cls(P.D.byTier[t].pnl)}">${usd(P.D.byTier[t].pnl)}</td></tr>`).join("");
+  document.getElementById("tierTable").innerHTML = `<tr><th></th><th class="n" colspan="5">B · fixed 20-session exit (per trade)</th><th class="n" colspan="5">D · full strategy (per trade)</th><th class="n" colspan="2">D portfolio</th></tr><tr><th>Tier</th>${"<th class='n'>n</th><th class='n'>Mean</th><th class='n'>Win</th><th class='n'>PF</th><th class='n'>vs similar</th>".repeat(2)}<th class="n">Trades</th><th class="n">P&amp;L</th></tr>` + rows;
+})();
+
+// monthly D
+function drawMon() {
+  const box = document.getElementById("monBox"), svg = document.getElementById("monSvg"); svg.innerHTML = "";
+  const W = Math.max(300, box.clientWidth - 32), H = 220, m = { l: 44, r: 8, t: 10, b: 28 }; svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%");
+  const ms = P.D.monthly; const lo = Math.min(-0.04, ...ms.map((x) => x.ret)) * 1.15, hi = Math.max(0.04, ...ms.map((x) => x.ret)) * 1.15; const y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  for (let v = Math.ceil(lo / 0.02) * 0.02; v <= hi; v += 0.02) { el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: Math.abs(v) < 1e-9 ? css("--ink-3") : css("--grid") }, svg); txt(svg, m.l - 6, y(v) + 4, Math.round(v * 100) + "%", { "text-anchor": "end" }); }
+  const bw = (W - m.l - m.r) / ms.length;
+  ms.forEach((x, i) => { el("rect", { x: m.l + i * bw + 4, y: Math.min(y(0), y(x.ret)), width: Math.max(3, bw - 8), height: Math.max(1, Math.abs(y(x.ret) - y(0))), rx: 2, fill: css("--s1") }, svg); txt(svg, m.l + i * bw + bw / 2, H - 10, x.period.slice(2), { "text-anchor": "middle", "font-size": 10 });
+    const h = el("rect", { x: m.l + i * bw, y: m.t, width: bw, height: H - m.t - m.b, fill: "transparent" }, svg); h.addEventListener("mousemove", (e) => showTip(box, e, `<b>${x.period}</b><br>${pct(x.ret, 2)} · equity ${usd(x.end)}`)); h.addEventListener("mouseleave", () => hideTip(box)); });
+  document.getElementById("qTable").innerHTML = `<tr><th>Quarter</th>${V.map((k) => `<th class="n">${VN[k]}</th>`).join("")}</tr>` + P.D.quarterly.map((q, i) => `<tr><td>${q.period}</td>${V.map((k) => { const v = P[k].quarterly.find((z) => z.period === q.period)?.ret; return `<td class="n ${cls(v)}">${pct(v)}</td>`; }).join("")}</tr>`).join("");
+}
+
+// sensitivity
+document.getElementById("sensTable").innerHTML = `<tr><th>D variant</th><th class="n">Trades</th><th class="n">Return</th><th class="n">Max DD</th><th class="n">Win</th><th class="n">PF</th><th class="n">Expectancy</th></tr>` +
+  Object.entries(DATA.sens).map(([k, s]) => `<tr><td>${esc(k)}</td><td class="n">${s.trades}</td><td class="n ${cls(s.totalReturn)}">${pct(s.totalReturn)}</td><td class="n">${pct(s.maxDrawdown)}</td><td class="n">${pc(s.winRate)}</td><td class="n">${f2(s.profitFactor)}</td><td class="n ${cls(s.expectancyUsd)}">${usd(s.expectancyUsd)}</td></tr>`).join("");
+
+// funnel
+(() => {
+  const f = DATA.funnel, nm = (k) => k.replace(/_/g, " ").replace("$5 price rule", "$5 average-price rule");
+  const keys = [...new Set([...Object.keys(f.base), ...Object.keys(f.tiered)])];
+  document.getElementById("funnelTable").innerHTML = `<tr><th>Stage</th><th class="n">Clusters only (A, C)</th><th class="n">With tiers (B, D)</th></tr><tr><td>Eligible purchase rows</td><td class="n" colspan="2">${DATA.coverage.eligibleRows.toLocaleString()} of ${DATA.coverage.purchaseRows.toLocaleString()} code-P rows</td></tr>` +
+    `<tr><td>Candidate episodes (2+ insiders buying within 5 days of a filing)</td><td class="n" colspan="2">${f.episodes}</td></tr>` +
+    keys.map((k) => `<tr><td>Rejected: ${nm(k)}</td><td class="n">${f.base[k] || 0}</td><td class="n">${f.tiered[k] || 0}</td></tr>`).join("") +
+    `<tr><td><b>Signals</b></td><td class="n"><b>${DATA.signalCounts.base}</b></td><td class="n"><b>${DATA.signalCounts.tiered}</b> (T1 ${DATA.signalCounts.tieredByTier.T1}, T2 ${DATA.signalCounts.tieredByTier.T2}, T3 ${DATA.signalCounts.tieredByTier.T3})</td></tr>` +
+    `<tr><td>Cancelled at entry (D: open > 1.07× insider price / invalid stop / &lt; 40 bars)</td><td class="n">${Object.values(E.C.cancelled).reduce((a, b) => a + b, 0)}</td><td class="n">${Object.values(E.D.cancelled).reduce((a, b) => a + b, 0)}</td></tr>`;
+  document.getElementById("rowExcl").textContent = "Purchase rows excluded: " + Object.entries(DATA.coverage.rowExcl).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`).join(" · ") + ".";
+})();
+
+// trade log
+function drawLog() {
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  const rows = DATA.logD.filter((t) => !q || `${t.ticker} ${t.tier} ${t.reason} ${t.issuer}`.toLowerCase().includes(q)).sort((a, b) => (a.entryDate < b.entryDate ? -1 : 1));
+  document.getElementById("qn").textContent = rows.length + " trades";
+  document.getElementById("logTable").innerHTML = `<thead><tr><th>Ticker</th><th>Tier</th><th class="n">Insiders · value</th><th class="n">ΔOwn</th><th class="n">Insider price</th><th>Public (ET)</th><th>Entry</th><th class="n">Entry px</th><th class="n">Stop</th><th class="n">Shares · $</th><th>Exit</th><th class="n">Exit px</th><th>Reason</th><th class="n">Sessions</th><th class="n">P&amp;L</th><th class="n">Return</th></tr></thead><tbody>` +
+    rows.map((t) => `<tr><td title="${esc(t.issuer)}">${esc(t.ticker)}</td><td>${t.tier}</td><td class="n">${t.owners ?? ""} · ${usd(t.value)}</td><td class="n">${pc(t.dOwn, 1)}</td><td class="n">${t.insiderVwapAdj ? t.insiderVwapAdj.toFixed(2) : "—"}</td><td>${esc((t.T || "").slice(0, 16))}</td><td>${t.entryDate}</td><td class="n">${t.entry.toFixed(2)}</td><td class="n">${t.stop?.toFixed(2) ?? "—"}</td><td class="n">${t.shares} · ${usd(t.positionUsd)}</td><td>${t.exitDate ?? "open"}</td><td class="n">${t.exit?.toFixed(2) ?? "—"}</td><td>${esc((t.reason || "").replace(/_/g, " "))}</td><td class="n">${t.sessions ?? ""}</td><td class="n ${cls(t.pnl)}">${usd(t.pnl)}</td><td class="n ${cls(t.ret)}">${pct(t.ret)}</td></tr>`).join("") + "</tbody>";
+}
+document.getElementById("q").addEventListener("input", drawLog);
+
+// checks + answers
+document.getElementById("spec").textContent = DATA.specLog;
+document.getElementById("checks").innerHTML = `<p>${DATA.selfcheck.filter((c) => c.pass).length}/${DATA.selfcheck.length} self-checks pass. These include an independent replay of bands, stops and exits from the raw price file, and a test that deleting every later filing leaves each signal unchanged.</p><ul>${DATA.selfcheck.map((c) => `<li>${c.pass ? "✔" : "✘"} ${esc(c.name)}</li>`).join("")}</ul>`;
+(() => {
+  const tierBest = ["T1", "T2", "T3"].sort((a, b) => E.D.byTier[b].expectancy - E.D.byTier[a].expectancy)[0];
+  const Q = [
+    ["Is the full strategy profitable after realistic costs?", `No. The portfolio returned ${pct(P.D.totalReturn)} (SPY ${pct(P.D.spyReturn)}), with profit factor ${f2(P.D.profitFactor)} and expectancy ${usd(P.D.expectancyUsd)} per trade. Per trade with no capacity limits it averaged ${pct(E.D.all.expectancy, 2)}, and the 90% interval of ${pct(E.D.all.meanCI.lo90)} to ${pct(E.D.all.meanCI.hi90)} includes zero. Neither 1% nor 3% risk, dropping the time stop, nor the crash proxy made it profitable.`],
+    ["Which tier performs best?", `Tier 1 ($1.5M+). With the full strategy it averaged ${pct(E.D.byTier.T1.expectancy, 2)} over ${E.D.byTier.T1.n} trades, profit factor ${f2(E.D.byTier.T1.profitFactor)}. Tier 2 averaged ${pct(E.D.byTier.T2.expectancy, 2)} (${E.D.byTier.T2.n}) and Tier 3 ${pct(E.D.byTier.T3.expectancy, 2)} (${E.D.byTier.T3.n}). Tier 1 was also the only tier with a positive portfolio P&L (${usd(P.D.byTier.T1.pnl)}). The samples are too small to call this a reliable difference.`],
+    ["Do Bollinger Bands improve on insider clusters alone?", `No. The same clusters with a fixed 20-session hold (A) averaged ${pct(E.A.all.expectancy, 2)} per trade and returned ${pct(P.A.totalReturn)} as a portfolio. With Bollinger exits (C) the same signals averaged ${pct(E.C.all.expectancy, 2)} and returned ${pct(P.C.totalReturn)}. The bands cut the holding time and lost more often to stops (C: ${E.C.all.reasons.hard_stop || 0} hard stops, ${E.C.all.reasons.hard_stop_gap || 0} gap stops). In ${E.C.all.reasons.take_profit ? "many" : "some"} trades the stock opened at or above the previous upper band and was sold the same day.`],
+    ["Win rate, profit factor and maximum drawdown?", `Full strategy portfolio: win rate ${pc(P.D.winRate)}, profit factor ${f2(P.D.profitFactor)}, max drawdown ${pct(P.D.maxDrawdown)} (SPY ${pct(P.D.spyMaxDrawdown)}). The average winner made ${pct(P.D.avgWinPct)} and the average loser lost ${pct(P.D.avgLossPct)}. Losses were larger than wins, partly because stops sit below a wide 2.5 SD band.`],
+    ["Does it beat SPY and matched stocks?", `Not SPY: the portfolio returned ${pct(P.D.totalReturn)} against ${pct(P.D.spyReturn)}. Per trade, D was ${pts(E.D.all.xSpy.est)} vs SPY over the same windows and ${pts(E.D.all.xCtl.est)} vs similar stocks under the same exits (90% interval ${pts(E.D.all.xCtl.lo90)} to ${pts(E.D.all.xCtl.hi90)}). The clearest edge over similar stocks was in A, with simple clusters held 20 sessions: ${pts(E.A.all.xCtl.est)} (${pts(E.A.all.xCtl.lo90)} to ${pts(E.A.all.xCtl.hi90)}, p ${E.A.all.xCtl.p.toFixed(2)}). That is one of many comparisons, would not survive a multiple-testing correction, and the similar stocks come only from stocks with insider filings.`],
+    ["Statistically meaningful?", `No. D has ${E.D.all.n} trades from ${E.D.all.issuers} companies in a single 11-month period: ${E.D.train.n} train, ${E.D.test.n} test. Every interval for D includes zero, the tiers have 13–36 trades each, and the test period overlaps data seen in earlier studies. The SEC history before December 2025, full-market prices and earnings dates would all be needed for a real verdict.`],
+  ];
+  document.getElementById("answers").innerHTML = Q.map(([q, a], i) => `<div class="qbox"><b>${i + 1}. ${q}</b>${a}</div>`).join("");
+})();
+function all() { drawEq(); drawMon(); }
+drawLog(); all();
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(all, 150); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", all);
+new MutationObserver(all).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>

@@ -1,0 +1,73 @@
+{
+  "study": "deep5 — insider cluster buying and 180-day peaks",
+  "writtenBefore": "any cluster outcome, control outcome or return was computed (only the coverage audit's cluster counts existed)",
+  "sample": {
+    "main": "Clock 2 (public disclosure) clusters with a fully observed 180-calendar-day window (entry date + 180 <= last complete bar), not affected by the Dec 24-31 2025 SEC gap",
+    "periods": {
+      "design": "entry date 2025-12-01 .. 2026-02-28",
+      "confirm": "entry date 2026-03-01 .. last date with a full 180-day window (~2026-05-07)",
+      "extension": "entry date after the confirm period with a full 90-day window; 90-day horizon only; not pristine (Jun-Nov prices were seen in deep studies 2-4 for other questions)"
+    }
+  },
+  "primary": [
+    { "id": "P1-A", "test": "Cluster A: mean 180d net return minus mean of its 5 matched point-in-time controls != 0 (issuer-clustered bootstrap)" },
+    { "id": "P1-B", "test": "Cluster B: same" },
+    { "id": "P1-C", "test": "Cluster C: same" },
+    { "id": "P1-U", "test": "Union of A/B/C (deduplicated): same" },
+    { "id": "P2-A", "test": "Cluster A: mean 180d net return minus SPY != 0" },
+    { "id": "P2-B", "test": "Cluster B: same" },
+    { "id": "P2-C", "test": "Cluster C: same" },
+    { "id": "P2-U", "test": "Union: same" },
+    { "id": "P3-A", "test": "Cluster A: share touching +20% (daily high) within 180d minus matched-control share != 0" },
+    { "id": "P3-B", "test": "Cluster B: same" },
+    { "id": "P3-C", "test": "Cluster C: same" },
+    { "id": "P3-U", "test": "Union: same" },
+    { "id": "P4-A", "test": "Cluster A: mean max 180d gain (daily high) minus matched-control mean != 0" },
+    { "id": "P4-B", "test": "Cluster B: same" },
+    { "id": "P4-C", "test": "Cluster C: same" },
+    { "id": "P4-U", "test": "Union: same" }
+  ],
+  "dose": [
+    { "id": "D1", "test": "Union: Spearman(log combined USD, 180d excess vs controls) != 0" },
+    { "id": "D2", "test": "Union: Spearman(distinct owners, 180d excess vs controls) != 0" },
+    { "id": "D3", "test": "Union: Spearman(log USD / 20-session dollar volume, 180d excess vs controls) != 0" },
+    { "id": "D4", "test": "Union: Spearman(log combined USD, max-gain excess vs controls) != 0" },
+    { "id": "D5", "test": "Union: Spearman(distinct owners, max-gain excess vs controls) != 0" },
+    { "id": "D6", "test": "Union: Spearman(log USD / dollar volume, max-gain excess vs controls) != 0" }
+  ],
+  "subgroups": {
+    "rule": "Union, 180d excess vs matched controls; difference between the two groups (issuer-clustered bootstrap). No other splits are tested; anything else is labelled exploratory.",
+    "list": [
+      { "id": "G1", "split": "CEO or CFO among the buyers vs not" },
+      { "id": "G2", "split": "a 10% owner among the buyers vs not" },
+      { "id": "G3", "split": "all qualifying purchases on one trade date vs spread over 2+ dates" },
+      { "id": "G4", "split": "prior 60-calendar-day return <= -20% vs > -20%" },
+      { "id": "G5", "split": "bottom tercile of 20-session dollar volume vs the rest" },
+      { "id": "G6", "split": "fund-like issuer (name matches Fund|Trust|Income|BDC|Capital Corp, or a buyer is a Portfolio Manager/Trustee) vs operating company" },
+      { "id": "G7", "split": "SPY above its 50-session average at the decision vs below" },
+      { "id": "G8", "split": "disclosure more than 7 days after the last qualifying trade vs within 7 days" },
+      { "id": "G9", "split": "any 10b5-1 plan purchase in the qualifying set vs none" },
+      { "id": "G10", "split": "combined USD in the top third vs the rest" }
+    ]
+  },
+  "timing": [
+    { "id": "T1", "test": "Union: median days to the 180d high, events minus matched controls != 0" },
+    { "id": "T2", "test": "Union: share of 180d highs set in the last 30 days of the window, events minus controls != 0" }
+  ],
+  "clocks": [
+    { "id": "K1", "test": "Union: mean (Clock 1 hindsight 180d return - Clock 2 public 180d gross return) for the same events != 0" }
+  ],
+  "strategies": {
+    "rule": "Fixed rules, frozen now. Entry at the official open of the first session after disclosure + 60 s (09:28 MOO cut-off); liquidity-tier costs per side; exits never chosen from the observed peak. Evaluated on design, then confirm, then extension (90d only).",
+    "list": [
+      { "id": "S1", "rule": "every union cluster, hold 180 calendar days" },
+      { "id": "S2", "rule": "Cluster B or C only, hold 180 calendar days" },
+      { "id": "S3", "rule": "every union cluster, hold 90 calendar days" },
+      { "id": "S4", "rule": "every union cluster, limit sell at +20% (filled only if high >= target x 1.005; gap above fills at the open), else exit at the 180-day close" },
+      { "id": "S5", "rule": "union clusters in the top third of USD / dollar volume (tercile cut-offs from the design period only), hold 180 days" },
+      { "id": "S6", "rule": "DISCOVERED: the pre-registered subgroup (G1-G10, either side) with the highest design-period mean 180d excess vs controls with n >= 20 events, frozen after design and tested once on confirm" }
+    ],
+    "pass": "A rule passes only if confirm-period mean net excess vs matched controls AND vs SPY are both > 0, the issuer-clustered 90% interval excludes 0 vs controls, and at least 2 of the confirm cohort months are positive. Otherwise REJECTED or INSUFFICIENT DATA (< 20 confirm events)."
+  },
+  "multipleTesting": "Benjamini-Hochberg over every p-value in this file (q < 0.10), and separately reported together with deep studies 2-4 (1,494 earlier tests)."
+}

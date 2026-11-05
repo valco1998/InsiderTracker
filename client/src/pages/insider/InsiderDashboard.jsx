@@ -11,6 +11,7 @@ import AccountDrawer from "./components/AccountDrawer";
 import { OverviewView, TransactionsView, CompaniesView, AnalyticsView } from "./views/Views";
 import CompanyView from "./views/CompanyView";
 import BacktestPage from "./backtest/BacktestPage";
+import OwnerProfilePage from "./owner/OwnerProfilePage";
 import SignInPage from "./auth/SignInPage";
 import useAuth from "../../hooks/useAuth";
 import { useTheme } from "./theme";
@@ -123,6 +124,11 @@ function CompanyRoute() {
   return <CompanyView key={ticker} />;
 }
 
+function OwnerRoute() {
+  const { cik = "" } = useParams();
+  return <OwnerProfilePage key={cik} />;
+}
+
 export default function InsiderDashboard() {
   return (
     <InsiderProvider>
@@ -137,6 +143,7 @@ export default function InsiderDashboard() {
             <Route path="company/:ticker" element={<CompanyRoute />} />
             <Route path="analytics" element={<AnalyticsView />} />
             <Route path="backtesting" element={<BacktestPage />} />
+            <Route path="owner/:cik" element={<OwnerRoute />} />
             <Route path="sign-in" element={<SignInPage />} />
             <Route path="*" element={<Navigate to="/insider" replace />} />
           </Routes>

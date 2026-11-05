@@ -275,6 +275,72 @@ export function createBacktestPriceService({
     return out;
   }
 
+  // ---- Daily SIP OHLCV bars (monthly per-buyer study: opens, highs, lows, closes) ----
+  // Separate cache (.cache/prices/alpaca-daily-ohlc-{split,raw}/SYMBOL.json) — the closes-only
+  // cache above and the research caches are never touched. Same rules as getDailyCloses:
+  // refreshed when it does not reach the latest closed session; null = could not load.
+  // → { SYMBOL: Map(date → { o, h, l, c, v }) | null }
+  const ohlcDirOf = (adj) => path.join(path.dirname(entriesFile), `alpaca-daily-ohlc-${adj}`);
+  const ohlcMem = new Map();
+  const ohlcFile = (sym, adj) => path.join(ohlcDirOf(adj), `${sym.replace(/[^A-Z0-9.]/g, "_")}.json`);
+  const readOhlc = (sym, adj) => {
+    const mk = `${adj}|${sym}`;
+    if (ohlcMem.has(mk)) return ohlcMem.get(mk);
+    try {
+      const j = JSON.parse(fs.readFileSync(ohlcFile(sym, adj), "utf8"));
+      const rec = { from: j.from, through: j.through, unsupported: !!j.unsupported, bars: new Map(Object.entries(j.bars || {}).map(([d, b]) => [d, { o: b[0], h: b[1], l: b[2], c: b[3], v: b[4] }])) };
+      ohlcMem.set(mk, rec);
+      return rec;
+    } catch { return null; }
+  };
+  const writeOhlc = (sym, rec, adj) => {
+    ohlcMem.set(`${adj}|${sym}`, rec);
+    try {
+      fs.mkdirSync(ohlcDirOf(adj), { recursive: true });
+      const f = ohlcFile(sym, adj);
+      const bars = Object.fromEntries([...rec.bars].sort((a, b) => a[0].localeCompare(b[0])).map(([d, b]) => [d, [b.o, b.h, b.l, b.c, b.v]]));
+      fs.writeFileSync(`${f}.tmp`, JSON.stringify({ symbol: sym, from: rec.from, through: rec.through, unsupported: !!rec.unsupported, source: `alpaca_sip_daily_ohlc_${adj}`, bars }));
+      fs.renameSync(`${f}.tmp`, f);
+    } catch (err) { log.warn(`[BACKTEST_OHLC_CACHE] write failed: ${String(err?.message || err).slice(0, 120)}`); }
+  };
+  async function getDailyBars(symbols, { from, adjustment = "split", through: wanted = null } = {}) {
+    const adj = adjustment === "raw" ? "raw" : "split";
+    const syms = [...new Set(symbols.map((s) => String(s || "").toUpperCase()).filter((s) => /^[A-Z][A-Z0-9.]{0,9}$/.test(s)))];
+    const through = wanted && wanted < latestClosed() ? wanted : latestClosed();
+    const out = {}, stale = [];
+    for (const s of syms) {
+      const c = readOhlc(s, adj);
+      if (c && c.from <= from && c.through >= through) out[s] = c.unsupported ? null : c.bars; else stale.push(s);
+    }
+    const client = stale.length ? getAlpaca() : null;
+    if (!client) { for (const s of stale) { const c = readOhlc(s, adj); out[s] = c && !c.unsupported ? c.bars : null; } return out; }
+    const endIso = new Date(Math.min(Date.parse(`${through}T23:59:59Z`), now() - SIP_DELAY_MS)).toISOString();
+    for (let i = 0; i < stale.length; i += 100) {
+      const chunk = stale.slice(i, i + 100);
+      const got = Object.fromEntries(chunk.map((s) => [s, new Map()]));
+      let token = null, ok = true;
+      const invalid = new Set();
+      try {
+        do {
+          const r = await withoutInvalidSymbols(chunk.filter((x) => !invalid.has(x)), (ss) => client.barsMultiPage(ss, { start: `${from}T00:00:00Z`, end: endIso, adjustment: adj, pageToken: token, priority: true }), invalid);
+          for (const [s, bars] of Object.entries(r?.bars || {})) for (const b of bars || []) if (b?.o > 0 && b?.c > 0 && got[s]) got[s].set(etParts(b.t).date, { o: b.o, h: b.h, l: b.l, c: b.c, v: b.v });
+          token = r?.next || null;
+        } while (token);
+      } catch (err) {
+        ok = false;
+        if (err instanceof AlpacaAuthError) alpacaDisabled = "auth_failed";
+        log.warn(`[ALPACA_DAILY_OHLC] symbols=${chunk.length} error=${String(err?.message || err).slice(0, 120)}`);
+      }
+      for (const s of chunk) {
+        if (invalid.has(s)) { writeOhlc(s, { from, through, unsupported: true, bars: new Map() }, adj); out[s] = null; continue; }
+        if (!ok) { const c = readOhlc(s, adj); out[s] = c && !c.unsupported ? c.bars : null; continue; }
+        writeOhlc(s, { from, through, bars: got[s] }, adj);
+        out[s] = got[s].size ? got[s] : null; // an empty series is "no price data", never zeros
+      }
+    }
+    return out;
+  }
+
   // Latest available price per symbol (IEX last trade on Basic), cached latestTtlMs.
   // Alpaca rejects a WHOLE multi-symbol request when one symbol is invalid (HTTP 400
   // "invalid symbol: X"). Drop the offending symbol (reported as unsupported) and retry the
@@ -393,7 +459,7 @@ export function createBacktestPriceService({
   const pricingStats = () => ({ queued: pq.size, inFlight: pActive, done: pStats.done, failed: pStats.failed });
 
   return {
-    getEntries, getEntryAt, getLatest, getSplitFactor, getDailyCloses, enqueueEntries, enqueueEntryAt, pricingStats, flushEntries,
+    getEntries, getEntryAt, getLatest, getSplitFactor, getDailyCloses, getDailyBars, enqueueEntries, enqueueEntryAt, pricingStats, flushEntries,
     stats: () => ({ alpaca: alpaca ? alpaca.stats() : null, alpacaDisabled, latestCached: latestCache.size, tiingo: tiingo?.stats?.() || null }),
   };
 }
