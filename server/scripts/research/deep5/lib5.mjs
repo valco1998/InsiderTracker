@@ -53,10 +53,11 @@ export function loadNames() {
 // ---------------- row eligibility (only information inside the filing + the trade-date bar) ----------------
 export const SPLIT_FACTORS = [1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30, 35, 40, 50, 60, 75, 80, 100, 150, 200, 250, 300, 500, 1000];
 export const OFFERING_RE = /(underwrit|public offering|private placement|registered direct|subscription agreement|securities purchase agreement|rights offering|directed share|initial public offering|\bIPO\b|concurrent (private|offering)|\bPIPE\b|at-the-market|purchase agreement with the (company|issuer)|from the (company|issuer) in)/i;
-export function rowEligibility(r, bars) {
+// storeStart / barsFrom default to the deep5 values (deep6 passes its own; deep5 behaviour is unchanged)
+export function rowEligibility(r, bars, { storeStart = STORE_START, barsFrom = "2025-10-01" } = {}) {
   if (r.code !== "P") return { ok: false, reason: "not_code_P" };
   if (!r.tradeDate) return { ok: false, reason: "no_trade_date" };
-  if (r.tradeDate < STORE_START) return { ok: false, reason: "trade_before_sec_coverage" };
+  if (r.tradeDate < storeStart) return { ok: false, reason: "trade_before_sec_coverage" };
   if (r.amend === "amends") return { ok: false, reason: "4A_rereport_of_held_original" };
   if (r.priceCheck === "anomaly") return { ok: false, reason: "price_anomaly_flag" };
   if (!(r.price > 0) || !(r.shares > 0) || !(r.value > 0)) return { ok: false, reason: "no_price_or_value" };
@@ -66,7 +67,7 @@ export function rowEligibility(r, bars) {
   const s = bars.get(symOf(r.ticker));
   if (s && s.arr.length) {
     if (r.tradeDate < s.arr[0].d) return { ok: false, reason: "trade_before_symbol_listed" };
-    if (s.arr[0].d > "2025-10-01" && (s.arr[4]?.d ?? "9999") >= r.tradeDate) return { ok: false, reason: "trade_within_5_sessions_of_listing" }; // IPO allocations / concurrent placements
+    if (s.arr[0].d > barsFrom && (s.arr[4]?.d ?? "9999") >= r.tradeDate) return { ok: false, reason: "trade_within_5_sessions_of_listing" }; // IPO allocations / concurrent placements
     const i = s.idx.get(r.tradeDate);
     if (i == null) flags.push("no_bar_on_trade_date");
     else {

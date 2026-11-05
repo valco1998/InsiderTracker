@@ -1,0 +1,30 @@
+{
+  "study": "deep6 — 12-month insider-cluster 180-day study (Nov 2025 – Oct 2026), replication of deep5 on unseen data",
+  "writtenBefore": "any outcome for a cluster disclosed before 2025-12-01 was computed by any study. Inputs at this point: deep6 coverage counts only.",
+  "data": {
+    "sec": "Form 4 history store 2025-11-03 .. 2026-11-02, rebuilt into .cache/research/deep6/sec-rows.json after the Dec 24-31 backfill and the 503 retries",
+    "prices": ".cache/research/deep6/daily-bars-ext.json (Alpaca SIP daily, split-adjusted, 2025-07-28 .. 2026-11-04). The original daily-bars.json is not used or changed."
+  },
+  "rules": "deep5 rules unchanged (lib5.mjs: eligibility, owner linking, clusters A/B/C, both clocks, 30-day cooldown, union, 180-day outcomes, liquidity-tier costs, 5 point-in-time matched controls). Only change: SEC coverage starts 2025-11-03 instead of 2025-12-01, so trades from 2025-11-03 can form clusters. Last complete bar for 180-day windows: 2026-11-03 (unchanged).",
+  "periods": {
+    "test (unseen)": "Clock 2 union events disclosed before 2025-12-01 (entries Nov 2025 / 1 Dec 2025). Evaluated ONCE, after this file's hash is logged and the build is frozen.",
+    "seen": "events disclosed from 2025-12-01 (outcomes already seen in deep5 for Dec-May; Jun-Nov prices seen in other studies)",
+    "left edge": "clusters whose window includes trades before 2025-11-10 are flagged (filings before 2025-11-03 are unknown); reported with and without them"
+  },
+  "test": [
+    { "id": "N1", "test": "Nov union: mean 180d net minus matched controls", "deep5": "-1.3 pts, n.s.", "replicates if": "90% interval includes 0 or is entirely below 0 (no edge)" },
+    { "id": "N2", "test": "Nov union: mean 180d net minus SPY", "deep5": "-6.6 pts", "replicates if": "estimate < 0" },
+    { "id": "N3", "test": "Nov union: max 180d gain (daily high) minus matched controls", "deep5": "-12.7 pts", "replicates if": "estimate < 0" },
+    { "id": "N4", "test": "Nov union: +20% touch share minus matched controls", "deep5": "-10 pts", "replicates if": "estimate <= 0" },
+    { "id": "N5", "test": "Nov union: hindsight (Clock 1) minus public (Clock 2) 180d return, same events", "deep5": "+4.4 pts, q .02", "replicates if": "estimate > 0 and 90% interval excludes 0" },
+    { "id": "N6", "test": "Nov union: frozen deep5 strategy S1 (every union cluster, 180-day hold) net minus controls", "deep5": "REJECTED", "replicates if": "not (estimate > 0 with 90% interval excluding 0)" }
+  ],
+  "pooled": "Descriptive 12-month tables (A/B/C/union: peaks, days to peak, touch rates, 180d returns, SPY, controls, monthly cohorts) over every full-180-day event, Nov 2025 – May 2026, labelled 'mostly previously seen'.",
+  "sensitivity": [
+    "mirrored transactions (same date, shares, price) reported by two owners linked as one owner regardless of D/I",
+    "rows with a reported price > $100,000 excluded (REEMF-type parse errors)",
+    "excluding left-edge clusters"
+  ],
+  "stats": "issuer-clustered bootstrap (2,000 reps, seed 11), 90% intervals; BH over N1-N6",
+  "answer": "Deep 5's conclusion (no edge vs matched stocks; below SPY; the disclosure gap is the only robust effect) is CONFIRMED on unseen data if N1, N2, N5 and N6 replicate; otherwise it is reported as NOT REPLICATED, with the numbers."
+}

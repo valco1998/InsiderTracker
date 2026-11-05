@@ -15,7 +15,7 @@ const SERVER = path.join(here, "..", "..", "..");
 const OUT = path.join(SERVER, ".cache", "research", "deep6");
 fs.mkdirSync(OUT, { recursive: true });
 const PERIOD = { from: "2025-11-01", to: "2026-10-31" };
-const LOOKBACK_DAYS = 100; // pre-entry features (prior 60-calendar-day return, 20-session dollar volume) + margin
+const LOOKBACK_DAYS = 75; // deep5 featuresBefore: close at entry-61d, 40-session vol; SPY 50-session average (~72 calendar days)
 const HORIZON = 180;
 const MIN_USD = 250000;
 const DEF = { A: { W: 1, N: 2 }, B: { W: 2, N: 3 }, C: { W: 7, N: 5 } };
