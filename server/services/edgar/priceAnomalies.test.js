@@ -159,3 +159,56 @@ test("duplicate group with ONE anomalous filing → whole group anomalous, exclu
   assert.equal(totals.anomalyValueExcluded, 11711075.6);
   assert.equal(totals.saleValue, Math.round(142023 * 44.0266 * 100) / 100, "only the ok group is summed");
 });
+
+// ── Aggregate amounts and unit mismatches (Nov 2026 data-quality audit) ──────
+// SYNTHETIC rows whose numbers and footnote text are copied from parsed SEC records
+// (accessions in the test names); the raw filings are not stored as fixtures here.
+test("SEC 0001140361-26-010773 REEMF: aggregate typed into the price field (100,149,060 sh @ $24,035,774.40) → anomaly, values preserved", () => {
+  const row = syn({ shares: 100149060, price: 24035774.4, ownership: "D", footnotes: [{ id: "F1", text: "The Common Shares are held of record by Synchron, a wholly-owned subsidiary of General Atomic Technologies Corporation." }] });
+  const [out] = annotatePriceChecks([row]);
+  assert.equal(out.priceCheck.status, "anomaly");
+  assert.ok(out.priceCheck.reasons.some((r) => r.rule === "implausible_per_share_price"));
+  assert.equal(out.price, 24035774.4, "original reported price is kept");
+  assert.equal(out.shares, 100149060, "original share count is kept");
+  assert.equal(isAlertEligible(out).eligible, false);
+});
+
+test("SEC REBN / MYNZ / LLY / IHT patterns: ≥ $10,000 per share with ≥ 1,000 shares → anomaly (buys and sales)", () => {
+  assert.equal(check(syn({ shares: 131387, price: 180000 })).status, "anomaly");        // REBN 0001213900-26-086304
+  assert.equal(check(syn({ shares: 643850, price: 402000 })).status, "anomaly");        // MYNZ 0002105585-26-000003
+  assert.equal(check(syn({ code: "S", shares: 55908, price: 1031414 })).status, "anomaly"); // LLY 0000316011-25-000073
+  assert.equal(check(syn({ code: "S", shares: 12500, price: 18363.75 })).status, "anomaly"); // IHT 0001493152-25-021328
+});
+
+test("high per-share price with a small share count stays ok (BRK.A-like), and the boundaries hold", () => {
+  assert.equal(check(syn({ shares: 12, price: 725000.5 })).status, "ok");
+  assert.equal(check(syn({ shares: 999, price: 725000 })).status, "ok", "below 1,000 shares");
+  assert.equal(check(syn({ shares: 50000, price: 9999.99 })).status, "ok", "below $10,000");
+});
+
+test("SEC 0001104659-26-112844 SLBT: footnote gives an aggregate price equal to the reported price → anomaly", () => {
+  const p = check(syn({ shares: 4545306, price: 2272653, footnotes: [{ id: "F1", text: "On September 29, 2026, SL Link Co., Ltd. sold and transferred 4,545,306 Ordinary Shares to Ching-Dong Wang for an aggregate purchase price of US$2,272,653 (the \"Share Transfer\")." }] }));
+  assert.equal(p.status, "anomaly");
+  assert.ok(p.reasons.some((r) => r.rule === "price_stated_as_aggregate"));
+});
+
+test("SEC 0000905148-26-003232 FINS: 'This price reflects the aggregate principal amount' → anomaly", () => {
+  const p = check(syn({ shares: 40000000, price: 40000000, securityTitle: "5.364% Series C Senior Unsecured Notes due July 8, 2030", footnotes: [{ id: "F1", text: "This price reflects the aggregate principal amount of the 5.364% Series C Senior Unsecured Notes due July 8, 2030 purchased." }] }));
+  assert.equal(p.status, "anomaly");
+  assert.ok(p.reasons.some((r) => r.rule === "price_stated_as_aggregate"));
+});
+
+test("SEC 0001493152-26-005410 PMN-like: 'aggregate purchase price of $12.13 per …' is a per-unit price → ok", () => {
+  assert.equal(check(syn({ shares: 700741, price: 12.13, footnotes: [{ id: "F1", text: "The Warrants were purchased together with the Common Shares reported herein for an aggregate purchase price of $12.13 per share and accompanying warrant." }] })).status, "ok");
+  // An aggregate amount that differs from the reported price is not evidence either.
+  assert.equal(check(syn({ shares: 1000, price: 25, footnotes: [{ id: "F1", text: "for a total purchase price of $25,000" }] })).status, "ok");
+});
+
+test("SEC 0001731122-26-000579 SVRE: price per ADS × ordinary-share count (1 ADS = 43,200 shares) → anomaly; ADS-denominated rows ok", () => {
+  const fn = [{ id: "F1", text: "The price reported is the price per American Depositary Share (\"ADS\") acquired in an open-market transaction on The Nasdaq Stock Market LLC. Each ADS represents 43,200 ordinary shares of the Issuer pursuant to the ADS ratio effective February 25, 2026." }];
+  const p = check(syn({ shares: 2501582400, price: 3.45, securityTitle: "Ordinary Shares", footnotes: fn }));
+  assert.equal(p.status, "anomaly");
+  assert.ok(p.reasons.some((r) => r.rule === "ads_price_vs_ordinary_shares" && /43,200/.test(r.detail)));
+  assert.equal(check(syn({ shares: 57907, price: 3.45, securityTitle: "American Depositary Shares", footnotes: fn })).status, "ok", "the ADS itself");
+  assert.equal(check(syn({ shares: 57907, price: 3.45, securityTitle: "Ordinary Shares", footnotes: fn })).status, "ok", "count not a multiple of the ratio → counted in ADS");
+});

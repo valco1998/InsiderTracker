@@ -175,3 +175,104 @@ test("monthly coverage: complete / partial / missing / SEC-closed days, never mi
   assert.deepEqual([nov.businessDays, nov.complete, nov.source.live, nov.missing], [1, 1, 1, 0], "Nov 3 = today is excluded; Nov 2 from live");
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// ── SEC-closed days answered with 403, removed filings (404), bounded throttling ──
+// Fake EDGAR: per-URL scripted answers (queue of responses; last one repeats). No network.
+function scriptedClient(script) {
+  const calls = [];
+  const err = (status, extra = {}) => Object.assign(new Error(`HTTP ${status}`), { status, ...extra });
+  const th403 = () => err(403, { throttled: true, retryAfterMs: 600_000 }); // what edgarClient throws for a 403
+  return {
+    calls, err, th403,
+    async getText(url) {
+      calls.push(url);
+      const key = Object.keys(script).find((k) => url.includes(k));
+      if (!key) throw err(404);
+      const q = script[key]; const r = q.length > 1 ? q.shift() : q[0];
+      if (r instanceof Error) throw r;
+      return typeof r === "function" ? r() : r;
+    },
+  };
+}
+const idx = (...accs) => ["Form Type   Company Name   CIK   Date Filed   File Name", ...accs.map(line)].join("\n");
+const listing = (...days) => JSON.stringify({ directory: { item: days.map((d) => ({ name: `form.${d}.idx` })) } });
+const filing = (acc) => () => fs.readFileSync(path.join(FIX, `${acc}.txt`), "utf8");
+
+test("SEC-closed day answered with 403 (2025-12-24 case): absent from the quarter listing → closed day, no throttle wait, no hang", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-"));
+  const c = scriptedClient({});
+  const client = scriptedClient({ "form.20261029.idx": [c.th403()], "QTR4/index.json": [listing("20261028", "20261030")], "form.20261030.idx": [idx(A)], [`${A}.txt`]: [filing(A)] });
+  const sleeps = [];
+  const r = await createForm4Backfill({ storeDir: dir, client, log: quiet, now: () => NOW, sleep: async (ms) => sleeps.push(ms) }).run({ from: "2026-10-29", to: "2026-10-30" });
+  assert.equal(r.state, "complete");
+  assert.deepEqual(sleeps, [], "never waits out a 403 for a day SEC does not list");
+  const s = readShard(dir, "2026-10-29");
+  assert.equal(s.noIndex, true); assert.equal(s.complete, true); assert.equal(s.noIndexReason, "absent_from_quarter_listing_http_403");
+  assert.equal(client.calls.filter((u) => u.includes("index.json")).length, 1, "one listing request");
+  assert.equal(readShard(dir, "2026-10-30").complete, true);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("genuine 403 throttle on a LISTED day: waits (backoff preserved) and then succeeds", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-"));
+  const c = scriptedClient({});
+  const client = scriptedClient({ "form.20261030.idx": [c.th403(), idx(A)], "QTR4/index.json": [listing("20261030")], [`${A}.txt`]: [filing(A)] });
+  const sleeps = [];
+  const r = await createForm4Backfill({ storeDir: dir, client, log: quiet, now: () => NOW, sleep: async (ms) => sleeps.push(ms) }).run({ from: "2026-10-30", to: "2026-10-30" });
+  assert.equal(r.state, "complete");
+  assert.deepEqual(sleeps, [600_000]);
+  assert.equal(readShard(dir, "2026-10-30").complete, true);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("recent day (listing not yet trustworthy) + persistent 403: bounded waits, run stops 'throttled:<day>', day NOT marked closed", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-"));
+  const c = scriptedClient({});
+  const client = scriptedClient({ "form.20261030.idx": [c.th403()] });
+  const sleeps = [];
+  const now = () => Date.parse("2026-10-31T15:00:00Z"); // day = yesterday
+  const r = await createForm4Backfill({ storeDir: dir, client, log: quiet, now, sleep: async (ms) => sleeps.push(ms), maxThrottleWaits: 3 }).run({ from: "2026-10-30", to: "2026-10-30" });
+  assert.equal(r.state, "stopped");
+  assert.equal(r.stoppedReason, "throttled:2026-10-30");
+  assert.equal(sleeps.length, 3, "bounded, not infinite");
+  assert.ok(!client.calls.some((u) => u.includes("index.json")), "listing not consulted for a recent day");
+  assert.equal(readShard(dir, "2026-10-30"), null);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("filing throttled beyond the bound: run stops 'throttled' without consuming an attempt; resumes later", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-"));
+  const c = scriptedClient({});
+  const script = { "form.20261030.idx": [idx(A, B)], [`${A}.txt`]: [filing(A)], [`${B}.txt`]: [c.th403()] };
+  const client = scriptedClient(script);
+  const bf = createForm4Backfill({ storeDir: dir, client, log: quiet, now: () => NOW, sleep: async () => {}, maxThrottleWaits: 2 });
+  const r1 = await bf.run({ from: "2026-10-30", to: "2026-10-30" });
+  assert.equal(r1.state, "stopped"); assert.equal(r1.stoppedReason, "throttled");
+  const s1 = readShard(dir, "2026-10-30");
+  assert.equal(s1.complete, false); assert.equal(s1.failed[B], undefined, "throttling never counts as a failed attempt");
+  script[`${B}.txt`] = [filing(B)];
+  const r2 = await bf.run({ from: "2026-10-30", to: "2026-10-30" });
+  assert.equal(r2.state, "complete");
+  assert.deepEqual(Object.keys(readShard(dir, "2026-10-30").records).sort(), [A, B]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("filing removed from EDGAR (404) → permanent 'removed_from_edgar', day completes; transient 503 → retried on the next run", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bf-"));
+  const c = scriptedClient({});
+  const script = { "form.20261030.idx": [idx(A, B, C)], [`${A}.txt`]: [filing(A)], [`${B}.txt`]: [c.err(404)], [`${C}.txt`]: [c.err(503)] };
+  const client = scriptedClient(script);
+  const bf = createForm4Backfill({ storeDir: dir, client, log: quiet, now: () => NOW, sleep: async () => {} });
+  await bf.run({ from: "2026-10-30", to: "2026-10-30" });
+  let s = readShard(dir, "2026-10-30");
+  assert.equal(s.failed[B].permanent, true); assert.equal(s.failed[B].reason, "removed_from_edgar"); assert.equal(s.failed[B].attempts, 1);
+  assert.equal(s.failed[C].permanent, false, "503 is transient");
+  assert.equal(s.complete, false, "a transient failure keeps the day open");
+  script[`${C}.txt`] = [filing(C)];
+  const r2 = await bf.run({ from: "2026-10-30", to: "2026-10-30" });
+  s = readShard(dir, "2026-10-30");
+  assert.equal(r2.state, "complete"); assert.equal(s.complete, true);
+  assert.deepEqual(Object.keys(s.records).sort(), [A, C]);
+  assert.equal(client.calls.filter((u) => u.endsWith(`${B}.txt`)).length, 1, "a removed filing is never requested again");
+  fs.rmSync(dir, { recursive: true, force: true });
+});

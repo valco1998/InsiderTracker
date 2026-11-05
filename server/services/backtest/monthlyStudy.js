@@ -143,6 +143,7 @@ export function securityMatch(r) {
 // shares × price is meaningless and the stated aggregate is the value. Requires the
 // footnote amount to equal the reported price (±0.5 %) — never inferred from size alone.
 const AGGREGATE_RE = /aggregate (?:purchase )?(?:price|consideration)[^$\d]{0,30}(?:US)?\$\s?([\d,]+(?:\.\d+)?)/i;
+const AGGREGATE_PRICE_RULES = new Set(["price_stated_as_aggregate", "implausible_per_share_price"]); // priceAnomalies.js rules
 export function aggregatePriceStatement(r) {
   if (!(r.price > 0) || !(r.shares > 1)) return null;
   for (const f of r.footnotes || []) {
@@ -156,7 +157,11 @@ export function aggregatePriceStatement(r) {
 
 function usdValue(r, knownPeers, fx) {
   if (r.value == null || !(r.value > 0)) return { usd: null, reason: "missing_price", currency: null };
-  const intrinsic = (r.priceCheck?.reasons || []).filter((x) => x.rule !== "peer_price_outlier" && x.rule !== "currency_unverified");
+  // A stated aggregate equal to the reported price is the reliable value (below), so the price-check
+  // rules that only say "this price is an aggregate" do not exclude such a row here.
+  const statedAgg = aggregatePriceStatement(r);
+  const intrinsic = (r.priceCheck?.reasons || []).filter((x) => x.rule !== "peer_price_outlier" && x.rule !== "currency_unverified"
+    && !(statedAgg && AGGREGATE_PRICE_RULES.has(x.rule)));
   if (intrinsic.length) return { usd: null, reason: "price_anomaly", currency: null };
   const cur = detectCurrency(r);
   if (cur.code == null) return { usd: null, reason: "currency_unknown", currency: cur };

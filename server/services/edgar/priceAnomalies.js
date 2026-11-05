@@ -6,8 +6,9 @@
 //
 // Design principle: flag only GROSS, evidence-backed inconsistencies. A large
 // value or a high share price is never an anomaly by itself (e.g. BRK.A trades
-// far above $100,000/share). Every rule compares the price against something
-// else in the SEC data itself — no market-data API, no estimation.
+// far above $100,000/share); implausible_per_share_price needs BOTH a ≥ $10,000
+// price and ≥ 1,000 shares. Every rule uses only the SEC filing data itself —
+// no market-data API, no estimation.
 //
 // Rules (any one → anomaly):
 //   unparseable_value   the filed price/shares string is not a number
@@ -19,6 +20,22 @@
 //   peer_price_outlier  ≥ 2 other reported prices for the same issuer + security
 //                       within ±7 days, and this price differs from their
 //                       median by ≥ 20×
+//   price_stated_as_aggregate  a footnote says the reported price IS the aggregate
+//                       / total amount ("This price reflects the aggregate
+//                       principal amount…"), or states an aggregate/total price
+//                       equal to the reported price (not "… $X per share")
+//   implausible_per_share_price  price ≥ $10,000 per share AND ≥ 1,000 shares,
+//                       i.e. ≥ $10M at a per-share price only BRK.A-like stocks
+//                       reach — whose insider trades are a handful of shares.
+//                       In the Nov 2025 – Nov 2026 store every such row was an
+//                       aggregate amount typed into the price field (REEMF, LLY,
+//                       IHT, STNG, PSX…). A high price with a small share count
+//                       stays ok.
+//   ads_price_vs_ordinary_shares  a footnote says the price is per ADS/ADR and
+//                       gives the ratio "each ADS represents N ordinary shares"
+//                       (N ≥ 2), the security is not the ADS itself and the share
+//                       count is a multiple of N: price per ADS × ordinary-share
+//                       count overstates the value N× (SVRE, N = 43,200)
 //
 // Original SEC-reported values are never modified: rows keep `price`, `value`
 // and `reported` exactly as parsed; the verdict is added as `priceCheck`.
@@ -71,6 +88,43 @@ export function statedRangeMismatch(t) {
   return null;
 }
 
+// "aggregate purchase price of US$2,272,653" — group 1 = amount, group 2 = what follows (to reject "… $12.13 per share").
+const AGG_AMOUNT_RE = /(?:aggregate|total)\s+(?:purchase\s+|sale\s+)?(?:price|principal\s+amount|consideration|purchase\s+price)\s+(?:of\s+)?(?:US|U\.S\.\s*)?\$\s*([\d,]+(?:\.\d+)?)(\s*(?:per\b|\/)?)/gi;
+const AGG_STATEMENT_RE = /\b(?:price|amount)\s+(?:reported\s+)?(?:reflects|represents|is)\s+the\s+(?:aggregate|total)\b/i;
+export function priceStatedAsAggregate(t) {
+  if (t.price == null || !(t.shares > 1)) return null;
+  for (const f of t.footnotes || []) {
+    if (AGG_STATEMENT_RE.test(f.text)) return `footnote ${f.id} states the reported price is an aggregate/total amount, not a per-share price`;
+    for (const m of f.text.matchAll(AGG_AMOUNT_RE)) {
+      const v = Number(m[1].replace(/,/g, ""));
+      if (m[2].trim()) continue; // "$X per share" is a per-unit price
+      if (v > 0 && Math.abs(v - t.price) / v < 0.01) return `footnote ${f.id} gives an aggregate price of $${m[1]} — the same amount as the reported per-share price`;
+    }
+  }
+  return null;
+}
+
+const IMPLAUSIBLE_PRICE = 10_000;
+const IMPLAUSIBLE_MIN_SHARES = 1_000;
+export function implausiblePerSharePrice(t) {
+  if (t.price == null || t.shares == null) return null;
+  if (!(t.price >= IMPLAUSIBLE_PRICE && t.shares >= IMPLAUSIBLE_MIN_SHARES)) return null;
+  return `$${t.reported?.pricePerShare ?? t.price} per share for ${t.reported?.shares ?? t.shares} shares — likely the aggregate amount entered in the price field`;
+}
+
+const ADS_PRICE_RE = /price[^.]{0,80}per\s+(?:american\s+depositary\s+(?:share|receipt)|ads|adr)\b/i;
+const ADS_RATIO_RE = /each\s+(?:american\s+depositary\s+(?:share|receipt)|ads|adr)\b[^.]{0,40}?represents\s+([\d,]+)\s+(?:ordinary|common|class)/i;
+export function adsPriceVsOrdinaryShares(t) {
+  if (t.price == null || !(t.shares > 0)) return null;
+  if (/american\s+depositary|\bads\b|\badr\b/i.test(t.securityTitle || "")) return null;
+  const text = (t.footnotes || []).map((f) => f.text).join(" ");
+  const r = ADS_RATIO_RE.exec(text);
+  if (!r || !ADS_PRICE_RE.test(text)) return null;
+  const n = Number(r[1].replace(/,/g, ""));
+  if (!(n >= 2) || t.shares % n !== 0) return null;
+  return `price $${t.price} is per ADS (1 ADS = ${n.toLocaleString("en-US")} ordinary shares) but the share count ${t.shares.toLocaleString("en-US")} is in ordinary shares — value overstated ${n.toLocaleString("en-US")}× (≈ ${(t.shares / n).toLocaleString("en-US")} ADS)`;
+}
+
 // Peer-group key: one security of one issuer.
 export const peerKey = (r) => (r.issuerCik ? `${Number(r.issuerCik)}|${normalize(r.securityTitle)}` : null);
 
@@ -105,6 +159,12 @@ export function annotatePriceChecks(rows) {
     if (echo) reasons.push({ rule: "price_echoes_shares", detail: echo });
     const range = statedRangeMismatch(t);
     if (range) reasons.push({ rule: "outside_stated_range", detail: range });
+    const aggregate = priceStatedAsAggregate(t);
+    if (aggregate) reasons.push({ rule: "price_stated_as_aggregate", detail: aggregate });
+    const implausible = implausiblePerSharePrice(t);
+    if (implausible) reasons.push({ rule: "implausible_per_share_price", detail: implausible });
+    const ads = adsPriceVsOrdinaryShares(t);
+    if (ads) reasons.push({ rule: "ads_price_vs_ordinary_shares", detail: ads });
     // Form 4 has no currency field: a foreign-currency price without a USD
     // conversion statement cannot be summed in USD (see currency.js).
     const currency = currencyOf(t);

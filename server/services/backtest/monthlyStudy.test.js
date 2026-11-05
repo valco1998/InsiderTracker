@@ -157,3 +157,11 @@ test("security match flags another class / local series / non-common security", 
   assert.ok(securityMatch({ ticker: "XYZ", securityTitle: "Class B Common Stock", tickerSymbols: ["XYZ", "XYZ.A"] }).reasons[0].startsWith("class_B"));
   assert.deepEqual(securityMatch({ ticker: null, securityTitle: "Common Stock" }).reasons, ["no_ticker"]);
 });
+
+test("aggregate typed into the price column WITHOUT an explaining footnote (REEMF-like) is not counted at shares × price", () => {
+  const row = tx({ owners: [O.FUND], date: "2026-10-01", accepted: "2026-10-02 17:00:00", shares: 100_149_060, price: 24_035_774.4 });
+  const r = monthly([row]);
+  assert.equal(r.signals.length, 0);
+  assert.equal(r.examined[0].valueExcludedReason, "price_anomaly");
+  assert.equal(r.examined[0].valueUsd, null, "never counted as $2.4 quadrillion");
+});
